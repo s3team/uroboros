@@ -1,0 +1,11 @@
+ocamlbuild -use-ocamlfind type.native parser.native ail_parser.native \
+                            ail.native visit.native init.native pp_print.native cfg.native ail_utils.native cg.native \
+                            func_slicer.native \
+				disassemble_validator.native \
+                lex_new.native reassemble_symbol_get.native \
+                data_process.native share_lib_helper.native \
+                disassemble_process.native analysis_process.native \
+                plugins/bb_trimmer.native \
+                plugins/bb_counting.native plugins/instr_sandbox.native \
+                plugins/mem_write.native \
+                plugins/func_counting.native plugins/trace_profiling.native -ocamlopt "-inline 20" -ocamlopt -nodynlink
