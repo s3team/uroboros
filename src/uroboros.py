@@ -74,10 +74,10 @@ def process(f, i):
 
         os.system("python post_process_data.py")
 
-        #os.system('echo ".section .eh_frame" >> final_data.s')
-        #os.system('cat eh_frame_split.info >> final_data.s')
-        #os.system('echo ".section .eh_frame_hdr" >> final_data.s')
-        #os.system('cat eh_frame_hdr_split.info >> final_data.s')
+        os.system('echo ".section .eh_frame" >> final_data.s')
+        os.system('cat eh_frame_split.info >> final_data.s')
+        os.system('echo ".section .eh_frame_hdr" >> final_data.s')
+        os.system('cat eh_frame_hdr_split.info >> final_data.s')
 
         os.system('cat final_data.s >> final.s')
 
@@ -216,7 +216,7 @@ note that two basic assumptions and addtional assumption one
 (n-byte alignment) are set by default,
 while assumption two and three need to be configured. For example, setting
 assumption two and three: -a 2 -a 3''')
-    p.add_argument('--version', action='version', version='Uroboros pre-release\n\nWritten by Shuai Wang (szw175@ist.psu.edu)')
+    p.add_argument('--version', action='version', version='Uroboros 0.11')
 
     args = p.parse_args()
     b = args.binary
