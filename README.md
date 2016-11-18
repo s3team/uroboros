@@ -1,3 +1,8 @@
+THE RELEASED VERSION CONTAINS A BUG INTRODUCED DURING THE CODE CLEAN STAGE. WE ARE FIXING THE ISSUE. IF YOU’D LIKE TO USE THE TOOL BEFORE WE PATCH THE CODE, PLEASE DOWNLOAD AN EARLY VERSION AT https://github.com/s3team/uroboros/raw/master/uroboros.tar.gz.
+
+
+
+
 Uroboros: Infrastructure for Reassembleable Disassembling and Transformation
 (v 0.1)
 
