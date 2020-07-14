@@ -137,4 +137,6 @@ commands:
     python uroboros.py /data/ail_project/AIL/ctags-5.8/ctags
 
 
-[1] Reassembleable Disassembling. Shuai Wang, Pei Wang, and Dinghao Wu. In Proceedings of the 24rd USENIX Security Symposium (USENIX Security '15), 2015
+[1] Reassembleable Disassembling. Shuai Wang, Pei Wang, and Dinghao Wu. In Proceedings of the 24rd USENIX Security Symposium (USENIX Security '15), 2015.
+
+---
