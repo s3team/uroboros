@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 
 
 
-# keep the imtermediate binary/final.s or not.
+## keep the imtermediate binary/final.s or not.
 k = False
 f_dic = ""
 
