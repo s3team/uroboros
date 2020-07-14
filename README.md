@@ -6,20 +6,20 @@ Uroboros: Infrastructure for Reassembleable Disassembling and Transformation
 Uroboros uses the following utilities:
 (Version numbers indicate the versions that we use in our development.)
 
-  objdump 2.22
-  readelf 2.22
-  awk     3.18
+  objdump 
+  readelf 
+  awk  
 
-Uroboros can be built by the OCaml compiler (version 4.01.0 or later), 
+Uroboros can be built by the OCaml compiler (version 4.05.0 or later), 
 with the following libraries:
 
-  deriving 0.7
-  ocamlfind 1.5.5
-  parmap 1.0-rc6
-  batteries 2.3.1
-  ocamlbuild 4.01.0
+  deriving 
+  ocamlfind 
+  parmap 
+  batteries 
+  ocamlbuild 
 
-We recommend to use the utilities distributed with 64-bit Ubuntu 12.0.4. 
+We recommend to use the utilities distributed with 64-bit Ubuntu 18.0.4 LTS. 
 The OCaml compiler and libraries can be obtained through
 [opam](https://opam.ocaml.org/).
 
