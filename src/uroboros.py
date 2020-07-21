@@ -69,7 +69,9 @@ def process(f, i):
        
         os.system("cp " + f + " func_discover/")
         os.system("python func_discover/func_addr.py func_discover/"+f + " " + str(i))
-      
+       
+        os.system("rm final_data.s")
+        os.system('rm useless_func.info')
         if i > 0:
             os.system("python useless_func_discover.py " + f)
 
@@ -229,16 +231,13 @@ assumption two and three: -a 2 -a 3''')
 
     args = p.parse_args()
     p = os.path.realpath(args.binary)
-   
     b=args.binary
-   
     i = args.iteration
     iter_num = i
     k = (args.keep > 0)
 
 
     f = os.path.basename(b)
-  
     workdir=os.path.dirname(os.path.abspath(__file__))+'/workdir'
     if not os.path.isdir(workdir):os.mkdir(workdir)
     os.chdir(workdir)
@@ -259,21 +258,13 @@ assumption two and three: -a 2 -a 3''')
             if iterate(f, i):
                 os.system('rm *.py')
                 os.system('rm init.native')
-                os.system('rm -r func_discover')
                 print "processing succeeded"
             else:
-                os.system('rm *.py')
-                os.system('rm init.native')
-                os.system('rm -r func_discover')
                 print "exception, processing failed"
         else:
             if process(f, 0):
                 os.system('rm *.py')
                 os.system('rm init.native')
-                os.system('rm -r func_discover')
                 print "processing succeeded"
             else:
-                os.system('rm *.py')
-                os.system('rm init.native')
-                os.system('rm -r func_discover')
                 print "exception, processing failed"
