@@ -47,14 +47,14 @@ disassembling process.
 The disassemble-reassemble process can be iterated for
 multiple times. For example.
 ```
-    python uroboros.py bzip -i 500
+    python uroboros.py bzip -i 1
 ```
 2. -k (keep):
 
 This option will create a folder to store the assembly code and binary
 generated from each iteration.  This is only effective together with -i.
 ```
-    python uroboros.py bzip -i 500 -k
+    python uroboros.py bzip -i 1 -k
 ```
 A subfolder will be created in ./src/workdir folder, with input binary name and
 timestamp. For example:
