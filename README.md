@@ -1,5 +1,4 @@
-# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation
-(v 0.11)
+# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation (v 0.11)
 
 ## Installation
 
@@ -36,21 +35,21 @@ input. To use Uroboros for disassembling:
 ```
     python uroboros.py bzip
 ```
-The disassembled output can be found at current dicrectory, named
+The disassembled output can be found at ./src/workdir dicrectory, named
 **final.s**. Uroboros will also assemble it back into an executable,
 **a.out**.
 
 Python script uroboros.py provides multiple options to manipulate the
 disassembling process.
 
-`1. -i (iteration):`
+1. -i (iteration):
 
 The disassemble-reassemble process can be iterated for
 multiple times. For example.
 ```
     python uroboros.py bzip -i 500
 ```
-`2. -k (keep):`
+2. -k (keep):
 
 This option will create a folder to store the assembly code and binary
 generated from each iteration.  This is only effective together with -i.
@@ -60,16 +59,17 @@ generated from each iteration.  This is only effective together with -i.
 A subfolder will be created in ./src/workdir folder, with input binary name and
 timestamp. For example:
 ```
-    test_fold_bzip_2015-08-31_11:11:50
+    test_fold_bzip_2020-07-24_11:11:50
 ```
-`3. -a (assumption):`
+
+3. -a (assumption):
 
 This option configures the three symbolization assumptions proposed in
 the original Uroboros paper [1]. Note that in the current version, the
 first assumption (**n-byte alignment**) are set by default. The other
 two assumptions can be set by users.
 
-`Assumption two:`
+Assumption two:
 ```
     python uroboros.py bzip -a 2
 ```
@@ -83,7 +83,7 @@ Users may write their own linker script, some examples are given at
 *./src/ld_script* folder.
 
 
-`Assumption three:`
+Assumption three:
 ```
     python uroboros.py bzip -a 3
 ```
@@ -116,7 +116,7 @@ resgiter the "mem_write" tool, three lines of code need to be added as follows:
 ```
 We will provide a better way in our next release.
 
-##Publications
+## Publications
 ```
 @inproceedings {190920,
 author = {Shuai Wang and Pei Wang and Dinghao Wu},
