@@ -10,7 +10,7 @@ Uroboros uses the following utilities:
   awk 4.1.4
 ```
 Now the Uroboros is updated and it can be built by the OCaml compiler (version 4.05.0 or later)   
-with the following libraries. However, the the initial version of Uroboros was released with OCaml 4.01.0 compiler in 2015 and can be obtained through [uroboros ZIP](https://opam.ocaml.org/)).
+with the following libraries:
 ```
   deriving 
   ocamlfind 
@@ -21,7 +21,7 @@ with the following libraries. However, the the initial version of Uroboros was r
 We recommend to use the utilities distributed with 64-bit Ubuntu 18.0.4 LTS. 
 The OCaml compiler and libraries can be obtained through
 [opam](https://opam.ocaml.org/).
-
+(The the initial version of Uroboros was released with OCaml 4.01.0 compiler in 2015 and can be obtained through [uroboros ZIP](https://github.com/s3team/uroboros/blob/master/uroboros-OCaml%20_4.01.0.zip)).)
 ## Build
 
 To build Uroboros, run the command below at the src folder.
