@@ -1,6 +1,5 @@
 import argparse
 import sys, os
-import glob
 
 from argparse import RawTextHelpFormatter
 from argparse import ArgumentParser
@@ -55,21 +54,11 @@ def reassemble():
 
 def process(f, i):
     try:
-        
-        os.chdir('..')
-        os.system('cp *.py workdir')
-        os.system('cp init.native workdir')
-        os.system('cp -r func_discover workdir')
-       
-        os.chdir(workdir)
-        
-      
+        os.system("rm final_*.txt")
+
         # suppose we use this method to obtain function information
-       
-       
         os.system("cp " + f + " func_discover/")
         os.system("python func_discover/func_addr.py func_discover/"+f + " " + str(i))
-       
         os.system("rm final_data.s")
         os.system('rm useless_func.info')
         if i > 0:
@@ -77,8 +66,8 @@ def process(f, i):
 
         os.system('echo \"' + str(i) + '\" > count.txt')
         os.system("strip " + f)
-        os.system('python main_discover.py '+f)
-       
+        os.system("python main_discover.py " + f)
+
         os.system("./init.native " + f)
         if not os.path.isfile("final.s"):
             return False
@@ -142,7 +131,7 @@ def iterate (f, iterations):
 def check (b, f, al):
     if not al:
         al = []
-    
+
     if not os.path.isfile(b):
         print "cannot find input binary"
         return False
@@ -230,23 +219,13 @@ assumption two and three: -a 2 -a 3''')
     p.add_argument('--version', action='version', version='Uroboros 0.11')
 
     args = p.parse_args()
-    p = os.path.realpath(args.binary)
-    b=args.binary
+    b = args.binary
     i = args.iteration
     iter_num = i
     k = (args.keep > 0)
 
 
     f = os.path.basename(b)
-    workdir=os.path.dirname(os.path.abspath(__file__))+'/workdir'
-    if not os.path.isdir(workdir):os.mkdir(workdir)
-    os.chdir(workdir)
-    func_discover=os.path.dirname(os.path.abspath(__file__))+'/func_discover'
-    if os.path.isdir(func_discover):os.system('rm -r func_discover')
-    for ff in glob.glob('*'):os.remove(ff)
-    os.system('cp '+p+' .')
-    
-   
     if check(b, f, args.assumption) == False or set_assumption(args.assumption) == False:
         pass
 
@@ -256,15 +235,11 @@ assumption two and three: -a 2 -a 3''')
 
         if args.iteration:
             if iterate(f, i):
-                os.system('rm *.py')
-                os.system('rm init.native')
                 print "processing succeeded"
             else:
                 print "exception, processing failed"
         else:
             if process(f, 0):
-                os.system('rm *.py')
-                os.system('rm init.native')
                 print "processing succeeded"
             else:
                 print "exception, processing failed"
