@@ -62,6 +62,7 @@ timestamp. For example:
     test_fold_bzip_2020-07-24_11:11:50
 ```
 (Before using below assumption remove the `test_fold_bzip_2020-07-24_11:11:50` floder inside the ./src/workdir)
+
 3. -a (assumption):
 
 This option configures the three symbolization assumptions proposed in
