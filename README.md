@@ -9,8 +9,8 @@ Uroboros uses the following utilities:
   readelf 2.30
   awk 4.1.4
 ```
-Now the Uroboros is updated and it can be built by the OCaml compiler (version 4.05.0 or later). However,the the initial version of uroboros (in 2015) was released with OCaml 4.01.0.   
-with the following libraries:
+Now the Uroboros is updated and it can be built by the OCaml compiler (version 4.05.0 or later)   
+with the following libraries. However, the the initial version of Uroboros was released with OCaml 4.01.0 compiler in 2015 and can be obtained through [uroboros ZIP](https://opam.ocaml.org/)).
 ```
   deriving 
   ocamlfind 
