@@ -21,7 +21,7 @@ with the following libraries:
 We recommend to use the utilities distributed with 64-bit Ubuntu 18.0.4 LTS. 
 The OCaml compiler and libraries can be obtained through
 [opam](https://opam.ocaml.org/).
-(The the initial version of Uroboros was released with OCaml 4.01.0 compiler in 2015 and can be obtained through [uroboros ZIP](https://github.com/s3team/uroboros/blob/master/uroboros-OCaml%20_4.01.0.zip)).)
+The the initial version of Uroboros was released with OCaml 4.01.0 version of the compilar in 2015 and that can be obtained through [uroboros ZIP file](https://github.com/s3team/uroboros/blob/master/uroboros-OCaml%20_4.01.0.zip). 
 ## Build
 
 To build Uroboros, run the command below at the src folder.
