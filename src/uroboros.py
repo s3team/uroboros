@@ -122,6 +122,68 @@ def process(f, i):
 
         return True
 
+def process1(f, i):
+    try:
+        
+      
+        # suppose we use this method to obtain function information
+       
+       
+        os.system("cp " + f + " func_discover/")
+        os.system("python func_discover/func_addr.py func_discover/"+f + " " + str(i))
+       
+        os.system("rm final_data.s")
+        os.system('rm useless_func.info')
+        if i > 0:
+            os.system("python useless_func_discover.py " + f)
+
+        os.system('echo \"' + str(i) + '\" > count.txt')
+        os.system("strip " + f)
+        os.system('python main_discover.py '+f)
+       
+        os.system("./init.native " + f)
+        if not os.path.isfile("final.s"):
+            return False
+
+        os.system("python post_process_data.py")
+
+        os.system('echo ".section .eh_frame" >> final_data.s')
+        os.system('cat eh_frame_split.info >> final_data.s')
+        os.system('echo ".section .eh_frame_hdr" >> final_data.s')
+        os.system('cat eh_frame_hdr_split.info >> final_data.s')
+
+        os.system('cat final_data.s >> final.s')
+
+        if k:
+            os.system("cp final.s final.s." + str(i))
+
+        if "gobmk" in f:
+            # FIXME!
+            os.system("python gobmk_sub.py")
+
+        os.system("python compile_process.py")
+        os.system("python label_adjust.py")
+
+        reassemble()
+
+        if iter_num > 0:
+            os.system("cp a.out " + f)
+
+        if k:
+            print f_dic
+            os.system("cp a.out " + f_dic + "/" + f + "." + str(i+1))
+            os.system("mv final.s." + str(i) + " " + f_dic)
+
+    except :
+        return False
+    else:
+
+        os.system('rm ' + "faddr_old.txt." + str(i))
+        os.system('rm ' + "faddr.txt." + str(i))
+
+
+        return True
+
 
 
 
@@ -241,9 +303,7 @@ assumption two and three: -a 2 -a 3''')
     workdir=os.path.dirname(os.path.abspath(__file__))+'/workdir'
     if not os.path.isdir(workdir):os.mkdir(workdir)
     os.chdir(workdir)
-    func_discover=os.path.dirname(os.path.abspath(__file__))+'/func_discover'
-    if os.path.isdir(func_discover):os.system('rm -r func_discover')
-    for ff in glob.glob('*'):os.remove(ff)
+    os.system('rm -rf *')
     os.system('cp '+p+' .')
     
    
@@ -258,13 +318,21 @@ assumption two and three: -a 2 -a 3''')
             if iterate(f, i):
                 os.system('rm *.py')
                 os.system('rm init.native')
+                os.system('rm -rf func_discover')
                 print "processing succeeded"
             else:
+                os.system('rm *.py')
+                os.system('rm init.native')
+                os.system('rm -rf func_discover')
                 print "exception, processing failed"
         else:
             if process(f, 0):
                 os.system('rm *.py')
                 os.system('rm init.native')
+                os.system('rm -rf func_discover')
                 print "processing succeeded"
             else:
+                os.system('rm *.py')
+                os.system('rm init.native')
+                os.system('rm -rf func_discover')
                 print "exception, processing failed"
