@@ -8,4 +8,4 @@ ocamlbuild -use-ocamlfind type.native parser.native ail_parser.native \
                 plugins/bb_trimmer.native \
                 plugins/bb_counting.native plugins/instr_sandbox.native \
                 plugins/mem_write.native \
-                plugins/func_counting.native plugins/trace_profiling.native -ocamlopt "ocamlopt -inline 20 -nodynlink"
+                plugins/func_counting.native plugins/trace_profiling.native -ocamlopt "-inline 20" -ocamlopt -nodynlink
