@@ -114,7 +114,7 @@ resgiter the "mem_write" tool, three lines of code need to be added as follows:
     let module MW = Mem_write in
     let il' = MW.process il in
 ```
-In order to see the instrumentation result perform the rebuild (e.g., **./build**) inside the /src continue with the usage step.
+In order to see the instrumentation result perform the rebuild (e.g., **./build**) at the /src folder and further continue with usage step specified above.
 
 We will provide a better way in our next release.
 
