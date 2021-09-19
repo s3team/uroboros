@@ -1,10 +1,4 @@
-Please use Uroboros (version 0.11) for the tests below. 
-
-# Build
-
-To build Uroboros, please run the building script
-
-    ./build
+Please use Uroboros (version 0.12) for the tests below. 
 
 # Coreutils:
 
