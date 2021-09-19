@@ -29,7 +29,7 @@ $ git clone https://github.com/s3team/uroboros.git /uroboros
 $ cd /uroboros/src
 $ ./build
 ```
-# Usage: 
+# Usage
 ## Disassembling
 
 Uroboros can take 64-bit and 32-bit ELF executable binaries as the
