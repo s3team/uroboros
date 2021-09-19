@@ -148,7 +148,7 @@ object (self)
      *)
 
 
-	print_endline "5: post processing";
+	print_endline "4: post processing";
     A.post_analyze il' re;
 
     self#post_process

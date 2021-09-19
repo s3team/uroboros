@@ -95,13 +95,13 @@ and controlop =
   | CALL | CALLQ | LEAVE | LEAVEQ
   | RET | RETN | RETQ
   | FXAM | FCHS
-and stackop = PUSH | POP | PUSHL | POPL | PUSHF | POPF
+and stackop = PUSH | POP | PUSHL | POPL | PUSHF | POPF | PUSHQ | POPQ
 and systemop = INT | IN | OUT
 and arithmop = ADC | ADD | XADD | SUB | ADDL | ADDQ | SUBL | SUBQ
                | MUL | IMUL | MULB | MULSD | DIV | IDIV | DIVL | ADCL | IDIVL | DIVSD |DIVSS
                | MULSS | DIVQ | IDIVQ | PMULUDQ
                | INC | INCQ | INCL | INCW | DEC | NEG | SBB | FADD | NEGL | FMUL
-               | FXCH | FUCOMIP | FUCOMI | FCOMPP | FCOMPL | BSR | MULL | FMULL
+               | FXCH | FUCOMIP | FUCOMI | FCOMPP | FCOMPL | FCOMIP | BSR | MULL | FMULL
                | UCOMISD | UCOMISS | SUBSS
                | ADDW | ADDSD | ADDSS | FMULP | FMULS | FADDS | FADDP | FADDL
                | SUBW | SUBSD | IMULL | BSWAP | DECL | DECB | DECD | DECW
@@ -124,14 +124,14 @@ and rolop = ROL | SHL | SHR | SHLD |SHRD | SHRL | ROR | RORL
             | SARW | SHRW | SHLQ | SHRQ | PSHUFD | SHUFPS | SHUFPD
             | PSLLW | PSLLD | PSLLQ | PSRAW | PSRAD | PSLLDQ | PSRLDQ
             | PSRLD | PSHUFLW
-and assignop = MOV | XCHG | LEA | MOVSX | MOVSD | MOVL | FLDL | MOVZBL | MOVZBW
+and assignop = MOV | XCHG | LEA | LEAL | LEAQ | MOVSX | MOVSD | MOVL | FLDL | MOVZBL | MOVZBW
                | MOVSW | MOVAPD | MOVSLQ | MOVQ | MOVABS | MOVSBQ
                | MOVW | MOVZX | MOVAPS | FLD | FSTP | CMOVAE | CMOVE | CMOVNE | MOVSS
                | CMOVBE | CMOVB | CMOVS | CMOVA | CMOVNS | MOVB
                | MOVZWL | MOVSWL | MOVSBL | MOVSBW | FLDT | FSTPT | ORL | ORB | MOVSB
                | FNSTCW | FLDCW | FLDZ | REPZ | REPE | FSTPL | REPNZ
                | REP | FNSTSW | CMOVLE | CMOVG | CMOVL | FILDLL
-               | FLDS | FILDL | FLD1 | FDIVP | FSTL | FISTPL | FILD
+               | FLDS | FILDS | FISTPS | FILDL | FLD1 | FDIVP | FSTL | FISTPL | FILD
                | FSUB | FDIVS | FISTPLL | FDIVRP | CMOVGE | FCMOVBE
                | FSUBP | FISTL | FSUBRP | FSUBRL | CWTL | FSUBRS | FSTPS
                | FSUBS | FSUBR | FSTS | FSUBL | FCMOVNBE | FCMOVE | FCMOVNE
@@ -142,15 +142,15 @@ and assignop = MOV | XCHG | LEA | MOVSX | MOVSD | MOVL | FLDL | MOVZBL | MOVZBW
                | PUNPCKLQDQ | PUNPCKLWD | MOVHPD | MOVLPD
                | LAHF | SAHF
 and compareop = CMP | CMPQ | TEST | CMPL | CMPB | CMPW | TESTB | TESTL | CMPSB
-                | BT | TESTW | CMPNLESS | CMPLTSS | CMPNLTSS | TESTQ
+                | BT | TESTW | CMPNLESS | CMPNLESD | CMPLTSS | CMPNLTSS | TESTQ
                 | CMPNLTSD | PCMPGTD | PCMPGTB | PCMPEQD | CMPLTSD | PCMPEQW
                 | CMPEQSS
 and setop = SETA | SETAE | SETB | SETBE | SETC
             | SETNBE | SETNC | SETNG | SETNE
             | SETE | SETNP | SETGE | SETG | SETLE
             | SETL | SETP | SETNS | SETS
-and otherop = NOP | HLT | NOPW | NOPL | UD2
-and jumpop = JMP | JNE | JE | JB | JNAE | JNP
+and otherop = NOP | HLT | NOPW | NOPL | UD2 | ENDBR32 | ENDBR64
+and jumpop = JMP | JNE | JE | JB | JNAE | JNP | JNO
               | JC | JNB | JAE | JNC | JBE | JNA
               | JA | JNBE | JL | JNGE | JGE | JNL | JLE
               | JNG | JG | JNLE | JS | JNS | JP | JMPQ

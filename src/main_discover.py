@@ -1,4 +1,5 @@
 import sys, os
+import commands
 
 fn = sys.argv[1]
 
@@ -46,13 +47,15 @@ else:
         # when not using O2 to compile the original binary, we will remove all the _start code,
         # including the routine attached on the original program. In that case, we can not discover the
         # main function
-        if has_found == False and "<__libc_start_main@plt>" in l:
+        if "<__libc_start_main@plt>" in l:
             if check_32() == True:
     	        main_symbol = lines[i-1].split()[-1]
-                has_found = True
+                if '0x' not in main_symbol:
+                    main_symbol = lines[i-2].split()[-1].split(',')[0]
             else:
                 main_symbol = lines[i-1].split()[-1].split(',')[0]
-                has_found = True
+            has_found = True
+            break
     	#lines[i-1] = lines[i-1].replace(main_symbol, "main")
     	#main_symbol = main_symbol[1:].strip()
     	#print main_symbol
@@ -71,6 +74,27 @@ else:
     ## symbols can be leveraged in re-assemble are
     ##	_GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
     ##	....
+
+    if not has_found:
+        output = commands.getoutput('readelf -h ' + fn)
+        entry_point = ''
+        for line in output.split('\n'):
+            if 'Entry point address' in line:
+                entry_point = line.split()[-1][2:]
+                break
+        for i in range(ll):
+            if entry_point == lines[i].strip().split(':')[0]:
+                ln = i
+                while True:
+                    assert (ln < ll) and "Cannot identify main function using entry point"
+                    if 'callq' in lines[ln] and 'rip' in lines[ln]:
+                        if check_32() == True:
+                            main_symbol = lines[ln-1].split()[-1]
+                            if '0x' not in main_symbol: main_symbol = lines[ln-2].split()[-1].split(',')[0]
+                        else: main_symbol = lines[ln-1].split()[-1].split(',')[0]
+                        break
+                    ln += 1
+                break
 
 
     os.system('rm main.info')

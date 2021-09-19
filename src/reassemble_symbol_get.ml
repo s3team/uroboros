@@ -30,6 +30,8 @@ class datahandler (label' : (string*int) list) =
     val mutable rodata : string list = []
     val mutable got : string list = []
     val mutable bss : string list = []
+    (* .data.rel.ro section*)
+    val mutable data_rel_ro: string list = []
 
     val mutable text_mem_addrs: int list = []
     val mutable label_mem_addrs: int list = []
@@ -46,11 +48,15 @@ class datahandler (label' : (string*int) list) =
     val mutable rodata_list: (string*string) list = []
     val mutable got_list: (string*string) list = []
     val mutable bss_list: (string*string) list = []
+    (* .data.rel.ro section*)
+    val mutable data_rel_ro_list: (string*string) list = []
 
     val mutable data_array: (string*string) array = [||]
     val mutable rodata_array: (string*string) array = [||]
     val mutable got_array: (string*string) array = [||]
     val mutable bss_array: (string*string) array = [||]
+    (* .data.rel.ro section*)
+    val mutable data_rel_ro_array: (string*string) array = [||]
 
     val mutable text_sec: (int*int) = (0,0)  (* begin addr, size*)
     val mutable locations = []
@@ -71,6 +77,10 @@ class datahandler (label' : (string*int) list) =
 
 
     method set_datas funcs =
+      let rec pl = function
+      | (s1,s2)::t -> print_string(s1 ^ " " ^ s2 ^ "|"); pl t
+      | [] -> ()
+      in
       self#section_collect;
       self#data_collect;
 
@@ -78,6 +88,9 @@ class datahandler (label' : (string*int) list) =
       rodata_list <- self#data_trans rodata;
       got_list <- self#data_trans got;
       bss_list <- self#data_trans bss;
+      data_rel_ro_list <- self#data_trans data_rel_ro;
+
+
       locations <- self#label_locate;
 
 
@@ -740,7 +753,8 @@ end
       (*print_string "finish data\n"; *)
       rodata <- self#collect "rodata_split.info";
       (*print_string "finish rodata\n"; *)
-	(* 32-bit binary does not need this *)
+      data_rel_ro <- self#collect "data_rel_ro_split.info";
+	    (* 32-bit binary does not need this *)
       if EU.elf_32 () then
         ()
       else
@@ -854,7 +868,8 @@ end
       let p = object(sp)
         method process lbs =
           let dec_hex (s:int) : string =
-            (Printf.sprintf "S_0x%X : " s) in
+            (Printf.sprintf "S_0x%X : " s) 
+          in
           let rec help loc_list =
             match loc_list with
             | (n, l)::t -> begin
@@ -883,6 +898,12 @@ end
                     and (s,d) = bss_array.(off) in
                     bss_array.(off) <- (s', d);
                     help t )
+                | ".data.rel.ro" ->
+                  ( let off = l - (self#section_addr ".data.rel.ro") in
+                    let s' = dec_hex l
+                    and (s,d) = data_rel_ro_array.(off) in
+                    data_rel_ro_array.(off) <- (s', d);
+                    help t )
                 | _ -> raise (Reassemble_Error n)
               end
             | _ -> ()
@@ -894,7 +915,7 @@ end
           List.map (fun (h,e) -> h^" "^(string_of_int e)^"\n") ll
         method insert_dummy =
           let help li =
-		    match li with
+		        match li with
             | (l,s)::t -> ("s_dummy: \n"^l, s)::t
             | _ -> (print_string "empty rodata list\n"; li) in
           rodata_list <- help rodata_list
@@ -908,18 +929,22 @@ end
           rodata_list <- (".section .rodata\n", "")::rodata_list;
           got_list <- (".section .got\n", "")::got_list;
           data_list <- (".section .data\n", "")::data_list;
-          bss_list <- (".section .bss\n", "")::bss_list
+          bss_list <- (".section .bss\n", "")::bss_list;
+          data_rel_ro_list <- (".section .data.rel.ro\n", "")::data_rel_ro_list
         method write_file =
-          let oc = open_out_gen [Open_append; Open_creat] 0o666 "final_data.s" in
-		  let write_file_opt l =
-		    List.iter (fun (x,y) ->
-  			    output_string oc x;
-  			    output_string oc y;
-  			    output_char oc '\n') l in
-		  write_file_opt rodata_list;
-		  write_file_opt data_list;
-		  write_file_opt got_list;
-		  write_file_opt bss_list;
+          let oc = open_out_gen [Open_append; Open_creat] 0o666 "final_data.s" 
+          in
+		      let write_file_opt l =
+		        List.iter (fun (x,y) ->
+  			      output_string oc x;
+  			      output_string oc y;
+  			      output_char oc '\n') l 
+          in
+		      write_file_opt rodata_list;
+		      write_file_opt data_list;
+		      write_file_opt got_list;
+		      write_file_opt bss_list;
+          if List.length data_rel_ro_list > 2 then write_file_opt data_rel_ro_list;
           (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) (sp#zip rodata_list); *)
                 (*
                 (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) (sp#zip *)
@@ -962,6 +987,7 @@ Printf.fprintf oc "%s\n" (String.concat "\n" (sp#zip data_list));
       got_array <- Array.of_list got_list;
       data_array <- Array.of_list data_list;
       bss_array <- Array.of_list bss_list;
+      data_rel_ro_array <- Array.of_list data_rel_ro_list;
       (* data_labels <- p#de_redunt data_labels; *)
       (*
       self#dump_d2d_labels data_labels_reloc;
@@ -973,6 +999,7 @@ Printf.fprintf oc "%s\n" (String.concat "\n" (sp#zip data_list));
       got_list <- Array.to_list got_array;
       data_list <- Array.to_list data_array;
       bss_list <- Array.to_list bss_array;
+      data_rel_ro_list <- Array.to_list data_rel_ro_array;
       p#insert_dummy;
       p#insert_head;
       p#write_file
@@ -2050,7 +2077,6 @@ class reassemble =
       let templist = p#get_textlabel in
       jmpreflist <- List.map (fun l -> (dec_hex l)) templist;
       p#data_output;
-
 
     method data_dump_1 =
       let dec_hex (s:int) : string =
