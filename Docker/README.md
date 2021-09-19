@@ -11,7 +11,7 @@ docker build -f Dockerfile -t ail:0.12 .
 
 ## Docker usage
 
-run the Docker container with `docker run --privileged` in order to allow the container to create its own namespaces.
+run the Docker container with `docker run`.
 
 ```shell
 docker run -it ail:0.12
