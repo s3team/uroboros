@@ -127,7 +127,12 @@ let lexer' instr' location' =
   let instr = String.trim instr'
   and location = "0x"^(String.trim location')
   and split = Str.split (Str.regexp " +") in
-    let tokens = split instr in
+    let rec remove l = 
+      match l with
+       | "notrack"::l -> remove l
+       | "data16"::l-> remove l
+       | _ -> l in
+    let tokens = remove @@ split instr in
       let op_str = List.nth tokens 0 in
         if List.length tokens = 1 then (*single op instr *)
           single_instr op_str location

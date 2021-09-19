@@ -113,7 +113,7 @@ else:
 
 
     def help(l):
-        if main_symbol1 != "" and main_symbol1 in l:
+        if main_symbol1 != "" and main_symbol1 in l and l.startswith(main_symbol1):
     	#main_s1 = "S"+main_symbol
     	#if main_s1 in l:
     	    #l = l.replace(main_s1, ".globl main\nmain")

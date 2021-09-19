@@ -1,5 +1,6 @@
 import argparse
 import sys, os
+import commands
 
 from argparse import RawTextHelpFormatter
 from argparse import ArgumentParser
@@ -44,12 +45,15 @@ def check_strip():
 
 
 def reassemble():
+    gcc_version = commands.getoutput('gcc --version').split('\n')[0].split()[-1]
     if check_32() == True:
         # 32-bit binary
-        os.system('gcc final.s -lm -lrt -lpthread -lcrypt -m32')
+        if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -m32')
+        else: os.system('gcc -no-pie final.s -lm -lrt -lpthread -m32')
     else:
         # 64-bit binary
-        os.system('gcc final.s -lm -lrt -lpthread -lcrypt')
+        if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -lcrypt')
+        else: os.system('gcc -no-pie final.s -lm -lrt -lpthread -lcrypt')
 
 
 def process(f, i):
@@ -97,7 +101,7 @@ def process(f, i):
             os.system("cp a.out " + f)
 
         if k:
-            print f_dic
+            print(f_dic)
             os.system("cp a.out " + f_dic + "/" + f + "." + str(i+1))
             os.system("mv final.s." + str(i) + " " + f_dic)
 
@@ -115,7 +119,7 @@ def process(f, i):
 
 
 def iterate (f, iterations):
-    print "start to process binary: " + f
+    print("start to process binary: " + f)
 
     for i in xrange(0, iterations):
         print ("########## iteration round "+str(i+1) + " begin ! ###########")
@@ -133,7 +137,7 @@ def check (b, f, al):
         al = []
 
     if not os.path.isfile(b):
-        print "cannot find input binary"
+        print("cannot find input binary")
         return False
 
     if '/' in b:
@@ -143,12 +147,12 @@ def check (b, f, al):
 
     os.system('file ' + f + ' > elf.info')
     if check_exe() == False:
-        print "Uroboros doesn't support shared library"
+        print("Uroboros doesn't support shared library")
         return False
 
     # if assumption three is utilized, then input binary must be unstripped.
     if '3' in al and check_strip() == False:
-        print '''Uroboros doesn't support stripped binaries when using assumption three'''
+        print('''Uroboros doesn't support stripped binaries when using assumption three''')
         return False
 
     return True
@@ -187,8 +191,8 @@ def set_assumption (l):
 
 
         if any(chk) == False:
-            print "assumption undefined!"
-            print "accecpt assumptions: 2 for assumption two and 3 for assumption three"
+            print("assumption undefined!")
+            print("accecpt assumptions: 2 for assumption two and 3 for assumption three")
             return False
 
         l = set(l)
@@ -216,7 +220,7 @@ note that two basic assumptions and addtional assumption one
 (n-byte alignment) are set by default,
 while assumption two and three need to be configured. For example, setting
 assumption two and three: -a 2 -a 3''')
-    p.add_argument('--version', action='version', version='Uroboros 0.11')
+    p.add_argument('--version', action='version', version='Uroboros pre-release\n\nWritten by Shuai Wang (szw175@ist.psu.edu)')
 
     args = p.parse_args()
     b = args.binary
@@ -235,11 +239,11 @@ assumption two and three: -a 2 -a 3''')
 
         if args.iteration:
             if iterate(f, i):
-                print "processing succeeded"
+                print("processing succeeded")
             else:
-                print "exception, processing failed"
+                print("exception, processing failed")
         else:
             if process(f, 0):
-                print "processing succeeded"
+                print("processing succeeded")
             else:
-                print "exception, processing failed"
+                print("exception, processing failed")

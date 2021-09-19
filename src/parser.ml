@@ -269,7 +269,7 @@ and remove_bracket s' =
     | "fdivr" -> FDIVR | "fabs" -> FABS | "fsqrt" -> FSQRT | "fdivrs" -> FDIVRS | "sqrtss" -> SQRTSS
     | "frndint" -> FRNDINT | "fdivrl" -> FDIVRL | "fprem" -> FPREM | "cvtsi2sd" -> CVTSI2SD
     | "cvtsi2sdl" -> CVTSI2SDL | "cvtsi2ssl" -> CVTSI2SSL | "cvtss2sd" -> CVTSS2SD | "cvttsd2si" -> CVTTSD2SI
-    | "cvtsi2ss" -> CVTSI2SS | "cbtw" -> CBTW | "fcompp" -> FCOMPP | "fcompl" -> FCOMPL
+    | "cvtsi2ss" -> CVTSI2SS | "cbtw" -> CBTW | "fcompp" -> FCOMPP | "fcompl" -> FCOMPL | "fcomip" -> FCOMIP
     | "cvttss2si" -> CVTTSS2SI | "cvtsi2sdq" -> CVTSI2SDQ | "cvtps2pd" -> CVTPS2PD
     | "cvtdq2ps" -> CVTDQ2PS | "cvttps2dq" -> CVTTPS2DQ
     | "maxsd" -> MAXSD | "negq" -> NEGQ | "idivq" -> IDIVQ
@@ -307,8 +307,8 @@ and remove_bracket s' =
     | "shufps" -> SHUFPS | "shufpd" -> SHUFPD | "pshuflw" -> PSHUFLW
     | _ -> raise ParseError
   and assignop_symb = function
-    | "mov" -> MOV | "movaps" -> MOVAPS | "xchg" -> XCHG | "lea" -> LEA | "movsx" -> MOVSX
-    | "movapd" -> MOVAPD | "movslq" -> MOVSLQ | "movq" -> MOVQ | "movabs" -> MOVABS
+    | "mov" -> MOV | "movaps" -> MOVAPS | "xchg" -> XCHG | "lea" -> LEA | "leal" -> LEAL | "leaq" -> LEAQ
+    | "movsx" -> MOVSX | "movapd" -> MOVAPD | "movslq" -> MOVSLQ | "movq" -> MOVQ | "movabs" -> MOVABS
     | "movsd" -> MOVSD | "movsw" -> MOVSW | "movsb" -> MOVSB | "movss" -> MOVSS | "fstpl" -> FSTPL
     | "movzx" -> MOVZX | "fld" -> FLD | "fstp" -> FSTP | "movl" -> MOVL | "fldl" -> FLDL
     | "cmovae" -> CMOVAE | "cmove" -> CMOVE | "cmovne" -> CMOVNE | "cmovbe" -> CMOVBE
@@ -317,11 +317,11 @@ and remove_bracket s' =
     | "fstpt" -> FSTPT | "fstps" -> FSTPS | "fsts" -> FSTS
     | "orl" -> ORL | "orb" -> ORB | "fnstcw" -> FNSTCW | "fldcw" -> FLDCW
     | "fnstsw" -> FNSTSW | "fldz" -> FLDZ | "fld1" -> FLD1 | "fdivp" -> FDIVP
-    | "repe" -> REPE | "repz" -> REPZ | "movzbl" -> MOVZBL | "movw" -> MOVW |
-      "movswq" -> MOVSWQ | "movzbw" -> MOVZBW | "movsbq" -> MOVSBQ
+    | "repe" -> REPE | "repz" -> REPZ | "movzbl" -> MOVZBL | "movw" -> MOVW 
+    | "movswq" -> MOVSWQ | "movzbw" -> MOVZBW | "movsbq" -> MOVSBQ
     | "movzwl" -> MOVZWL | "movswl" -> MOVSWL | "repnz" -> REPNZ | "fildll" -> FILDLL
     | "rep" -> REP | "cmovle" -> CMOVLE | "cmovg" -> CMOVG | "cmovl" -> CMOVL
-    | "flds" -> FLDS | "fildl" -> FILDL | "fstl" -> FSTL | "fistpl" -> FISTPL
+    | "flds" -> FLDS | "filds" -> FILDS | "fildl" -> FILDL | "fstl" -> FSTL | "fistpl" -> FISTPL
     | "fsub" -> FSUB | "fdivs" -> FDIVS | "fistpll" -> FISTPLL | "fdivrp" -> FDIVRP
     | "cmovge" -> CMOVGE | "fcmovbe" -> FCMOVBE | "fsubp" -> FSUBP | "fild" -> FILD
     | "fistl" -> FISTL | "fsubrp" -> FSUBRP | "fsubrl" -> FSUBRL | "cwtl" -> CWTL
@@ -329,7 +329,7 @@ and remove_bracket s' =
     | "fcmovnbe" -> FCMOVNBE | "fcmove" -> FCMOVE | "fcmovne" -> FCMOVNE
     | "fcmovb" -> FCMOVB | "fistp" -> FISTP | "fcmovnb" -> FCMOVNB
     | "cmovnp" -> CMOVNP | "stos" -> STOS | "stosb" -> STOSB
-    | "stosw" -> STOSW | "stosd" -> STOSD | "fist" -> FIST | "ffree" -> FFREE
+    | "stosw" -> STOSW | "stosd" -> STOSD | "fist" -> FIST | "fistps" -> FISTPS | "ffree" -> FFREE
     | "orq" -> ORQ | "movdqu" -> MOVDQU | "movdqa" -> MOVDQA
     | "movups" -> MOVUPS | "movd" -> MOVD | "movhlps" -> MOVHLPS
     | "movhpd" -> MOVHPD | "movlpd" -> MOVLPD
@@ -348,7 +348,7 @@ and remove_bracket s' =
     | "cmpb" -> CMPB | "cmpw" -> CMPW | "testb" -> TESTB
     | "testl" -> TESTL | "cmpsb" -> CMPSB | "bt" -> BT
     | "testw" -> TESTW | "cmpnless" -> CMPNLESS | "cmpltss" -> CMPLTSS
-    | "cmpltsd" -> CMPLTSD
+    | "cmpltsd" -> CMPLTSD | "cmpnlesd" -> CMPNLESD
     | "cmpnltss" -> CMPNLTSS | "testq" -> TESTQ
     | "cmpnltsd" -> CMPNLTSD
     | "pcmpgtd" -> PCMPGTD
@@ -366,11 +366,14 @@ and remove_bracket s' =
     | "sets" -> SETS
     | _ -> raise ParseError
   and otherop_symb = function
-    | "nop" -> NOP | "hlt" -> HLT | "nopw" -> NOPW | "nopl" -> NOPL | "ud2" -> UD2
+    | "nop" -> NOP | "hlt" -> HLT | "nopw" -> NOPW | "nopl" -> NOPL | "ud2" -> UD2 | "endbr32" -> ENDBR32 | "endbr64" -> ENDBR64
     | _ -> raise ParseError
 
   and stackop_symb = function
-    | "push" -> PUSH | "pop" -> POP | "pushl" -> PUSHL | "popl" -> POPL
+    | "push" -> PUSH | "pop" -> POP 
+    | "pushl" -> PUSHL | "popl" -> POPL
+    | "pushq" -> PUSHQ | "popq" -> POPQ
+    | "pushf" -> PUSHF | "popf" -> POPF
     |  _ -> raise ParseError
 
   and jumpop_symb = function
@@ -382,7 +385,7 @@ and remove_bracket s' =
     | "jge" -> JGE | "jnl" -> JNL | "jle" -> JLE
     | "jng" -> JNG | "jg" -> JG | "jnle" -> JNLE
     | "js" -> JS | "jns" -> JNS | "jp" -> JP
-    | "jnp" -> JNP | "jmpq" -> JMPQ
+    | "jnp" -> JNP | "jmpq" -> JMPQ | "jno" -> JNO
     | _ -> raise ParseError
   and loopop_symb = function
     | "loop" -> LOOP | "loope" -> LOOPE | "loopne" -> LOOPNE
@@ -443,6 +446,7 @@ and remove_bracket s' =
           with _ ->
             try SystemOP (systemp_symb s)
             with _ ->
+              print_string (s ^ "\n");
               raise ParseError in
 
   let unptr_symb s =

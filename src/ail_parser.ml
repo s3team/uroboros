@@ -124,6 +124,11 @@ object (self)
   (*self#print_funcs funcs *)
 
   method set_secs (l : section list) =
+  (* let rec print_element = function
+    | s::t -> print_string(s.sec_name ^ " " ^ (Printf.sprintf "%X" s.sec_begin_addr) ^ " " ^ (Printf.sprintf "%X" s.sec_size) ^ "\n"); print_element t
+    | [] -> ()
+  in
+    print_element l; *)
     secs <- l
 
   method processInstrs (l : string list) =

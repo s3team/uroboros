@@ -47,12 +47,13 @@ else:
             try:
                 src = m_s.group(1) # let it crash it not
                 des = m_d.group(0) # let it crash it not
+                if '@@' in src: src = src.split('@@')[0]
                 l = l.split('#')[0]
                 l = l.replace(des, src)
                 lines[i] = l+"\n"
             except Exception:
-                print "exception in external symbols processing of 64-bit ELF"
-                print l
+                print("exception in external symbols processing of 64-bit ELF")
+                print(l)
     with open(fn + '.temp', 'w') as f:
         f.writelines(lines)
 

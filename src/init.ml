@@ -35,13 +35,17 @@ object (self)
     self#checkret ret "rodata.info";
     ret := Sys.command("objdump -s -j \
                         .data "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 > data.info");
+    self#checkret ret "data.info";
+    ret := Sys.command("objdump -s -j \
+                        .data.rel.ro "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 > data_rel_ro.info");
+    self#checkret ret "data_rel_ro.info";
     ret := Sys.command("objdump -s -j \
                         .eh_frame "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 > eh_frame.info");
     ret := Sys.command("objdump -s -j \
                         .eh_frame_hdr "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 > eh_frame_hdr.info");
     ret := Sys.command("objdump -s -j \
                         .got "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 > got.info");
-    self#checkret ret "data.info"
+    
 
   method process(f : string) =
     self#textProcess(f);
@@ -89,28 +93,39 @@ object (self)
     let _ = Sys.command("cat "^f^".disassemble | grep \"<\" | grep \">:\" > userfuncs.info") in
     ()
 
-  method sectionProcess_32(f: string) =
-    Sys.command("readelf -S "^f^" | awk \'/data|bss|got/ {print $2,$4,$5,$6} \' | awk \ '$1 != \
-    \".got.plt\" {print $1,$2,$3,$4}\' > sections.info");
-    Sys.command("readelf -S "^f^" | awk \'/text/ {print $2,$4,$5,$6} \' > text_sec.info");
-    Sys.command("readelf -S "^f^" | awk \'/init/ {print $2,$4,$5,$6} \' | awk \'$1 != \".init_array\" {print $1,$2,$3,$4}\' > init_sec.info");
+  method sectionProcess_32(f: string) = 
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR<15\' | awk \'/data|bss|got/ {print $3,$5,$6,$7} \' | awk \' $1 != \
+                \".got.plt\" {print $1,$2,$3,$4}\' > sections.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR>14\' | awk \'/data|bss|got/ {print $2,$4,$5,$6} \' | awk \' $1 != \
+                \".got.plt\" {print $1,$2,$3,$4}\' >> sections.info");
+    (* Sys.command("readelf -S " ^ f ^ " | awk \'FNR<15\' | awk \'/data|bss|got/ {print $3,$5,$6,$7} \' > sections.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR>14\' | awk \'/data|bss|got/ {print $2,$4,$5,$6} \' >> sections.info"); *)
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR<15\' | awk \'/text/ {print $3,$5,$6,$7} \' > text_sec.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR>14\' | awk \'/text/ {print $2,$4,$5,$6} \' >> text_sec.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR<15\' | awk \'/init/ {print $3,$5,$6,$7} \' | awk \'$1 != \".init_array\" {print $1,$2,$3,$4}\' > init_sec.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR>14\' | awk \'/init/ {print $2,$4,$5,$6} \' | awk \'$1 != \".init_array\" {print $1,$2,$3,$4}\' >> init_sec.info");
     Sys.command("rm init_array.info");
     Sys.command("objdump -s -j .init_array "^f^" >>init_array.info 2>&1");
-    Sys.command("readelf -S "^f
-                ^" | awk '$2==\".plt\" {print $2,$4,$5,$6}' > plt_sec.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR<15\' | awk '$3==\".plt\" {print $3,$5,$6,$7}' > plt_sec.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR>14\' | awk '$2==\".plt\" {print $2,$4,$5,$6}' >> plt_sec.info");
+    (* Sys.command("readelf -S " ^ f ^ " | awk \'FNR<15\' | awk '$3==\".plt.sec\" {print $3,$5,$6,$7}' >> plt_sec.info");
+    Sys.command("readelf -S " ^ f ^ " | awk \'FNR>14\' | awk '$2==\".plt.sec\" {print $2,$4,$5,$6}' >> plt_sec.info"); *)
     ()
     (* and _ = Sys.command("greadelf -S "^f^" | awk '$2==\".got.plt\" {print $2,$4,$5,$6}' > pic_secs.info") in *)
 
   method sectionProcess_64(f : string) =
-    Sys.command("readelf -SW "^f
-                ^" | awk \'/data|bss|got/ {print $2,$4,$5,$6} \' | awk \ '$1 != \
-    \".data.rel.ro\" {print $1,$2,$3,$4}\' > sections.info");
-    Sys.command("readelf -SW "^f^" | awk \'/text/ {print $2,$4,$5,$6} \' > text_sec.info");
-    Sys.command("readelf -SW "^f^" | awk \'/init/ {print $2,$4,$5,$6} \' | awk \'$1 != \".init_array\" {print $1,$2,$3,$4}\' > init_sec.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk \'/data|bss|got/ {print $3,$5,$6,$7} \' | awk \ '$1 != \
+                \".data.rel.ro\" {print $1,$2,$3,$4}\' > sections.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | awk \'/data|bss|got/ {print $2,$4,$5,$6} \' | awk \ '$1 != \
+                \".data.rel.ro\" {print $1,$2,$3,$4}\' >> sections.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk \'/text/ {print $3,$5,$6,$7} \' > text_sec.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | awk \'/text/ {print $2,$4,$5,$6} \' >> text_sec.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk \'/init/ {print $3,$5,$6,$7} \' | awk \'$1 != \".init_array\" {print $1,$2,$3,$4}\' > init_sec.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | awk \'/init/ {print $2,$4,$5,$6} \' | awk \'$1 != \".init_array\" {print $1,$2,$3,$4}\' >> init_sec.info");
     Sys.command("rm init_array.info");
-    Sys.command("objdump -s -j .init_array "^f^" >>init_array.info 2>&1");
-    Sys.command("readelf -SW "^f
-                ^" | awk '$2==\".plt\" {print $2,$4,$5,$6}' > plt_sec.info");
+    Sys.command("objdump -s -j .init_array " ^ f ^ " >>init_array.info 2>&1");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk '$3==\".plt\" {print $3,$5,$6,$7}' > plt_sec.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | awk '$2==\".plt\" {print $2,$4,$5,$6}' >> plt_sec.info");
     ()
     (* and _ = Sys.command("greadelf -S "^f^" | awk '$2==\".got.plt\" {print $2,$4,$5,$6}' > pic_secs.info") in *)
 

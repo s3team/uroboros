@@ -23,22 +23,7 @@ is_32 = check_32()
 
 
 if is_32 == False:
-    # for 64-bit binaries, remember to align data sections with 16.
-    is_exe = check_exe()
-    if is_exe == True:
-        with open("final_data.s") as f:
-            lines = f.readlines()
-        ll = len(lines)
-
-        for i in range(ll - 1):
-            l = lines[i]
-            if ".data" in l or ".bss" in l or ".rodata" in l:
-                ln = lines[i+1]
-                if "align" not in ln:
-                    # add the align macro
-                    lines[i+1] = ".align 16\n" + ln
-        with open('final_data.s', 'w') as f:
-            f.writelines(lines)
+    pass
 else:
     is_exe = check_exe()
     if is_exe == True:

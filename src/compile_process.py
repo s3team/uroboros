@@ -1,4 +1,5 @@
 import os
+import commands
 from sets import Set
 
 def check_exe():
@@ -22,12 +23,15 @@ def check_32():
 
 
 def reassemble():
+    gcc_version = commands.getoutput('gcc --version').split('\n')[0].split()[-1]
     if check_32() == True:
         # 32-bit binary
-        os.system('gcc final.s -lm -lrt -lpthread -lcrypt -m32 2> final.error')
+        if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -m32 2> final.error')
+        else: os.system('gcc -no-pie final.s -lm -lrt -lpthread -m32 2> final.error')
     else:
         # 64-bit binary
-        os.system('gcc final.s -lm -lrt -lpthread -lcrypt 2> final.error')
+        if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -lcrypt 2> final.error')
+        else: os.system('gcc -no-pie final.s -lm -lrt -lpthread -lcrypt 2> final.error')
 
 
 def parse_error():
@@ -64,13 +68,11 @@ def modify(errors):
 
 
 def main():
-    print "     modify final.s to adjust redundant symbols"
-    #os.system('gcc final.s -lm 2> final.error')
-    #os.system('gcc final.s -lm -m32 2> final.error')
+    print("     modify final.s to adjust redundant symbols")
     reassemble()
     errors = parse_error()
     modify(errors)
-    print "     modify finished"
+    print("     modify finished")
 
 if __name__ == '__main__':
     main()
