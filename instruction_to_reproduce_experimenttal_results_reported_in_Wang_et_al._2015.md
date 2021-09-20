@@ -1,4 +1,4 @@
-Please use Uroboros (version 0.12) for the tests below. 
+Please use Uroboros (version 0.2) for the tests below. 
 
 # Coreutils:
 

@@ -209,7 +209,7 @@ def set_assumption (l):
 if __name__ == "__main__":
     p = ArgumentParser(formatter_class=RawTextHelpFormatter)
     p.add_argument("binary",
-                   help="path to the input binary, for example, /home/szw175/ls")
+                   help="path to the input binary")
     p.add_argument("-i", "--iteration", type=int,
                    help="the number of disassemble-(instrument)-reassemble iterations")
     p.add_argument("-k", "--keep", action="count",
@@ -220,7 +220,7 @@ note that two basic assumptions and addtional assumption one
 (n-byte alignment) are set by default,
 while assumption two and three need to be configured. For example, setting
 assumption two and three: -a 2 -a 3''')
-    p.add_argument('--version', action='version', version='Uroboros pre-release\n\nWritten by Shuai Wang (szw175@ist.psu.edu)')
+    p.add_argument('--version', action='version', version='Uroboros Version 0.2\n\nWritten by Shuai Wang (shuaiw@cse.ust.hk), Jinquan Zhang (jxz372@psu.edu)')
 
     args = p.parse_args()
     b = args.binary
