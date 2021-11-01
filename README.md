@@ -1,4 +1,4 @@
-# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation (Version 0.2)
+# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation (Version 0.3)
 
 # Installation
 

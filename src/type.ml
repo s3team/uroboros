@@ -114,19 +114,25 @@ and arithmop = ADC | ADD | XADD | SUB | ADDL | ADDQ | SUBL | SUBQ
                | SQRTSS | MAXSS | MINSD | SQRTSD | MINSS | CVTTPS2DQ
                | DECQ | SUBPD | ADDPD | PADDQ | IMULQ | PADDD | PADDB
                | PSUBD | PSUBW | PSUBB | MULPD | UNPCKHPD | ADDPS | MULPS
+               | VPSUBD | VPSUBW | VPSUBB | MULQ
                | DIVPD | DIVPS | CQTO | INCB | PSUBUSW
+               | PCLMULLQLQDQ | VPCLMULLQLQDQ
+               | PCLMULHQLQDQ | VPCLMULHQLQDQ
+               | PCLMULLQHQDQ | VPCLMULLQHQDQ
+               | PCLMULHQHQDQ | VPCLMULHQHQDQ
 and logicop = AND | ANDB | OR | XOR | PXOR | NOT | ANDL | NOTL | ORW | XORB | XORL
                | SAHF | ANDW | NOTB | NOTW | XORPD | XORPS | ANDQ
                | XORQ | ANDPS | ANDNPS | ORPS | ANDPD | NOTQ | ANDNPD
-               | ORPD | PAND | POR | PANDN
+               | ORPD | PAND | POR | PANDN | VPXOR | VPXORD | VPXORQ
 and rolop = ROL | SHL | SHR | SHLD |SHRD | SHRL | ROR | RORL
             | SAL | SAR | SHLL | ROLL | SHRB | SHLB | SARL | ROLW | SHLW
-            | SARW | SHRW | SHLQ | SHRQ | PSHUFD | SHUFPS | SHUFPD
-            | PSLLW | PSLLD | PSLLQ | PSRAW | PSRAD | PSLLDQ | PSRLDQ
-            | PSRLD | PSHUFLW
+            | SARW | SHRW | SHLQ | SHRQ | SHUFPS | SHUFPD
+            | PSLLW | PSLLD | PSLLQ | PSRAW | PSRAD | PSLLDQ | PSRLDQ| PSRLD 
+            | PSHUFLW | PSHUFB | PSHUFW | PSHUFHW | PSHUFD
+            | VPSHUFLW | VPSHUFB | VPSHUFW | VPSHUFHW | VPSHUFD
 and assignop = MOV | XCHG | LEA | LEAL | LEAQ | MOVSX | MOVSD | MOVL | FLDL | MOVZBL | MOVZBW
                | MOVSW | MOVAPD | MOVSLQ | MOVQ | MOVABS | MOVSBQ
-               | MOVW | MOVZX | MOVAPS | FLD | FSTP | CMOVAE | CMOVE | CMOVNE | MOVSS
+               | MOVW | MOVZX | MOVAPS | VMOVAPS | FLD | FSTP | CMOVAE | CMOVE | CMOVNE | MOVSS
                | CMOVBE | CMOVB | CMOVS | CMOVA | CMOVNS | MOVB
                | MOVZWL | MOVSWL | MOVSBL | MOVSBW | FLDT | FSTPT | ORL | ORB | MOVSB
                | FNSTCW | FLDCW | FLDZ | REPZ | REPE | FSTPL | REPNZ
@@ -136,20 +142,29 @@ and assignop = MOV | XCHG | LEA | LEAL | LEAQ | MOVSX | MOVSD | MOVL | FLDL | MO
                | FSUBP | FISTL | FSUBRP | FSUBRL | CWTL | FSUBRS | FSTPS
                | FSUBS | FSUBR | FSTS | FSUBL | FCMOVNBE | FCMOVE | FCMOVNE
                | FCMOVB | FISTP | FCMOVNB | CMOVNP | STOS | STOSB | STOSW | STOSD
-               | FIST | FFREE | MOVSWQ | ORQ | MOVDQU | MOVDQA
-               | MOVUPS | MOVD | MOVHLPS | MOVLHPS | MOVUPD
-               | PUNPCKHQDQ | PUNPCKLDQ | PUNPCKLBW | PINSRW | PEXTRW
-               | PUNPCKLQDQ | PUNPCKLWD | MOVHPD | MOVLPD
+               | FIST | FFREE | MOVSWQ | ORQ | MOVDQU | VMOVDQU | MOVDQA | VMOVDQA | VMOVDQA32 | VMOVDQA64
+               | MOVUPS | VMOVUPS | MOVD | VMOVD | VMOVQ | MOVHLPS | MOVLHPS | MOVUPD
+               | PUNPCKHQDQ | PUNPCKLDQ | PUNPCKLBW | PEXTRW 
+               | VPUNPCKLDQ | VPEXTRW
+               | PINSRB | VPINSRB
+               | PINSRD | VPINSRD
+               | PINSRQ | VPINSRQ
+               | PINSRW | VPINSRW
+               | PUNPCKLQDQ | PUNPCKLWD | VPUNPCKLWD | MOVHPD | MOVHPS | MOVLPD
+               | VPUNPCKLQDQ | VMOVHPD | VMOVHPS
                | LAHF | SAHF
+               | VINSERTI128 | VEXTRACTI128
+               | PSADBW | VPSADBW
+               | BSF
 and compareop = CMP | CMPQ | TEST | CMPL | CMPB | CMPW | TESTB | TESTL | CMPSB
                 | BT | TESTW | CMPNLESS | CMPNLESD | CMPLTSS | CMPNLTSS | TESTQ
-                | CMPNLTSD | PCMPGTD | PCMPGTB | PCMPEQD | CMPLTSD | PCMPEQW
-                | CMPEQSS
+                | CMPNLTSD | PCMPGTD | PCMPGTB | PCMPEQD | VPCMPEQD | PCMPEQB| VPCMPEQB | CMPLTSD | PCMPEQW
+                | CMPEQSS | FCOMI | COMISS | COMISD
 and setop = SETA | SETAE | SETB | SETBE | SETC
             | SETNBE | SETNC | SETNG | SETNE
             | SETE | SETNP | SETGE | SETG | SETLE
             | SETL | SETP | SETNS | SETS
-and otherop = NOP | HLT | NOPW | NOPL | UD2 | ENDBR32 | ENDBR64
+and otherop = NOP | HLT | NOPW | NOPL | UD2 | ENDBR32 | ENDBR64 | CPUID
 and jumpop = JMP | JNE | JE | JB | JNAE | JNP | JNO
               | JC | JNB | JAE | JNC | JBE | JNA
               | JA | JNBE | JL | JNGE | JGE | JNL | JLE
@@ -174,7 +189,9 @@ and specialreg =
   | R8D | R9D | R10D | R11D | R12D | R13D | R14D | R15D
   | R8W | R9W | R10W | R11W | R12W | R13W | R14W | R15W
   | R8B | R9B | R10B | R11B | R12B | R13B | R14B | R15B
-  | XMM0 | XMM1
+  | XMM0 | XMM1 | XMM2 | XMM3 | XMM4 | XMM5 | XMM6 | XMM7
+  | YMM0 | YMM1 | YMM2 | YMM3 | YMM4 | YMM5 | YMM6 | YMM7
+
 and stackreg =
   | RBP | RSP
   | ESP | EBP
@@ -234,6 +251,7 @@ type symbol =
    | DoubleInstr of op * exp * loc * prefix option
    | TripleInstr of op * exp * exp * loc * prefix option
    | FourInstr of op * exp * exp * exp * loc * prefix option
+   | FifInstr of op * exp * exp * exp * exp * loc * prefix option
  (* as far as I know, imul $0xe10,%ebp,%eax *)
 
 and bblock =

@@ -1,4 +1,4 @@
-# Docker for Uroboros version 0.2
+# Docker for Uroboros version 0.3
 
 ## Docker build
 
@@ -6,7 +6,7 @@
 Then use `docker build` to build the docker image from Dockerfile.
 
 ```shell
-docker build -f Dockerfile -t uroboros:0.2 .
+docker build -f Dockerfile -t uroboros:0.3 .
 ```
 
 ## Docker usage
@@ -14,5 +14,5 @@ docker build -f Dockerfile -t uroboros:0.2 .
 run the Docker container with `docker run`.
 
 ```shell
-docker run -it uroboros:0.2
+docker run -it uroboros:0.3
 ```

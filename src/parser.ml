@@ -39,7 +39,12 @@ class parse =
     | "r8b" -> R8B | "r9b" -> R9B | "r10b" -> R10B
     | "r11b" -> R11B | "r12b" -> R12B | "r13b" -> R13B
     | "r14b" -> R14B | "r15b" -> R15B
-    | "xmm0" -> XMM0 | "xmm1" -> XMM1
+    | "xmm0" -> XMM0 | "xmm1" -> XMM1 | "xmm2" -> XMM2
+    | "xmm3" -> XMM3 | "xmm4" -> XMM4 | "xmm5" -> XMM5
+    | "xmm6" -> XMM6 | "xmm7" -> XMM7
+    | "ymm0" -> YMM0 | "ymm1" -> YMM1 | "ymm2" -> YMM2
+    | "ymm3" -> YMM3 | "ymm4" -> YMM4 | "ymm5" -> YMM5
+    | "ymm6" -> YMM6 | "ymm7" -> YMM7
     | _ -> raise ParseError
 
   and stackreg_symb = function
@@ -280,10 +285,15 @@ and remove_bracket s' =
     | "decq" -> DECQ
     | "subpd" -> SUBPD | "addpd" -> ADDPD | "addps" -> ADDPS
     | "paddq" -> PADDQ | "paddd" -> PADDD | "paddb" -> PADDB
-    | "imulq" -> IMULQ
+    | "imulq" -> IMULQ | "mulq" -> MULQ
     | "psubb" -> PSUBB | "psubw" -> PSUBW | "psubd" -> PSUBD
+    | "vpsubb" -> VPSUBB | "vpsubw" -> VPSUBW | "vpsubd" -> VPSUBD
     | "psubusw" -> PSUBUSW
     | "cqto" -> CQTO
+    | "pclmullqlqdq" -> PCLMULLQLQDQ | "vpclmullqlqdq" -> VPCLMULLQLQDQ
+    | "pclmulhqlqdq" -> PCLMULHQLQDQ | "vpclmulhqlqdq" -> VPCLMULHQLQDQ
+    | "pclmullqhqdq" -> PCLMULLQHQDQ | "vpclmullqhqdq" -> VPCLMULLQHQDQ
+    | "pclmulhqhqdq" -> PCLMULHQHQDQ | "vpclmulhqhqdq" -> VPCLMULHQHQDQ
     | _ -> raise ParseError
   and logicop_symb = function
     | "and" -> AND | "andb" -> ANDB | "or" -> OR | "xor" -> XOR | "pxor" -> PXOR | "not" -> NOT
@@ -292,7 +302,7 @@ and remove_bracket s' =
     | "xorpd" -> XORPD | "xorps" -> XORPS | "andq" -> ANDQ
     | "xorq" -> XORQ | "andps" -> ANDPS | "andnps" -> ANDNPS | "orps" -> ORPS | "andpd" -> ANDPD
     | "notq" -> NOTQ | "andnpd" -> ANDNPD | "orpd" -> ORPD | "pand" -> PAND
-    | "por" -> POR | "pandn" -> PANDN
+    | "por" -> POR | "pandn" -> PANDN | "vpxor" -> VPXOR | "vpxord" -> VPXORD | "vpxorq" -> VPXORQ
     | _ -> raise ParseError
   and rolop_symb = function
     | "rol" -> ROL | "shl" -> SHL | "shr" -> SHR | "shrl" -> SHRL
@@ -300,14 +310,19 @@ and remove_bracket s' =
     | "sal" -> SAL | "sar" -> SAR | "shll" -> SHLL | "shlb" -> SHLB
     | "sarl" -> SARL | "ror" -> ROR  | "rol" -> ROL | "rorl" -> RORL
     | "rolw" -> ROLW | "shlw" -> SHLW | "sarw" -> SARW | "shrw" -> SHRW
-    | "shlq" -> SHLQ | "shrq" -> SHRQ | "pshufd" -> PSHUFD
+    | "shlq" -> SHLQ | "shrq" -> SHRQ 
     | "psllw" -> PSLLW | "pslld" -> PSLLD | "psllq" -> PSLLQ
     | "psraw" -> PSRAW | "psrad" -> PSRAD | "pslldq" -> PSLLDQ
     | "psrldq" -> PSRLDQ | "psrld" -> PSRLD
-    | "shufps" -> SHUFPS | "shufpd" -> SHUFPD | "pshuflw" -> PSHUFLW
+    | "shufps" -> SHUFPS | "shufpd" -> SHUFPD 
+    | "pshuflw" -> PSHUFLW | "vpshuflw" -> VPSHUFLW
+    | "pshufd" -> PSHUFD | "vpshufd" -> VPSHUFD
+    | "pshufb" -> PSHUFB | "vpshufb" -> VPSHUFB
+    | "pshufhw" -> PSHUFHW | "vpshufhw" -> VPSHUFHW
+    | "pshufw" -> PSHUFW | "vpshufw" -> VPSHUFW
     | _ -> raise ParseError
   and assignop_symb = function
-    | "mov" -> MOV | "movaps" -> MOVAPS | "xchg" -> XCHG | "lea" -> LEA | "leal" -> LEAL | "leaq" -> LEAQ
+    | "mov" -> MOV | "movaps" -> MOVAPS | "vmovaps" -> VMOVAPS | "xchg" -> XCHG | "lea" -> LEA | "leal" -> LEAL | "leaq" -> LEAQ
     | "movsx" -> MOVSX | "movapd" -> MOVAPD | "movslq" -> MOVSLQ | "movq" -> MOVQ | "movabs" -> MOVABS
     | "movsd" -> MOVSD | "movsw" -> MOVSW | "movsb" -> MOVSB | "movss" -> MOVSS | "fstpl" -> FSTPL
     | "movzx" -> MOVZX | "fld" -> FLD | "fstp" -> FSTP | "movl" -> MOVL | "fldl" -> FLDL
@@ -330,18 +345,22 @@ and remove_bracket s' =
     | "fcmovb" -> FCMOVB | "fistp" -> FISTP | "fcmovnb" -> FCMOVNB
     | "cmovnp" -> CMOVNP | "stos" -> STOS | "stosb" -> STOSB
     | "stosw" -> STOSW | "stosd" -> STOSD | "fist" -> FIST | "fistps" -> FISTPS | "ffree" -> FFREE
-    | "orq" -> ORQ | "movdqu" -> MOVDQU | "movdqa" -> MOVDQA
-    | "movups" -> MOVUPS | "movd" -> MOVD | "movhlps" -> MOVHLPS
-    | "movhpd" -> MOVHPD | "movlpd" -> MOVLPD
-    | "movupd" -> MOVUPD
-    | "punpckhqdq" -> PUNPCKHQDQ
-    | "punpckldq" -> PUNPCKLDQ
+    | "orq" -> ORQ | "movdqu" -> MOVDQU | "vmovdqu" -> VMOVDQU | "movdqa" -> MOVDQA | "vmovdqa" -> VMOVDQA | "vmovdqa32" -> VMOVDQA32 | "vmovdqa64" -> VMOVDQA64
+    | "movups" -> MOVUPS | "vmovups" -> VMOVUPS | "movd" -> MOVD | "vmovd" -> VMOVD | "vmovq" -> VMOVQ | "movhlps" -> MOVHLPS
+    | "movhpd" -> MOVHPD | "movhps" -> MOVHPS | "movlpd" -> MOVLPD | "movupd" -> MOVUPD
+    | "vmovhpd" -> VMOVHPD | "vmovhps" -> VMOVHPS
+    | "punpckhqdq" -> PUNPCKHQDQ 
+    | "punpckldq" -> PUNPCKLDQ | "vpunpckldq" -> VPUNPCKLDQ
     | "punpcklbw" -> PUNPCKLBW
-    | "punpcklqdq" -> PUNPCKLQDQ
-    | "punpcklwd" -> PUNPCKLWD
-    | "pinsrw" -> PINSRW
-    | "pextrw" -> PEXTRW
+    | "punpcklqdq" -> PUNPCKLQDQ | "vpunpcklqdq" -> VPUNPCKLQDQ
+    | "punpcklwd" -> PUNPCKLWD | "vpunpcklwd" -> VPUNPCKLWD
+    | "pinsrw" -> PINSRW | "pinsrb" -> PINSRB | "pinsrd" -> PINSRD | "pinsrq" -> PINSRQ
+    | "vpinsrw" -> VPINSRW | "vpinsrb" -> VPINSRB | "vpinsrd" -> VPINSRD | "vpinsrq" -> VPINSRQ
+    | "pextrw" -> PEXTRW | "vpextrw" -> VPEXTRW
     | "movlhps" -> MOVLHPS
+    | "vinserti128" -> VINSERTI128 | "vextracti128" -> VEXTRACTI128
+    | "psadbw" -> PSADBW | "vpsadbw" -> VPSADBW
+    | "bsf" -> BSF
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmp" -> CMP | "cmpq" -> CMPQ | "test" -> TEST | "cmpl" -> CMPL
@@ -353,9 +372,12 @@ and remove_bracket s' =
     | "cmpnltsd" -> CMPNLTSD
     | "pcmpgtd" -> PCMPGTD
     | "pcmpgtb" -> PCMPGTB
-    | "pcmpeqd" -> PCMPEQD
+    | "pcmpeqb" -> PCMPEQB | "vpcmpeqb" -> VPCMPEQB
+    | "pcmpeqd" -> PCMPEQD | "vpcmpeqd" -> VPCMPEQD
     | "pcmpeqw" -> PCMPEQW
     | "cmpeqss" -> CMPEQSS
+    | "fcomi" -> FCOMI
+    | "comiss" -> COMISS | "comisd" -> COMISD
     | _ -> raise ParseError
   and setop_symb = function
     | "seta" ->  SETA | "setae" -> SETAE | "setb" -> SETB | "setc" -> SETC
@@ -366,7 +388,7 @@ and remove_bracket s' =
     | "sets" -> SETS
     | _ -> raise ParseError
   and otherop_symb = function
-    | "nop" -> NOP | "hlt" -> HLT | "nopw" -> NOPW | "nopl" -> NOPL | "ud2" -> UD2 | "endbr32" -> ENDBR32 | "endbr64" -> ENDBR64
+    | "nop" -> NOP | "hlt" -> HLT | "nopw" -> NOPW | "nopl" -> NOPL | "ud2" -> UD2 | "endbr32" -> ENDBR32 | "endbr64" -> ENDBR64 | "cpuid" -> CPUID
     | _ -> raise ParseError
 
   and stackop_symb = function
@@ -709,6 +731,7 @@ let eiz_symb = function s ->
       | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre')
       | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre')
       | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre')
+      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre')
       | _ -> raise ParseError
 
     method print_f (fl : func list) =

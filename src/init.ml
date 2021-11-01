@@ -66,8 +66,10 @@ object (self)
               let _ = Sys.command("readelf -s "^f^" | grep 'GLOBAL\|WEAK' \
                 | awk \'/OBJECT/ {print $2,$8}\' > globalbss.info") in ()
 	 *)
-    let _ = Sys.command("readelf -sW "^f^" | grep OBJECT \
-                                         | awk \'/GLOBAL/ {print $2,$8}\' > globalbss.info") in ()
+    (* let _ = Sys.command("readelf -sW "^f^" | grep OBJECT \
+                                         | awk \'/GLOBAL/ {print $2,$8}\' > globalbss.info") in () *)
+    let _ = Sys.command("objdump -R "^f^" | awk \'/GLOB_DAT/ {print $1, $2, $3}\' > globalbss.info") in
+    let _ = Sys.command("objdump -R "^f^" | awk \'/COPY/ {print $1, $2, $3}\' >> globalbss.info") in ()
 
   method checkret r file =
     if !r = 0 then ()
@@ -114,10 +116,8 @@ object (self)
     (* and _ = Sys.command("greadelf -S "^f^" | awk '$2==\".got.plt\" {print $2,$4,$5,$6}' > pic_secs.info") in *)
 
   method sectionProcess_64(f : string) =
-    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk \'/data|bss|got/ {print $3,$5,$6,$7} \' | awk \ '$1 != \
-                \".data.rel.ro\" {print $1,$2,$3,$4}\' > sections.info");
-    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | awk \'/data|bss|got/ {print $2,$4,$5,$6} \' | awk \ '$1 != \
-                \".data.rel.ro\" {print $1,$2,$3,$4}\' >> sections.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk \'/data|bss|got/ {print $3,$5,$6,$7} \'  > sections.info");
+    Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | awk \'/data|bss|got/ {print $2,$4,$5,$6} \'  >> sections.info");
     Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk \'/text/ {print $3,$5,$6,$7} \' > text_sec.info");
     Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | awk \'/text/ {print $2,$4,$5,$6} \' >> text_sec.info");
     Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | awk \'/init/ {print $3,$5,$6,$7} \' | awk \'$1 != \".init_array\" {print $1,$2,$3,$4}\' > init_sec.info");

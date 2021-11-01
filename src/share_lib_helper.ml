@@ -237,10 +237,9 @@ class lib32_helper (instr_list : instr list) =
       match i with
       | SingleInstr (p, l, pre) -> i
       | DoubleInstr (p, e, l, pre) -> DoubleInstr (p, v_exp e, l, pre)
-      | TripleInstr (p, e1, e2, l, pre)
-        -> TripleInstr (p, v_exp e1, v_exp e2, l, pre)
-      | FourInstr (p, e1, e2, e3, l, pre)
-        -> FourInstr (p, e1, v_exp e2, e3, l, pre)
+      | TripleInstr (p, e1, e2, l, pre) -> TripleInstr (p, v_exp e1, v_exp e2, l, pre)
+      | FourInstr (p, e1, e2, e3, l, pre) -> FourInstr (p, e1, v_exp e2, e3, l, pre)
+      | FifInstr (p, e1, e2, e3, e4, l, pre) -> FifInstr (p, e1, v_exp e2, e3, e4, l, pre)
 
 
     method traverse =

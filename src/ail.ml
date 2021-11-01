@@ -18,7 +18,7 @@ object (self)
   val mutable intrs: string list = []
   val mutable instrs_list: instr list = []
   val mutable datas: string list = []
-  val mutable g_bss: (string*string) list = []
+  val mutable g_bss: (string*string*string) list = []
 
   method sections =
     let filelines = File.lines_of "sections.info"
@@ -57,6 +57,11 @@ object (self)
           and funname = List.nth items 1 in
           let len = String.length funname in
           let funname' = String.sub funname 1 (len-3) in
+          if String.exists funname' "@@" then
+            let fn = List.nth (Str.split (Str.regexp_string "@@") funname') 0 in
+            funcs <- {func_name=fn; func_begin_addr=addr; func_end_addr = 0;
+                    is_lib=false}::funcs
+          else
           funcs <- {func_name=funname'; func_begin_addr=addr; func_end_addr = 0;
                     is_lib=false}::funcs
         end
@@ -82,8 +87,9 @@ object (self)
       let t = List.nth items 0 in
       let addr = String.sub t 1 ((String.length t)-1) in
       let addr' = String.uppercase addr
-      and n = String.trim (List.nth items 1) in
-      g_bss <- (addr', n)::g_bss
+      and rtype = List.nth items 1
+      and n = String.trim (List.nth items 2) in
+      g_bss <- (addr', rtype, n)::g_bss
     in
     Enum.iter help filelines
 

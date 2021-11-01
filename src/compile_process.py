@@ -30,8 +30,8 @@ def reassemble():
         else: os.system('gcc -no-pie final.s -lm -lrt -lpthread -m32 2> final.error')
     else:
         # 64-bit binary
-        if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -lcrypt 2> final.error')
-        else: os.system('gcc -no-pie final.s -lm -lrt -lpthread -lcrypt 2> final.error')
+        if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -lcrypt -m64 2> final.error')
+        else: os.system('gcc -no-pie final.s -lm -lrt -lpthread -lcrypt -lgmp -m64 2> final.error')
 
 
 def parse_error():

@@ -18,8 +18,9 @@ module Analysis = struct
         let t = List.nth items 0 in
         let addr = String.sub t 1 ((String.length t)-1) in
         let addr' = String.uppercase addr
-        and n = String.trim (List.nth items 1) in
-        (addr', n)::acc
+        and value = String.trim (List.nth items 2)  in
+        let rtype = String.trim (List.nth items 1) in 
+        (addr', value, rtype)::acc
       in
       List.fold_left help [] filelines
 

@@ -95,6 +95,7 @@ let get_loc i =
   | DoubleInstr (_, _, l, _) -> l
   | TripleInstr (_, _, _, l, _) -> l
   | FourInstr (_, _, _, _, l, _) -> l
+  | FifInstr (_, _, _, _, _, l, _) -> l
 
 let set_loc i l =
   match i with
@@ -102,6 +103,7 @@ let set_loc i l =
   | DoubleInstr (p, e, _, pre) -> DoubleInstr (p, e, l, pre)
   | TripleInstr (p, e1, e2, _, pre) -> TripleInstr (p, e1, e2, l, pre)
   | FourInstr (p, e1, e2, e3, _, pre) -> FourInstr (p, e1, e2, e3, l, pre)
+  | FifInstr (p, e1, e2, e3, e4, _, pre) -> FifInstr (p, e1, e2, e3, e4, l, pre)
 
 let get_addr i =
   let l = get_loc i in
@@ -121,14 +123,7 @@ let get_op i =
   | DoubleInstr (p, _, _, _) -> p
   | TripleInstr (p, _, _, _, _) -> p
   | FourInstr (p, _, _, _, _, _) -> p
-
-
-let get_op i =
-  match i with
-  | SingleInstr (p, _, _) -> p
-  | DoubleInstr (p, _, _, _) -> p
-  | TripleInstr (p, _, _, _, _) -> p
-  | FourInstr (p, _, _, _, _, _) -> p
+  | FifInstr (p, _, _, _, _, _, _) -> p
 
 let get_cf_des i =
   match i with
@@ -142,6 +137,7 @@ let get_exp_1 i =
   | DoubleInstr (_, e, _, _) -> e
   | TripleInstr (_, e, _, _, _) -> e
   | FourInstr (_, e, _, _, _, _) -> e
+  | FifInstr (_, e, _, _, _, _, _) -> e
 
 
 let read_file (filename : string) : string list =
@@ -224,6 +220,7 @@ let print_instr_type (i : instr) : unit =
   | DoubleInstr _ -> print_string "double instr"
   | TripleInstr _ -> print_string "triple instr"
   | FourInstr _ -> print_string "four instr"
+  | FifInstr _ -> print_string "five instr"
 
 (* sort loc lost in ascending order *)
 let sort_loc (ll : loc list) : loc list =
@@ -529,6 +526,7 @@ module Addr_utils = struct
       | DoubleInstr (_, _, l, _) -> l
       | TripleInstr (_, _, _, l, _) -> l
       | FourInstr (_, _, _, _, l, _) -> l
+      | FifInstr (_, _, _, _, _, l, _) -> l
 
     let set_loc i l =
       match i with
@@ -536,6 +534,7 @@ module Addr_utils = struct
       | DoubleInstr (p, e, _, pre) -> DoubleInstr (p, e, l, pre)
       | TripleInstr (p, e1, e2, _, pre) -> TripleInstr (p, e1, e2, l, pre)
       | FourInstr (p, e1, e2, e3, _, pre) -> FourInstr (p, e1, e2, e3, l, pre)
+      | FifInstr (p, e1, e2, e3, e4, _, pre) -> FifInstr(p, e1, e2, e3, e4, l, pre)
 
     let get_addr i =
       let l = get_loc i in

@@ -109,6 +109,16 @@ let fourth_instr (op : string) (el : string list) (l : string) =
     lexm.(4) <- Lloc l;
     lexm
 
+let fifth_instr (op : string) (el : string list) (l : string) =
+  let lexm = Array.create 7 Lend in
+    lexm.(0) <- Lop op;
+    lexm.(1) <- Lexp (List.nth el 0);
+    lexm.(2) <- Lexp (List.nth el 1);
+    lexm.(3) <- Lexp (List.nth el 2);
+    lexm.(4) <- Lexp (List.nth el 3);
+    lexm.(5) <- Lloc l;
+    lexm
+
 let do_exp (e : string) (op : string) (l : string) =
   let cl = comma_in_brackets e in
     let cl_len = List.length cl in
@@ -120,6 +130,9 @@ let do_exp (e : string) (op : string) (l : string) =
       else if cl_len == 2 then (*triple exp instr*)
         let el = split_by_list e cl in
           fourth_instr op el l
+      else if cl_len == 3 then (*fourth exp instr*)
+        let el = split_by_list e cl in
+          fifth_instr op el l
       else
         failwith "unsupport exp length"
 

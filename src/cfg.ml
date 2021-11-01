@@ -72,6 +72,7 @@ class cfg =
       | DoubleInstr (_, _, l, _) -> l
       | TripleInstr (_, _, _, l, _) -> l
       | FourInstr (_, _, _, _, l, _) -> l
+      | FifInstr (_, _, _, _, _, l, _) -> l
 
     method vinst' (i: instr) =
       (* check whether is control flow transfer opcodes *)

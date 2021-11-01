@@ -27,7 +27,7 @@ else:
     # say, extremly large pic memory addresses.
     # let's expand the regex constrains as below.
     #
-    pat = r'0x[0-9a-f]+\(%rip\)'
+    pat = r'[\-]*0x[0-9a-f]+\(%rip\)'
 
     symbols = []
 

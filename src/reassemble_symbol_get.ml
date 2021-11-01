@@ -179,7 +179,7 @@ class datahandler (label' : (string*int) list) =
 
 
     method get_textlabel =
-      self#dump_d2c_labels text_labels_reloc;
+      self#dump_d2c_labels text_labels;
       text_labels
 
     method text_sec_collect =
@@ -244,7 +244,7 @@ class datahandler (label' : (string*int) list) =
 	  (*.byte 0x80*)
       let get_v s =
         String.sub s 8 2 in
-      let rec traverse acc l addr =
+      let rec traverse acc l addr sec =
       (*
                There exists a bug in 64 bit ELF processing. The address
                produced in "let vs'" line contains a 0 at the beginning.
@@ -267,7 +267,7 @@ class datahandler (label' : (string*int) list) =
         | h1::h2::h3::h4::h5::[]-> h5::h4::h3::h2::h1::acc
         | h1::h2::h3::h4::h5::h6::[]-> h6::h5::h4::h3::h2::h1::acc
         | h1::h2::h3::h4::h5::h6::h7::[] -> h7::h6::h5::h4::h3::h2::h1::acc
-        | (l1,v1)::(h2,v2)::(l3,v3)::(l4,v4)::(l5,v5)::(l6,v6)::(l7,v7)::(l8,v8)::t ->
+        | (l1,v1)::(l2,v2)::(l3,v3)::(l4,v4)::(l5,v5)::(l6,v6)::(l7,v7)::(l8,v8)::t ->
           (
             (* let v_str = "0x"^(get_v v4)^(get_v v3)^(get_v v2)^(get_v v1) in *)
 	        let b = Buffer.create 18 in
@@ -291,7 +291,7 @@ class datahandler (label' : (string*int) list) =
                       begin
                         in_jmptable <- false;
 
-                        traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+8)
+                        traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(l2,v2)::(l1,v1)::acc) t (addr+8) sec
                       end
                     else
                       begin
@@ -300,7 +300,7 @@ class datahandler (label' : (string*int) list) =
                         data_labels_reloc <- addr::data_labels_reloc;
 
                         (traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::("","")::("","")::("","")
-                                   ::(l1,".long S_0x"^(v_str'))::acc) t (addr+8))
+                                   ::(l1,".long S_0x"^(v_str'))::acc) t (addr+8) sec)
                       end
                   )
                 | None ->
@@ -319,7 +319,7 @@ class datahandler (label' : (string*int) list) =
                             if (self#check_jmptable l1 v) = false then
                               begin
                                 in_jmptable <- false;
-                                traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+8)
+                                traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(l2,v2)::(l1,v1)::acc) t (addr+8) sec
                               end
                             else
                               begin
@@ -330,12 +330,12 @@ class datahandler (label' : (string*int) list) =
 if (bbn_byloc addr label_mem_arr) then
 begin*)
                                 in_jmptable <- true;
-					            cur_func_name <- self#fn_byloc v;
+					                      cur_func_name <- self#fn_byloc v;
                                 let v_str' = aux v in
                                 text_labels <- v::text_labels;
                                 text_labels_reloc <- addr::text_labels_reloc;
                                 (traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::("","")::("","")::("","")
-                                           ::(l1,".long S_0x"^(v_str'))::acc) t (addr+8))
+                                           ::(l1,".long S_0x"^(v_str'))::acc) t (addr+8) sec)
 (*
 end
 else
@@ -354,17 +354,17 @@ begin
 *)
                             if (self#check_jmptable_1 l1) = false then
                               in_jmptable <- false
-				            else
-				              begin
+				                    else
+				                    begin
                                 in_jmptable <- true;
-			                    cur_func_name <- self#fn_byloc v;
-				              end;
+			                          cur_func_name <- self#fn_byloc v;
+				                    end;
                             let v_str' = aux v in
                             text_labels <- v::text_labels;
                             text_labels_reloc <- addr::text_labels_reloc;
                            (* (traverse (("","")::("","")::("","")::("","")::("","")::("","")::("","") *)
-                                (traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::("","")::("","")::("","")
-                                       ::(l1,".long S_0x"^(v_str'))::acc) t (addr+8))
+                            (traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::("","")::("","")::("","")
+                                       ::(l1,".long S_0x"^(v_str'))::acc) t (addr+8) sec)
    (*
 end
 else
@@ -377,25 +377,45 @@ end
                       )
                     | false ->
                       begin
+                        self#check_offset_64 v_str addr sec;
                         in_jmptable <- false;
-                        traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+8)
+                        traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(l2,v2)::(l1,v1)::acc) t (addr+8) sec
                       end
                   )
               end
             | None ->
               begin
                 in_jmptable <- false;
-                traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+8)
+                begin
+                  match (self#check_offset_64 v_str addr sec) with
+                  | Some s1, Some s2 -> 
+                    let v_str1 = aux s1 and v_str2 = aux s2 in
+                      text_labels <- s1::s2::text_labels;
+                      (traverse (("","")::("","")::("","")::(l5,".long S_0x"^(v_str1))::("","")::("","")::("","")
+                      ::(l1,".long S_0x"^(v_str2))::acc) t (addr+8) sec)
+                  | None, Some s2 -> 
+                    let v_str2 = aux s2 in
+                      text_labels <- s2::text_labels;
+                      (traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::("","")::("","")::("","")
+                      ::(l1,".long S_0x"^(v_str2))::acc) t (addr+8) sec)
+                  | Some s1, None -> 
+                    let v_str1 = aux s1 in
+                      text_labels <- s1::text_labels;
+                      (traverse (("","")::("","")::("","")::(l5,".long S_0x"^(v_str1))::(l4,v4)::(l3,v3)::(l2,v2)
+                      ::(l1,v1)::acc) t (addr+8) sec)
+                  | None, None -> traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(l2,v2)::(l1,v1)::acc) t (addr+8) sec
+                end
               end
           ) in
 
       (* add labels in data, rodata sections to support check jmp table*)
       self#add_data_label;
 
-      data_list <- List.rev (traverse [] data_list 0x080500c4);
-      rodata_list <- List.rev (traverse [] rodata_list 0x0804cc60);
-      got_list <- List.rev (traverse [] got_list 0x0)
-
+      data_list <- List.rev (traverse [] data_list 0x080500c4 ".data");
+      rodata_array <- Array.of_list rodata_list;
+      rodata_list <- List.rev (traverse [] rodata_list 0x0 ".rodata");
+      data_rel_ro_list <- List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
+      got_list <- List.rev (traverse [] got_list 0x0 ".got")
 
     (* this method solve all the references in the .data .rodata sections *)
     method data_refer_solve funcs =
@@ -411,7 +431,7 @@ end
 	  (*.byte 0x80*)
       let get_v s =
         String.sub s 8 2 in
-      let rec traverse acc l addr =
+      let rec traverse acc l addr sec =
       (*
                There exists a bug in 64 bit ELF processing. The address
                produced in "let vs'" line contains a 0 at the beginning.
@@ -449,16 +469,15 @@ end
                       begin
                         in_jmptable <- false;
 
-                        traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4)
+                        traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
                       end
                     else
                       begin
                         let v_str' = aux v in
                         data_labels <- (s.sec_name, v)::data_labels;
                         data_labels_reloc <- addr::data_labels_reloc;
-
                         (traverse (("","")::("","")::("","")::(l1,".long S_0x"^v_str')::acc)
-                                  t (addr+4))
+                                  t (addr+4) sec)
                       end
                   )
                 | None ->
@@ -479,45 +498,59 @@ end
                             if (self#check_jmptable l1 v) = false then
                               begin
                                 in_jmptable <- false;
-                       		    traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4)
+                       		      traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
                               end
                             else
                               begin
                                 in_jmptable <- true;
-					            cur_func_name <- self#fn_byloc v;
+					                      cur_func_name <- self#fn_byloc v;
                                 let v_str' = aux v in
-                                text_labels <- v::text_labels;
-                                text_labels_reloc <- addr::text_labels_reloc;
+                                (* text_labels <- v::text_labels;
+                                text_labels_reloc <- addr::text_labels_reloc; *)
                                 (traverse (("","")::("","")::("","")
-                                           ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4))
+                                           ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
                               end
                           end
                         else
                           begin
                             if (self#check_jmptable_1 l1) = false then
                               in_jmptable <- false
-				            else
-				              begin
-                                in_jmptable <- true;
-			                    cur_func_name <- self#fn_byloc v;
-				              end;
+				                    else
+				                    begin
+                              in_jmptable <- true;
+			                        cur_func_name <- self#fn_byloc v;
+				                    end;
                             let v_str' = aux v in
                             text_labels <- v::text_labels;
                             text_labels_reloc <- addr::text_labels_reloc;
                             (traverse (("","")::("","")::("","")
-                                       ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4))
+                                       ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
                           end
                       )
                     | false ->
-                      begin
-                          (*in_jmptable <- false;
-                          let h::t = l in
-                          traverse ((l1,v1)::acc) t (addr+1) *)
+                      ( 
+                      match (self#check_offset v funcs sec) with
+                      | Some v ->
+                        begin
+                          in_jmptable <- true;
+                          cur_func_name <- self#fn_byloc v;
+                          let v_str' = aux v in
+                          text_labels <- v::text_labels;
+                          text_labels_reloc <- addr::text_labels_reloc;
+                          (traverse (("","")::("","")::("","")
+                                      ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
+                        end
+                      | None ->
+                        begin
+                            (*in_jmptable <- false;
+                            let h::t = l in
+                            traverse ((l1,v1)::acc) t (addr+1) *)
 
-                        in_jmptable <- false;
-                       	traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4)
+                          in_jmptable <- false;
+                          traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
 
-                      end
+                        end
+                      )
                   )
               end
             | None ->
@@ -526,7 +559,7 @@ end
                 let h::t = l in  (*let it crash it not matched*)
                 traverse ((l1,v1)::acc) t (addr+1)*)
 
-                traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4)
+                traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
 
               end
           ) in
@@ -534,8 +567,9 @@ end
       (* add labels in data, rodata sections to support check jmp table*)
       self#add_data_label;
 
-      data_list <- List.rev (traverse [] data_list 0x082f3110);
-      rodata_list <- List.rev (traverse [] rodata_list 0x08288680);
+      data_list <- List.rev (traverse [] data_list 0x082f3110 ".data");
+      rodata_list <- List.rev (traverse [] rodata_list 0x08288680 ".rodata");
+      data_rel_ro_list <- List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
 	(* 32-bit binary does not need this *)
       (* got_list <- List.rev (traverse [] got_list 0x0) *)
 
@@ -755,9 +789,9 @@ end
       (*print_string "finish rodata\n"; *)
       data_rel_ro <- self#collect "data_rel_ro_split.info";
 	    (* 32-bit binary does not need this *)
-      if EU.elf_32 () then
+      (* if EU.elf_32 () then
         ()
-      else
+      else *)
       got <- self#collect "got_split.info";
       (*print_string "finish got\n"; *)
       bss <- self#collect_bss "bss.info";
@@ -781,6 +815,73 @@ end
             else  help t addr )
         | [] -> None in
       help sec addr
+
+    method check_offset_64 offset addr sec =
+        let rec find_jmp_table_base idx =
+          if idx < 0 then None
+          else
+          begin
+            let (s,d) = rodata_array.(idx) in
+            if String.length s = 0 then find_jmp_table_base (idx-4)
+            else if String.exists s "0x" then Some (int_of_string (s))
+            else None
+          end
+        in
+        let help addr offset_s = 
+          let offset = int_of_string ("0x" ^ offset_s) in
+          let offset' = Int32.to_int(Int32.of_int(offset)) in
+          match find_jmp_table_base addr with
+          | Some base ->
+            begin
+              if (offset' < 0) then
+              begin
+                if (self#check_text(offset' + base)) then
+                  let target_addr = offset' + base in
+                  Some (target_addr)
+                else
+                  None
+              end
+              else
+                None
+            end
+          | None -> None
+        in
+        match sec with
+        | ".rodata" ->
+          begin
+            let first = help (addr+4) (String.sub offset 2 8) in
+            let second = help addr (String.sub offset 10 8) in
+            (first, second)
+          end
+        | _ -> (None, None)
+
+    method check_offset offset funcs sec = 
+      let begin_addrs = List.map (fun f -> f.func_begin_addr) funcs in
+      let check_func_begin v =
+          bbn_byloc v (Array.of_list begin_addrs) in
+      let filelines = File.lines_of "pic_secs.info" in
+      let help l offset=
+          let items = Str.split (Str.regexp " +") l in
+          let got_addr = int_of_string ("0x"^(List.nth items 1)) 
+          and offset' = Int32.to_int(Int32.of_int(offset)) in
+          if (offset' < 0) then
+            if (check_func_begin(offset' + got_addr)) then
+              let target_addr = offset' + got_addr in
+              Some (target_addr)
+            else
+              None
+          else 
+            None
+      in 
+        match sec with
+        | ".rodata" -> 
+          begin
+            match (Enum.peek filelines) with
+            | Some l -> help l offset
+            | _ -> None
+          end
+        | _ -> None
+
 
     method pp_print_2 l =
       let rec help l =
@@ -1692,7 +1793,24 @@ class reassemble =
                       Ptr (BinOP_PLUS_S (r,s_label))
                     )
                 )
-              | None -> e
+              | None -> 
+                (
+                  if self#check_text addr then 
+                    if self#has_text addr then
+                    (
+                      let s_label = "S_"^(dec_hex addr) in
+                      Ptr (BinOP_PLUS_S (r,s_label))
+                    )
+                    else
+                    (
+                      Hashtbl.replace text_set addr "";
+                      let s_label = "S_"^(dec_hex addr) in
+                      deslist <- s_label::deslist;
+                      Ptr (BinOP_PLUS_S (r,s_label))
+                    )
+                  else
+                    e
+                )
             )
           (* I don't know whether it can go this way, but it doesn't hurt *)
           | BinOP_MINUS (r, addr) ->
@@ -1877,6 +1995,7 @@ class reassemble =
         -> TripleInstr (p, (self#v_exp2 e1 i f false)
                        , (self#v_exp2 e2 i f false), l, pre)
       | FourInstr (p, e1, e2, e3, l, pre) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre)
+      | FifInstr (p, e1, e2,e3,e4, l, pre) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre)
 
 
     method visit_heuristic_analysis (instrs: instr list) =
@@ -2037,18 +2156,22 @@ class reassemble =
       p#insert_dummy;
       p#get_instr_list
 
-    method adjust_globallabel g_bss instr_list =
-      let g_bss' = List.filter (fun (a,n) ->
+    method adjust_globallabel (g_bss : (string * string * string) list) instr_list =
+      let g_bss' = List.filter (fun (a,n,t) ->
           String.exists n "@") g_bss in
-      let labels = List.map (fun (a,n) -> a) g_bss'
+      let labels = List.map (fun (a,n,t) -> a) g_bss'
       and size = (List.length g_bss') + 1 in
       let gbss_hs = Hashtbl.create size in
-      let help (addr, n) =
+      let help (addr, n, t) =
         let addr' = "S_0x"^addr in
-        if String.contains n '@' then (* stderr@@GLIBC_2.0 *)
-          let n' = List.nth (Str.split (Str.regexp "@") n) 0 in
+        if String.exists t "COPY" then 
+          let n' =  (List.nth (Str.split (Str.regexp "@") n) 0) in
           Hashtbl.replace gbss_hs addr' n'
-        else Hashtbl.replace gbss_hs addr' n in
+        else if String.exists t "GLOB_DAT" then
+          let n' = "$" ^ (List.nth (Str.split (Str.regexp "@") n) 0) in
+          Hashtbl.replace gbss_hs addr' n'
+        else 
+          Hashtbl.replace gbss_hs addr' n in
       let check l =
         try Some (List.find (fun i-> String.exists l i) labels)
         with Not_found -> None

@@ -25,6 +25,8 @@ class ailVisitor =
             | FourInstr _ ->
                 (* print_string "four instruction\n"; *)
                 i
+            | FifInstr _ ->
+                i
 
         method v_exp (e: exp) =
             match e with

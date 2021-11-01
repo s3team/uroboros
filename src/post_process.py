@@ -1,4 +1,5 @@
 import os
+import re
 
 lines = []
 
@@ -20,6 +21,17 @@ ll = len(lines)
 main_symbol = ""
 
 find_text = False
+
+if is_32:
+    for i in range(ll):
+        m = re.search(r'jmp\s+\*(%e\w{2})',lines[i])
+        if m and re.search(r'add\s+%e\w{2},'+m.group(1),lines[i-1]):
+            lines[i-1] = "nop\n"
+else:
+    for i in range(ll):
+        m = re.search(r'jmpq\s+\*(%r\w{2})',lines[i])
+        if m and re.search(r'add\s+%r\w{2},'+m.group(1),lines[i-1]):
+            lines[i-1] = "nop\n"
 
 for i in range(ll):
     l = lines[i]

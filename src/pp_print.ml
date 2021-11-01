@@ -147,6 +147,14 @@ and p_four p e1 e2 e3 =
     (p_str^" "^e3_str^" "^e2_str^","^e1_str)
   else
     (p_str^" "^e3_str^","^e2_str^","^e1_str)
+  
+and p_five p e1 e2 e3 e4 =
+    let p_str = p_op p
+    and e1_str = p_exp e1
+    and e2_str = p_exp e2
+    and e3_str = p_exp e3
+    and e4_str = p_exp e4 in
+    (p_str^" "^e4_str^","^e3_str^","^e2_str^","^e1_str)
 
 
 and p_location l =
@@ -163,6 +171,7 @@ let get_loc i =
   | DoubleInstr (_, _, l, _) -> l
   | TripleInstr (_, _, _, l, _) -> l
   | FourInstr (_, _, _, _, l, _) -> l
+  | FifInstr (_, _, _, _, _, l, _) -> l
 
 let pp_print_instr i =
   match get_loc i with
@@ -175,6 +184,7 @@ let pp_print_instr i =
        | DoubleInstr (p, exp1, l, pre) -> ((p_location l)^(p_prefix pre)^(p_double p exp1))
        | TripleInstr (p, exp1, exp2, l, pre) -> ((p_location l)^(p_prefix pre)^(p_triple p exp1 exp2))
        | FourInstr (p, exp1, exp2, exp3, l, pre) -> ((p_location l)^(p_prefix pre)^(p_four p exp1 exp2 exp3))
+       | FifInstr (p, exp1, exp2, exp3, exp4, l, pre) -> ((p_location l)^(p_prefix pre)^(p_five p exp1 exp2 exp3 exp4))
      end
 
 
