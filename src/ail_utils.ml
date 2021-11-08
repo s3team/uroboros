@@ -896,21 +896,19 @@ module Instr_template = struct
       let ads = "sub_" ^ (dec_hex addr')  in
       let i1 = DoubleInstr (StackOP PUSH, Reg (CommonReg ECX), iloc, None) in
       let i2 = TripleInstr (CommonOP (Assign MOVL), Reg (CommonReg ECX), Label "index", iloc', None) in
-      let i3 = TripleInstr (CommonOP (Assign MOVL),
-                            Ptr (JmpTable_PLUS_S ("buf-4", CommonReg ECX, 4)),
-                            Const (Normal addr'), iloc', None) in
-      let i4 = DoubleInstr (ControlOP (Loop LOOP), Label ads, iloc', None) in
-      let i5 = TripleInstr (CommonOP (Assign MOVL), Reg (CommonReg ECX),
-                            Const (Normal 0x400000), iloc', None) in
-      let i6 = TripleInstr (CommonOP (Assign MOVL), Label "index", Reg (CommonReg ECX),
-                            {iloc' with loc_label = ads ^ ":"}, None) in
+      let i3 = DoubleInstr (ControlOP (Loop LOOP), Label ads, iloc', None) in
+      (* let i4 = TripleInstr (CommonOP (Assign MOVL), Reg (CommonReg ECX),
+                            Const (Normal 0x400000), iloc', None) in *)
+      let i5 = TripleInstr (CommonOP (Assign MOVL), Ptr (JmpTable_PLUS_S ("buf", CommonReg ECX, 4)),
+                            Const (Normal addr'), {iloc' with loc_label = ads ^ ":"}, None) in
+      let i6 = TripleInstr (CommonOP (Assign MOVL), Label "index", Reg (CommonReg ECX), iloc', None) in
       let i7 = DoubleInstr (StackOP POP, Reg (CommonReg ECX), iloc', None) in
       let i' = set_loc i iloc' in
       let open Instr_utils in
       set_update_fold i7 iloc []
       |> set_update_fold i6 iloc
       |> set_update_fold i5 iloc
-      |> set_update_fold i4 iloc
+      (* |> set_update_fold i4 iloc *)
       |> set_update_fold i3 iloc
       |> set_update_fold i2 iloc
       |> set_update_fold i1 iloc
@@ -1218,7 +1216,13 @@ module Function_visitor = struct
 end
 
 
+module Dataset_utils = struct
 
+    let insert_data label value size first_time label_pos =
+      let first_time = if first_time then "1" else "0" in
+      Sys.command("python data_instrumentation.py " ^ label ^ " " ^ value ^ " " ^ size ^ " " ^ first_time ^ " " ^ label_pos)
+
+end
 
 
 module Cfg_utils = struct

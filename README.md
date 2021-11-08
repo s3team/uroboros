@@ -1,4 +1,4 @@
-# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation (Version 0.3)
+# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation (Version 0.4)
 
 # Installation
 
@@ -99,21 +99,16 @@ the input, which is then stripped before disassembling.
 ## Instrument binaries
 
 Instrumentation tools process the internal data structure of
-Uroboros. Some examples are shown in the `./src/plugins` folder. You
+Uroboros. Some examples are shown in the [plugins](src/plugins) folder. You
 may start with `mem_write.ml`, which instruments every memory write
 operation.
 
-In order to register instrumentation code, users need to add some
-code at `./src/ail.ml`, starting from line 138. For example, in order to
-resgiter the "mem_write" tool, three lines of code need to be added as follows:
+To register instrumentation code:
 ```
-    let open Mem_write in
-    let module MW = Mem_write in
-    let il' = MW.process il in
+$ cp plugins/mem_write.ml instrumentation_plugin.ml
+$ ./build
 ```
-In order to see the instrumentation result perform the rebuild (e.g., `./build`) at the `/src` folder and further continue with usage step specified above.
 
-We will provide a better way in our next release.
 
 # Publications
 ```

@@ -1,4 +1,10 @@
-(* provide facilities for searching on trace *)
+(*
+   facilities for searching on trace
+   debloating based on execution traces.
+
+   This is not a plugin, but some ongoing work based on trace profiling.
+ *)
+
 module Trimmer_Pre = struct
 
     open Type

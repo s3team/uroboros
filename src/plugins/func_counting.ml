@@ -1,8 +1,10 @@
-(* this instrumentation plugin inserts counting instructions at the beginning
-   of a function.
+(*
+   This instrumentation plugin is for 32-bit binary.
+   It inserts counting instructions
+   at the beginning of each function. 
  *)
 
-module Func_counting = struct
+module Instrumentation_Plugin = struct
 
     open Ail_utils
 
@@ -41,32 +43,34 @@ module Func_counting = struct
    let instrument il fb_bbl bbl =
      let open Batteries in
      let module IU = Instr_utils in
+     let module EU = ELF_utils in
+     let module DU = Dataset_utils in
      let module BU = BB_utils in
      let aux _ bl acc =
        bl :: acc
      in
-     print_endline "bb counting : ";
-     print_int (Hashtbl.length fb_bbl);
-     print_string "\n";
      let l = Hashtbl.fold aux fb_bbl [] in
 
      let bbl_sort = BU.bbl_sort bbl in
      let bmap = BU.bb_map bbl_sort il in
 
      let help acc bl =
-       print_endline "done";
        instrument_func bl il acc bmap
      in
+     try
+     if EU.elf_32 () then
+     begin
+        DU.insert_data "counter" "0x00" "0x4" true "before";
 
-     List.flatten @@ List.fold_left help [] l
-     |> IU.insert_instrument_instrs il
-
-	(*
-     let module P = Parallel in
-     il_update :=  List.flatten @@
-     P.pfold ~ncores: 12 ~concat: (@)  help l [];
-
-      *)
-
+        List.flatten @@ List.fold_left help [] l
+          |> IU.insert_instrument_instrs il
+     end
+     else
+        assert false
+     with _ ->
+     begin
+      print_string "Plugin Failed: This plugin is for 32-bit binary, not for 64-bit.\n";
+      il
+     end
 
 end

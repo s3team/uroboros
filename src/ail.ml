@@ -140,22 +140,12 @@ object (self)
 	print_endline "3: analysis";
 
     let (fbl, bbl, cfg_t, cg, il', re) = A.analyze_one il fl re in
-
-    (*
-    let open Bb_counting in
-    let module BC = BB_counting in
-    let il' = BC.instrument il fbl bbl in
-    *)
-
-    (*
-    let open Mem_write in
-    let module MW = Mem_write in
-    let il' = MW.process il in
-     *)
-
+    let open Instrumentation_plugin in
+    let module IP = Instrumentation_Plugin in
+    let instrumented_il = IP.instrument il' fbl bbl in
 
 	print_endline "4: post processing";
-    A.post_analyze il' re;
+    A.post_analyze instrumented_il re;
 
     self#post_process
 
