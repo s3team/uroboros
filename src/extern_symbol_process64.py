@@ -41,8 +41,8 @@ else:
 
     for i in range(len(lines)):
         l = lines[i]
-        if "#" in l and not "+" in l:
-            m_s = re.search(pat_s, l)
+        m_s = re.search(pat_s, l)
+        if "#" in l and not "+" in l and m_s:
             m_d = re.search(pat_d, l)
             try:
                 src = m_s.group(1) # let it crash it not

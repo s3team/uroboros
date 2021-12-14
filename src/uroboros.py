@@ -121,7 +121,7 @@ def process(f, i):
 def iterate (f, iterations):
     print("start to process binary: " + f)
 
-    for i in xrange(0, iterations):
+    for i in range(0, iterations):
         print ("########## iteration round "+str(i+1) + " begin ! ###########")
         if process(f, i):
             pass
@@ -220,7 +220,7 @@ note that two basic assumptions and addtional assumption one
 (n-byte alignment) are set by default,
 while assumption two and three need to be configured. For example, setting
 assumption two and three: -a 2 -a 3''')
-    p.add_argument('--version', action='version', version='Uroboros v0.4')
+    p.add_argument('--version', action='version', version='Uroboros 0.5')
 
     args = p.parse_args()
     b = args.binary

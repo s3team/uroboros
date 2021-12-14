@@ -969,7 +969,7 @@ end
       let p = object(sp)
         method process lbs =
           let dec_hex (s:int) : string =
-            (Printf.sprintf "S_0x%X : " s) 
+            (Printf.sprintf "S_0x%X:\n" s) 
           in
           let rec help loc_list =
             match loc_list with
@@ -1195,7 +1195,7 @@ class instrhandler instr_list des'  =
         "S_0x"^(Printf.sprintf "%X" s) in
       let help l =
         let d = dec_hex l.loc_addr in
-        print_string (l.loc_label^" : "^d^"\n") in
+        print_string (l.loc_label^":\n"^d^"\n") in
       List.iter help locs
 
     method get_instr_list =
@@ -1299,7 +1299,7 @@ class instrhandler instr_list des'  =
           if dh = lhd then
             (
               let lhs = dec_hex lh.loc_addr in
-              let label' = do_update lh.loc_label (lhs^" : ") in
+              let label' = do_update lh.loc_label (lhs^":\n") in
               let lh' = {lh with loc_label=label'} in
               help (lh'::acc) lt dt
             )
@@ -1328,7 +1328,7 @@ class instrhandler instr_list des'  =
 
     method update_loc locs d =
       let dec_hex (s:int) : string =
-        "S_0x"^(Printf.sprintf "%X : " s) in
+        "S_0x"^(Printf.sprintf "%X:\n" s) in
       let identify_des addr1 addr2 =
         addr1.loc_addr = (int_of_string addr2)
       and lift_addr addr =
@@ -1365,7 +1365,7 @@ class funchandler instr_list u_funcs'  =
         "S_0x"^(Printf.sprintf "%X" s) in
       let help l =
         let d = dec_hex l.loc_addr in
-        print_string (l.loc_label^" : "^d^"\n") in
+        print_string (l.loc_label^":\n"^d^"\n") in
       List.iter help locs
 
 

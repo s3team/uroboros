@@ -22,8 +22,7 @@ object (self)
 
 	print_string "1: linearly disassemble\n";
 
-    ret := Sys.command("objdump -Dr -j \
-                        .text "^f^" > "^f^".temp");
+    ret := Sys.command("objdump -Dr -j .text "^f^" > "^f^".temp");
     self#checkret ret (f^".temp");
 
     Sys.command("python pic_process.py "^f^" "^(string_of_bool !is_32));

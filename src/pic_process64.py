@@ -35,7 +35,7 @@ else:
         l = lines[i]
         if "#" in l:
             des = l.split('#')[1].split()[0]
-            #symbols.append(des+"\n")
+            if des.startswith('0x'): des = des[2:]
             m = re.search(pat, l)
             try:
                 sub = m.group(0) # let it crash it not
@@ -44,8 +44,8 @@ else:
                 l = l.replace(sub, sub1)
                 lines[i] = l+"\n"
             except Exception:
-                print "exception in pic processing of 64-bit ELF"
-                print l
+                print("exception in pic processing of 64-bit ELF")
+                print(l)
     with open(fn + '.temp', 'w') as f:
         f.writelines(lines)
 

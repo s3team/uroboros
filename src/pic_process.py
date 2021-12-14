@@ -67,7 +67,7 @@ def text_process_unstrip(f):
     info_dump(f)
     pic_map = info_collect()
 
-    for i in xrange(1,len(ls)):
+    for i in range(1,len(ls)):
         l = ls[i]
         if "<__i686.get_pc_thunk.bx>" in l and "call" in l:
             t = ls[i+1]
@@ -96,7 +96,7 @@ def text_process_unstrip(f):
 def thunk_identify(ls):
     global step
 
-    for i in xrange(step, len(ls)):
+    for i in range(step, len(ls)):
         l = ls[i]
         m = re.search(r'([0-9A-Fa-f]*)(.+)(mov\s+\(%esp\),)(%e\w{2})', l.strip())
         if m != None:
@@ -157,7 +157,7 @@ def text_process_strip(f):
     while True:
         pc_thunk_addr, register = thunk_identify(ls)
         if pc_thunk_addr == None: break
-        for i in xrange(1,len(ls)):
+        for i in range(1,len(ls)):
             l = ls[i]
             if re.search(r'call\s+'+pc_thunk_addr, l) != None:
                 t = ls[i+1]

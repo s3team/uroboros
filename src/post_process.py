@@ -36,6 +36,20 @@ else:
         if m and re.search(r'add\s+%r\w{2},'+m.group(1),lines[i-1]):
             lines[i-1] = "nop\n"
 
+pre_symbol = ''
+pre_idx = -1
+for i in range(ll):
+    l = lines[i]
+    if l.startswith('BB_'):
+        if len(lines[i+1].strip()) == 0 or lines[i+1].startswith('S_0x'):
+            lines[i] = ""
+    if l.startswith('S_0x'):
+        if l == pre_symbol:
+            lines[pre_idx] = ''
+        pre_symbol = l
+        pre_idx = i
+
+
 for i in range(ll):
     l = lines[i]
     if ".text" in l:
@@ -129,13 +143,7 @@ else:
 
     def help(l):
         if main_symbol1 != "" and main_symbol1 in l and l.startswith(main_symbol1):
-    	#main_s1 = "S"+main_symbol
-    	#if main_s1 in l:
-    	    #l = l.replace(main_s1, ".globl main\nmain")
     	    l = ".globl main\nmain:\n"+l
-    	#else:
-    	    #l = l.replace(main_symbol, ".globl main\nmain")
-    	#    l = ".globl main\nmain:\n"+l
         return l
     #print lines
     lines = map(lambda l : help(l), lines)

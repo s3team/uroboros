@@ -114,7 +114,7 @@ class cfg =
            begin
              match c with
              | Jump _ -> true (* jump ops *)
-             | CALL -> true (* call *)
+             (*| CALL -> true (* call *)*)
              | RET ->  true
              | RETN -> true
              | _ -> false
