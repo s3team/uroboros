@@ -58,17 +58,17 @@ for i in range(ll):
         else:
             l = l.replace(".text:","")
     if "lea 0x0(%esi," in l:
-	if ':' in l:
-	    label = l.split(':')[0]   # label:  lea 0x0....
+        if ':' in l:
+            label = l.split(':')[0]   # label:  lea 0x0....
             l = label + " : nop;nop;nop;nop;nop;nop;nop;\n"
-	else:
+        else:
             l = "nop;nop;nop;nop;nop;nop;nop;\n"
     elif "lea 0x0(%edi," in l:
-	if ':' in l:
-	    label = l.split(':')[0]   # label:  lea 0x0....
+        if ':' in l:
+            label = l.split(':')[0]   # label:  lea 0x0....
             l = label + " : nop;nop;nop;nop;nop;nop;nop;\n"
-	else:
-	    label = ""
+        else:
+            label = ""
             l = "nop;nop;nop;nop;nop;nop;nop;\n"
     # __gmon_start__ symbol is resolved by the linked program itself, it surely can not be resolved
     # in our final.s code, just remove it
@@ -90,29 +90,29 @@ for i in range(ll):
     elif "jmpq " in l and "*" not in l:
         l = l.replace('jmpq ', 'jmp ')
     elif "__libc_start_main" in l and is_32 == True:
-	main_symbol = lines[i-1].split()[1]
-	lines[i-1] = lines[i-1].replace(main_symbol, "main")
-	main_symbol = main_symbol[1:].strip()
+        main_symbol = lines[i-1].split()[1]
+        lines[i-1] = lines[i-1].replace(main_symbol, "main")
+        main_symbol = main_symbol[1:].strip()
     elif is_32 == False and "__libc_start_main" in l:
         main_symbol = lines[i-1].split()[-1].split(',')[0]
-	lines[i-1] = lines[i-1].replace(main_symbol, "main")
-	main_symbol = main_symbol[1:].strip()
-	#print main_symbol
+        lines[i-1] = lines[i-1].replace(main_symbol, "main")
+        main_symbol = main_symbol[1:].strip()
+        # print main_symbol
 
 ## Some of the PIC code/module rely on typical pattern to locate
 ## such as:
 
-##	804c460: push   %ebx
-##	804c461: call   804c452 <__i686.get_pc_thunk.bx>
-##	804c466: add    $0x2b8e,%ebx
-##	804c46c: sub    $0x18,%esp
+# 804c460: push   %ebx
+# 804c461: call   804c452 <__i686.get_pc_thunk.bx>
+# 804c466: add    $0x2b8e,%ebx
+# 804c46c: sub    $0x18,%esp
 
 ## What we can do this pattern match `<__i686.get_pc_thunk.bx>` and calculate
 ## the address by plusing 0x2b8e and  0x804c466, which equals to the begin address of GOT.PLT table
 
 ## symbols can be leveraged in re-assemble are
-##	_GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
-##	....
+# _GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
+# ....
 
 
     lines[i] = l
@@ -143,7 +143,7 @@ else:
 
     def help(l):
         if main_symbol1 != "" and main_symbol1 in l and l.startswith(main_symbol1):
-    	    l = ".globl main\nmain:\n"+l
+            l = ".globl main\nmain:\n"+l
         return l
     #print lines
     lines = map(lambda l : help(l), lines)

@@ -220,7 +220,7 @@ note that two basic assumptions and addtional assumption one
 (n-byte alignment) are set by default,
 while assumption two and three need to be configured. For example, setting
 assumption two and three: -a 2 -a 3''')
-    p.add_argument('--version', action='version', version='Uroboros 0.5')
+    p.add_argument('--version', action='version', version='Uroboros 0.4')
 
     args = p.parse_args()
     b = args.binary

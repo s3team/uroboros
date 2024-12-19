@@ -85,9 +85,9 @@ else:
         #        lines[i+9] = ".byte 0x00\n"
 
             elif in_rodata == False and ".rodata" in l:
-		# add two instructions 
-		# branch_routine :pop global_des
-		# jmp *branch_des
+                # add two instructions
+                # branch_routine :pop global_des
+                # jmp *branch_des
                 in_rodata = True
                 #lines[i+2] = ""
                 #lines[i+3] = ""

@@ -1,9 +1,11 @@
-import sys, os
+import sys
+import os
 import commands
 
 fn = sys.argv[1]
 
 os.system('file ' + fn + ' > elf.info')
+
 
 def check_32():
     lines = []
@@ -24,9 +26,10 @@ def check_exe():
     else:
         return True
 
+
 is_exe = check_exe()
 
-if is_exe == False: # share library
+if is_exe == False:  # share library
     pass
 else:
     is_32 = check_32()
@@ -49,31 +52,31 @@ else:
         # main function
         if "<__libc_start_main@plt>" in l:
             if check_32() == True:
-    	        main_symbol = lines[i-1].split()[-1]
+                main_symbol = lines[i-1].split()[-1]
                 if '0x' not in main_symbol:
                     main_symbol = lines[i-2].split()[-1].split(',')[0]
             else:
                 main_symbol = lines[i-1].split()[-1].split(',')[0]
             has_found = True
             break
-    	#lines[i-1] = lines[i-1].replace(main_symbol, "main")
-    	#main_symbol = main_symbol[1:].strip()
-    	#print main_symbol
+        # lines[i-1] = lines[i-1].replace(main_symbol, "main")
+        # main_symbol = main_symbol[1:].strip()
+        # print main_symbol
 
-    ## Some of the PIC code/module rely on typical pattern to locate
-    ## such as:
+    # Some of the PIC code/module rely on typical pattern to locate
+    # such as:
 
-    ##	804c460: push   %ebx
-    ##	804c461: call   804c452 <__i686.get_pc_thunk.bx>
-    ##	804c466: add    $0x2b8e,%ebx
-    ##	804c46c: sub    $0x18,%esp
+    # 804c460: push   %ebx
+    # 804c461: call   804c452 <__i686.get_pc_thunk.bx>
+    # 804c466: add    $0x2b8e,%ebx
+    # 804c46c: sub    $0x18,%esp
 
-    ## What we can do this pattern match `<__i686.get_pc_thunk.bx>` and calculate
-    ## the address by plusing 0x2b8e and  0x804c466, which equals to the begin address of GOT.PLT table
+    # What we can do this pattern match `<__i686.get_pc_thunk.bx>` and calculate
+    # the address by adding 0x2b8e and 0x804c466, which equals to the begin address of GOT.PLT table
 
-    ## symbols can be leveraged in re-assemble are
-    ##	_GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
-    ##	....
+    # symbols can be leveraged in re-assemble are
+    # _GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
+    # ....
 
     if not has_found:
         output = commands.getoutput('readelf -h ' + fn)
@@ -90,16 +93,17 @@ else:
                     if 'callq' in lines[ln] and 'rip' in lines[ln]:
                         if check_32() == True:
                             main_symbol = lines[ln-1].split()[-1]
-                            if '0x' not in main_symbol: main_symbol = lines[ln-2].split()[-1].split(',')[0]
-                        else: main_symbol = lines[ln-1].split()[-1].split(',')[0]
+                            if '0x' not in main_symbol:
+                                main_symbol = lines[ln - 2].split()[-1].split(',')[0]
+                        else:
+                            main_symbol = lines[ln-1].split()[-1].split(',')[0]
                         break
                     ln += 1
                 break
 
-
     os.system('rm main.info')
 
-    main_symbol =main_symbol.split('0x')[1]
+    main_symbol = main_symbol.split('0x')[1]
 
     with open("main.info", 'w') as f:
         f.writelines('S_0x'+main_symbol.upper()+"\n")
