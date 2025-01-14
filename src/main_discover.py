@@ -1,6 +1,6 @@
 import sys
 import os
-import commands
+import subprocess
 
 fn = sys.argv[1]
 
@@ -79,7 +79,7 @@ else:
     # ....
 
     if not has_found:
-        output = commands.getoutput('readelf -h ' + fn)
+        output = subprocess.getoutput('readelf -h ' + fn)
         entry_point = ''
         for line in output.split('\n'):
             if 'Entry point address' in line:

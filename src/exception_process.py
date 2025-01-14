@@ -75,7 +75,7 @@ def pat_match2(s):
         elif "S_" not in ms.group(1):
             t = ms.group(1)
         else:
-            print "failed : "+s
+            print("failed : "+s)
         s1 = update_label2(t)
         s = s.replace(t, s1)
     return s
@@ -112,7 +112,7 @@ def typ_trans(t):
     elif 'string' in t:
         return t
     else:
-        print "unsupported type trans : " + t
+        print("unsupported type trans : " + t)
 
 for l in lines:
     has_off = False
@@ -121,7 +121,7 @@ for l in lines:
         has_off = True
     l = l.replace('offset', '')
     if "'" in l:
-        print l
+        print(l)
         l = l.replace("'", '"')
         is_str = True
     items = l.strip().split()
@@ -159,7 +159,7 @@ for i in range(0,len(parsed_ls)):
 
 with open(fn+'.data', 'w') as f:
     f.write('.section        .'+fn+',"aw",@progbits\n.align 4\n')
-    f.writelines(map(lambda l: l[1]+" "+l[2]+" "+l[3]+"\n", parsed_ls))
+    f.writelines(list(map(lambda l: l[1]+" "+l[2]+" "+l[3]+"\n", parsed_ls)))
 
 with open(fn+'.info', 'w') as f:
     f.writelines(set(text_labels))

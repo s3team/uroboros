@@ -55,7 +55,7 @@ def check (l):
     else:
         return False
 
-print "0: useless libc functions removing"
+print("0: useless libc functions removing")
 
 for i in range(6,len(lines)):
     l = lines[i]

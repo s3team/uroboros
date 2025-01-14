@@ -12,9 +12,9 @@ with open('inline_symbols.txt') as f:
     symbols = f.readlines()
 
 # get rid of space; newline and ":"
-symbols = map(lambda s : s.replace(":",""), symbols)
-symbols = map(lambda s : s.strip(), symbols)
-symbols = filter(lambda s : s.strip(), symbols)
+symbols = list(map(lambda s : s.replace(":",""), symbols))
+symbols = list(map(lambda s : s.strip(), symbols))
+symbols = list(filter(lambda s : s.strip(), symbols))
 
 symbols = set(symbols)
 
@@ -46,7 +46,7 @@ for i in range(len(lines)):
         cur_fun_name =  "inline_"+str(cur_fun_index)
         if inline_region == True:
             # possibly inline function nested; abort
-            print "inline function nested"
+            print("inline function nested")
             assert(False)
         else:
             #print "find inline function : " + l
@@ -54,7 +54,7 @@ for i in range(len(lines)):
     elif "_next_inline:" in l:
         if inline_region == False:
             # possibly inline function lost; abort
-            print "inline function lost"
+            print("inline function lost")
             assert(False)
         else:
             inline_region = False

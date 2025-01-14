@@ -18,7 +18,7 @@ if os.path.isfile('faddr_old.txt'):
     with open('faddr_old.txt') as f:
         fnl_old = f.readlines()
 
-fnl_old = map(lambda l : int(l.split()[0],16), fnl_old)
+fnl_old = list(map(lambda l : int(l.split()[0],16), fnl_old))
 #fnl_old = map(lambda l : l.split()[0], fnl_old)
 #print fnl_old
 

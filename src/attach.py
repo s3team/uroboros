@@ -12,9 +12,9 @@ def help(l):
     return l
 
 
-lines = map(lambda l: help(l), lines)
+lines = list(map(lambda l: help(l), lines))
 
 
-print "        .section        .ctors,\"aw\",@progbits"
+print("        .section        .ctors,\"aw\",@progbits")
 for l in lines:
-    print l
+    print(l)

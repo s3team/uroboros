@@ -26,7 +26,7 @@ lines = []
 with open('faddr.txt') as f:
     lines = f.readlines()
 
-funcs = map(lambda l:int(l,16), lines)
+funcs = list(map(lambda l:int(l,16), lines))
 
 lines = []
 with open('final.s') as f:

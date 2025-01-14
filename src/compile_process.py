@@ -1,6 +1,6 @@
 import os
-import commands
-from sets import Set
+import subprocess
+
 
 def check_exe():
     lines = []
@@ -23,7 +23,7 @@ def check_32():
 
 
 def reassemble():
-    gcc_version = commands.getoutput('gcc --version').split('\n')[0].split()[-1]
+    gcc_version = subprocess.getoutput('gcc --version').split('\n')[0].split()[-1]
     if check_32() == True:
         # 32-bit binary
         if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -m32 2> final.error')
@@ -45,10 +45,12 @@ def parse_error():
                 pass
             elif 'undefined reference' in l and 'S_0x' in l:
                 addrs.append(l.split()[-1][1:-1])
-        map(lambda l : help(l), errors)
+        for l in errors:
+            help(l)
+        # map(lambda l : help(l), errors)
 
 
-        return Set(addrs)
+        return set(addrs)
 
 
 def modify(errors):
@@ -56,13 +58,13 @@ def modify(errors):
     with open("final.s") as f:
         lines = f.readlines()
     def help(l):
-        e = filter(lambda e : e in l, errors)
+        e = list(filter(lambda e : e in l, errors))
         if e != []:
             addr = e[0][2:]
             #print "undefined label : "+addr
             l = l.replace(e[0], addr)
         return l
-    lines = map(lambda l : help(l), lines)
+    lines = list(map(lambda l : help(l), lines))
     with open("final.s", 'w') as f:
         f.writelines(lines)
 

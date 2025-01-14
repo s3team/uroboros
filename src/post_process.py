@@ -146,7 +146,7 @@ else:
             l = ".globl main\nmain:\n"+l
         return l
     #print lines
-    lines = map(lambda l : help(l), lines)
+    lines = list(map(lambda l : help(l), lines))
 
 #branch_routine :pop global_des
 #jmp *branch_des
@@ -154,8 +154,10 @@ else:
 
 
 with open("final.s", 'w') as f:
-    map(lambda l : f.write(l), lines)
+    for l in lines:
+        f.write(l)
+    # map(lambda l : f.write(l), lines)
 
 
 if os.path.isfile('inline_symbols.txt'):
-    os.system('python inline_update.py')
+    os.system('python3 inline_update.py')

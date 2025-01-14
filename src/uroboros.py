@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 import argparse
 import sys, os
-import commands
+import subprocess
 
 from argparse import RawTextHelpFormatter
 from argparse import ArgumentParser
@@ -45,7 +46,7 @@ def check_strip():
 
 
 def reassemble():
-    gcc_version = commands.getoutput('gcc --version').split('\n')[0].split()[-1]
+    gcc_version = subprocess.getoutput('gcc --version').split('\n')[0].split()[-1]
     if check_32() == True:
         # 32-bit binary
         if gcc_version < '6': os.system('gcc final.s -lm -lrt -lpthread -m32')
@@ -62,21 +63,21 @@ def process(f, i):
 
         # suppose we use this method to obtain function information
         os.system("cp " + f + " func_discover/")
-        os.system("python func_discover/func_addr.py func_discover/"+f + " " + str(i))
+        os.system("python3 func_discover/func_addr.py func_discover/"+f + " " + str(i))
         os.system("rm final_data.s")
         os.system('rm useless_func.info')
         if i > 0:
-            os.system("python useless_func_discover.py " + f)
+            os.system("python3 useless_func_discover.py " + f)
 
         os.system('echo \"' + str(i) + '\" > count.txt')
         os.system("strip " + f)
-        os.system("python main_discover.py " + f)
+        os.system("python3 main_discover.py " + f)
 
         os.system("./init.native " + f)
         if not os.path.isfile("final.s"):
             return False
 
-        os.system("python post_process_data.py")
+        os.system("python3 post_process_data.py")
 
         os.system('echo ".section .eh_frame" >> final_data.s')
         os.system('cat eh_frame_split.info >> final_data.s')
@@ -90,10 +91,10 @@ def process(f, i):
 
         if "gobmk" in f:
             # FIXME!
-            os.system("python gobmk_sub.py")
+            os.system("python3 gobmk_sub.py")
 
-        os.system("python compile_process.py")
-        os.system("python label_adjust.py")
+        os.system("python3 compile_process.py")
+        os.system("python3 label_adjust.py")
 
         reassemble()
 
@@ -209,18 +210,18 @@ def set_assumption (l):
 if __name__ == "__main__":
     p = ArgumentParser(formatter_class=RawTextHelpFormatter)
     p.add_argument("binary",
-                   help="path to the input binary, for example, /usr/bin/ls")
+                   help="path to the input binary, for example, /usr/bin/ls", default=0)
     p.add_argument("-i", "--iteration", type=int,
-                   help="the number of disassemble-(instrument)-reassemble iterations")
+                   help="the number of disassemble-(instrument)-reassemble iterations", default=0)
     p.add_argument("-k", "--keep", action="count",
-                   help="if multiple iteration processing, whether to keep itermediate binaries")
+                   help="if multiple iteration processing, whether to keep itermediate binaries", default=0)
     p.add_argument("-a", "--assumption", action="append",
                    help='''this option configures three addtional assumption,
 note that two basic assumptions and addtional assumption one
 (n-byte alignment) are set by default,
 while assumption two and three need to be configured. For example, setting
-assumption two and three: -a 2 -a 3''')
-    p.add_argument('--version', action='version', version='Uroboros 0.4')
+assumption two and three: -a 2 -a 3''', default=0)
+    p.add_argument('--version', action='version', version='Uroboros 0.4', default=0)
 
     args = p.parse_args()
     b = args.binary

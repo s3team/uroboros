@@ -361,6 +361,7 @@ and remove_bracket s' =
     | "vinserti128" -> VINSERTI128 | "vextracti128" -> VEXTRACTI128
     | "psadbw" -> PSADBW | "vpsadbw" -> VPSADBW
     | "bsf" -> BSF
+    | "xgetbv" -> XGETBV
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmp" -> CMP | "cmpq" -> CMPQ | "test" -> TEST | "cmpl" -> CMPL

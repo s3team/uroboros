@@ -39,7 +39,9 @@ def info_collect():
         items = l.split()
         # name ;  begin addr; ... ; size
         pic_map[items[0]] = (int(items[1], 16), int(items[3], 16))
-    map(lambda l: help(l), ls)
+    for l in ls:
+        help(l)
+    # map(lambda l: help(l), ls)
 
     return pic_map
 
@@ -82,7 +84,7 @@ def text_process_unstrip(f):
 
             baddr = addr + off
 
-            for key, value in pic_map.iteritems():
+            for key, value in pic_map.items():
                 if value[0] == baddr:
                     # OK, we find it!
                     symb = sec_symb[key]
@@ -91,7 +93,9 @@ def text_process_unstrip(f):
                     print("unhandled situation")
 
     with open(f+'.temp', 'w') as fd:
-        map(lambda l: fd.write(l+ "\n"), ls)
+        for l in ls:
+            fd.write(l+"\n")
+        # map(lambda l: fd.write(l+ "\n"), ls)
 
 def thunk_identify(ls):
     global step
@@ -173,7 +177,7 @@ def text_process_strip(f):
 
                 baddr = addr + off
 
-                for key, value in pic_map.iteritems():
+                for key, value in pic_map.items():
                     if value[0] == baddr:
                         # OK, we find it!
                         symb = sec_symb[key]
@@ -183,7 +187,9 @@ def text_process_strip(f):
                         print("unhandled situation")
 
     with open(f+'.temp', 'w') as fd:
-        map(lambda l: fd.write(l+ "\n"), ls)
+        for l in ls:
+            fd.write(l+"\n")
+        # map(lambda l: fd.write(l+ "\n"), ls)
 
 
 if __name__ == '__main__':
@@ -205,4 +211,4 @@ if __name__ == '__main__':
         else:
             pass
     else:
-        print("usage: python pic_process.py binary is_32")
+        print("usage: python3 pic_process.py binary is_32")

@@ -156,6 +156,7 @@ and assignop = MOV | XCHG | LEA | LEAL | LEAQ | MOVSX | MOVSD | MOVL | FLDL | MO
                | VINSERTI128 | VEXTRACTI128
                | PSADBW | VPSADBW
                | BSF
+               | XGETBV
 and compareop = CMP | CMPQ | TEST | CMPL | CMPB | CMPW | TESTB | TESTL | CMPSB
                 | BT | TESTW | CMPNLESS | CMPNLESD | CMPLTSS | CMPNLTSS | TESTQ
                 | CMPNLTSD | PCMPGTD | PCMPGTB | PCMPEQD | VPCMPEQD | PCMPEQB| VPCMPEQB | CMPLTSD | PCMPEQW

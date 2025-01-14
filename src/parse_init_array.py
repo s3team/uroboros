@@ -55,7 +55,9 @@ def help(l):
             if len(label) == 4:
                 continue
             ctors.append(label+"\n")
-map(help, lines)
+for l in lines:
+    help(l)
+# map(help, lines)
 
 with open("init_array_new.info", 'w') as f:
     f.writelines(ctors)

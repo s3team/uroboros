@@ -20,7 +20,9 @@ def help(l):
     if "data32" in l:
         l = ""
     return l
-lines = map(help, lines)
+lines = list(map(help, lines))
 
 with open("instrs.info", 'w') as f:
-    map(lambda l : f.write(l), lines)
+    for l in lines:
+        f.write(l)
+    # map(lambda l : f.write(l), lines)
