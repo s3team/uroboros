@@ -109,34 +109,42 @@ let string_to_int32 s =
 let compare_loc l1 l2 =
   l1.loc_addr = l2.loc_addr && (l1.loc_label = l2.loc_label)
 
+let get_prefix (i : instr) =
+  match i with
+  | SingleInstr (_, _, pre, _, _) -> pre
+  | DoubleInstr (_, _, _, pre, _, _) -> pre
+  | TripleInstr (_, _, _, _, pre, _, _) -> pre
+  | FourInstr (_, _, _, _, _, pre, _, _) -> pre
+  | FifInstr (_, _, _, _, _, _, pre, _, _) -> pre
+
 let get_tags i =
   match i with
-  | SingleInstr (_, _, _, tags) -> tags
-  | DoubleInstr (_, _, _, _, tags) -> tags
-  | TripleInstr (_, _, _, _, _, tags) -> tags
-  | FourInstr (_, _, _, _, _, _, tags) -> tags
-  | FifInstr (_, _, _, _, _, _, _, tags) -> tags
+  | SingleInstr (_, _, _, _, tags) -> tags
+  | DoubleInstr (_, _, _, _, _, tags) -> tags
+  | TripleInstr (_, _, _, _, _, _, tags) -> tags
+  | FourInstr (_, _, _, _, _, _, _, tags) -> tags
+  | FifInstr (_, _, _, _, _, _, _, _, tags) -> tags
 
 let get_loc i =
   match i with
-  | SingleInstr (_, l, _, _) -> l
-  | DoubleInstr (_, _, l, _, _) -> l
-  | TripleInstr (_, _, _, l, _, _) -> l
-  | FourInstr (_, _, _, _, l, _, _) -> l
-  | FifInstr (_, _, _, _, _, l, _, _) -> l
+  | SingleInstr (_, l, _, _, _) -> l
+  | DoubleInstr (_, _, l, _, _, _) -> l
+  | TripleInstr (_, _, _, l, _, _, _) -> l
+  | FourInstr (_, _, _, _, l, _, _, _) -> l
+  | FifInstr (_, _, _, _, _, l, _, _, _) -> l
 
 let set_loc i l =
   match i with
-  | SingleInstr (p, _, pre, tags) ->
-    SingleInstr (p, l, pre, tags)
-  | DoubleInstr (p, e, _, pre, tags) ->
-    DoubleInstr (p, e, l, pre, tags)
-  | TripleInstr (p, e1, e2, _, pre, tags) ->
-    TripleInstr (p, e1, e2, l, pre, tags)
-  | FourInstr (p, e1, e2, e3, _, pre, tags) ->
-    FourInstr (p, e1, e2, e3, l, pre, tags)
-  | FifInstr (p, e1, e2, e3, e4, _, pre, tags) ->
-    FifInstr (p, e1, e2, e3, e4, l, pre, tags)
+  | SingleInstr (p, _, pre, tag, tags) ->
+    SingleInstr (p, l, pre, tag, tags)
+  | DoubleInstr (p, e, _, pre, tag, tags) ->
+    DoubleInstr (p, e, l, pre, tag, tags)
+  | TripleInstr (p, e1, e2, _, pre, tag, tags) ->
+    TripleInstr (p, e1, e2, l, pre, tag, tags)
+  | FourInstr (p, e1, e2, e3, _, pre, tag, tags) ->
+    FourInstr (p, e1, e2, e3, l, pre, tag, tags)
+  | FifInstr (p, e1, e2, e3, e4, _, pre, tag, tags) ->
+    FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags)
 
 let get_addr i =
   let l = get_loc i in
@@ -152,24 +160,32 @@ let update_label i l =
 
 let get_op i =
   match i with
-  | SingleInstr (p, _, _, _) -> p
-  | DoubleInstr (p, _, _, _, _) -> p
-  | TripleInstr (p, _, _, _, _, _) -> p
-  | FourInstr (p, _, _, _, _, _, _) -> p
-  | FifInstr (p, _, _, _, _, _, _, _) -> p
+  | SingleInstr (p, _, _, _, _) -> p
+  | DoubleInstr (p, _, _, _, _, _) -> p
+  | TripleInstr (p, _, _, _, _, _, _) -> p
+  | FourInstr (p, _, _, _, _, _, _, _) -> p
+  | FifInstr (p, _, _, _, _, _, _, _, _) -> p
 
 let get_cf_des i =
   match i with
-  | DoubleInstr (_, e, _, _, _) -> Some e
+  | DoubleInstr (_, e, _, _, _, _) -> Some e
   | _ -> None
 
 let get_exp_1 i =
   match i with
-  | SingleInstr (_, _, _, _) -> failwith "undefined expression"
-  | DoubleInstr (_, e, _, _, _) -> e
-  | TripleInstr (_, e, _, _, _, _) -> e
-  | FourInstr (_, e, _, _, _, _, _) -> e
-  | FifInstr (_, e, _, _, _, _, _, _) -> e
+  | SingleInstr (_, _, _, _, _) -> failwith "undefined expression"
+  | DoubleInstr (_, e, _, _, _, _) -> e
+  | TripleInstr (_, e, _, _, _, _, _) -> e
+  | FourInstr (_, e, _, _, _, _, _, _) -> e
+  | FifInstr (_, e, _, _, _, _, _, _, _) -> e
+
+let get_tag (i : instr) =
+  match i with
+  | SingleInstr (_, _, _, tag, _) -> tag
+  | DoubleInstr (_, _, _, _, tag, _) -> tag
+  | TripleInstr (_, _, _, _, _, tag, _) -> tag
+  | FourInstr (_, _, _, _, _, _, tag, _) -> tag
+  | FifInstr (_, _, _, _, _, _, _, tag, _) -> tag
 
 let read_file (filename : string) : string list =
   let lines = ref [] in
@@ -559,24 +575,19 @@ module Addr_utils = struct
 
     let get_loc i =
       match i with
-      | SingleInstr (_, l, _, _) -> l
-      | DoubleInstr (_, _, l, _, _) -> l
-      | TripleInstr (_, _, _, l, _, _) -> l
-      | FourInstr (_, _, _, _, l, _, _) -> l
-      | FifInstr (_, _, _, _, _, l, _, _) -> l
+      | SingleInstr (_, l, _, _, _) -> l
+      | DoubleInstr (_, _, l, _, _, _) -> l
+      | TripleInstr (_, _, _, l, _, _, _) -> l
+      | FourInstr (_, _, _, _, l, _, _, _) -> l
+      | FifInstr (_, _, _, _, _, l, _, _, _) -> l
 
     let set_loc i l =
       match i with
-      | SingleInstr (p, _, pre, tags) ->
-        SingleInstr (p, l, pre, tags)
-      | DoubleInstr (p, e, _, pre, tags) ->
-        DoubleInstr (p, e, l, pre, tags)
-      | TripleInstr (p, e1, e2, _, pre, tags) ->
-        TripleInstr (p, e1, e2, l, pre, tags)
-      | FourInstr (p, e1, e2, e3, _, pre, tags) ->
-        FourInstr (p, e1, e2, e3, l, pre, tags)
-      | FifInstr (p, e1, e2, e3, e4, _, pre, tags) ->
-        FifInstr(p, e1, e2, e3, e4, l, pre, tags)
+      | SingleInstr (p, _, pre, tag, tags) -> SingleInstr (p, l, pre, tag, tags)
+      | DoubleInstr (p, e, _, pre, tag, tags) -> DoubleInstr (p, e, l, pre, tag, tags)
+      | TripleInstr (p, e1, e2, _, pre, tag, tags) -> TripleInstr (p, e1, e2, l, pre, tag, tags)
+      | FourInstr (p, e1, e2, e3, _, pre, tag, tags) -> FourInstr (p, e1, e2, e3, l, pre, tag, tags)
+      | FifInstr (p, e1, e2, e3, e4, _, pre, tag, tags) -> FifInstr(p, e1, e2, e3, e4, l, pre, tag, tags)
 
     let get_addr i =
       let l = get_loc i in
@@ -973,40 +984,40 @@ module Instr_utils = struct
 
     (* generate one byte no-op padding instruction *)
     let gen_nop loc =
-      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), loc, None, Hashtbl.create 0)
+      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), loc, None, None, Hashtbl.create 0)
 
     (* generate four bytes no-op padding instruction *)
     let gen_4_lea loc =
       TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
                    Reg (Intel_Reg (Intel_CommonReg ESI)),
-                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg ESI), 0)), loc, None, Hashtbl.create 0)
+                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg ESI), 0)), loc, None, None, Hashtbl.create 0)
 
     (* generate six bytes no-op padding instruction *)
     let gen_6_lea loc =
       TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
                    Reg (Intel_Reg (Intel_CommonReg EDI)),
-                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg EDI), 0)), loc, None, Hashtbl.create 0)
+                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg EDI), 0)), loc, None, None, Hashtbl.create 0)
 
     let is_mem_write_instr i =
         match i with
-        | DoubleInstr (p, _, _, _, _) when (is_push p) ->
+        | DoubleInstr (p, _, _, _, _, _) when (is_push p) ->
            Some DOUBLE_WRITE
         (* memory assignment operation *)
-        | TripleInstr (op, e1, _, _, _, _) when (is_assign op) && (is_mem_exp e1)->
+        | TripleInstr (op, e1, _, _, _, _, _) when (is_assign op) && (is_mem_exp e1) ->
            Some TRIPLE_WRITE
         | _ -> None
 
     let is_mem_read_instr instr =
       match instr with
-      | SingleInstr (op, _, _, _) when (is_ret op) ->
+      | SingleInstr (op, _, _, _, _) when (is_ret op) ->
         (* ret *)
         Some SINGLE_READ
-      | DoubleInstr (_, _, _, _, _) when (is_arm_ret instr) ->
+      | DoubleInstr (_, _, _, _, _, _) when (is_arm_ret instr) ->
         Some DOUBLE_READ
-      | DoubleInstr (op, _, _, _, _) when (is_stack_op op) ->
+      | DoubleInstr (op, _, _, _, _, _) when (is_stack_op op) ->
         (* push & pop *)
         Some DOUBLE_READ
-      | TripleInstr (op, _, e2, _, _, _) when (is_mem_exp e2) ->
+      | TripleInstr (op, _, e2, _, _, _, _) when (is_mem_exp e2) ->
         begin
           match op with
           | Intel_OP io ->
@@ -1016,7 +1027,7 @@ module Instr_utils = struct
               | Intel_CommonOP (Intel_Assign _) -> Some TRIPLE_READ
               | _ -> None
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
               | Arm_CommonOP (Arm_Assign _) -> Some TRIPLE_READ
@@ -1125,15 +1136,15 @@ module Instr_template = struct
       let iloc' = {iloc with loc_label = ""} in
       let addr' = iloc.loc_addr in
       let ads = "sub_" ^ (dec_hex addr')  in
-      let i1 = DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc, None, Hashtbl.create 0) in
-      let i2 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Reg (Intel_Reg (Intel_CommonReg ECX)), Label "index", iloc', None, Hashtbl.create 0) in
-      let i3 = DoubleInstr (Intel_OP (Intel_ControlOP (Intel_Loop LOOP)), Label ads, iloc', None, Hashtbl.create 0) in
+      let i1 = DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc, None, None, Hashtbl.create 0) in
+      let i2 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Reg (Intel_Reg (Intel_CommonReg ECX)), Label "index", iloc', None, None, Hashtbl.create 0) in
+      let i3 = DoubleInstr (Intel_OP (Intel_ControlOP (Intel_Loop LOOP)), Label ads, iloc', None, None, Hashtbl.create 0) in
       (* let i4 = TripleInstr (CommonOP (Assign MOVL), Reg (CommonReg ECX),
                             Const (Normal 0x400000), iloc', None) in *)
       let i5 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Ptr (JmpTable_PLUS_S ("buf", Intel_Reg (Intel_CommonReg ECX), 4)),
-                            Const (Normal addr'), {iloc' with loc_label = ads ^ ":"}, None, Hashtbl.create 0) in
-      let i6 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Label "index", Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None, Hashtbl.create 0) in
-      let i7 = DoubleInstr (Intel_OP (Intel_StackOP POP), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None, Hashtbl.create 0) in
+                            Const (Normal addr'), {iloc' with loc_label = ads ^ ":"}, None, None, Hashtbl.create 0) in
+      let i6 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Label "index", Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None, None, Hashtbl.create 0) in
+      let i7 = DoubleInstr (Intel_OP (Intel_StackOP POP), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None, None, Hashtbl.create 0) in
       let open Instr_utils in
       set_update_fold i7 iloc []
       |> set_update_fold i6 iloc
@@ -1495,6 +1506,11 @@ module Func_utils = struct
               match e with
               | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
               | _ -> None)
+          | TripleInstr (p, e1, e2, l, _, _) when is_ct p -> (
+              (* ARM: cbz r3,0x10428 *)
+              match e1 with
+              | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
+              | _ -> None)
           | _ -> None
         in
         let fb2fn funcs d =
@@ -1579,12 +1595,12 @@ module Func_utils = struct
           | [] ->
             let ordered_il = List.rev (Hashtbl.find func2il_table f.func_name) in
             Hashtbl.replace func2cfg_table f.func_name
-              {preds = pred_cfg; succs = succ_cfg; il = ordered_il}
+              { preds = pred_cfg; succs = succ_cfg; il = ordered_il }
           | i::[] ->
             let succ_cfg = add_edge succ_cfg (Some i) None in
             let ordered_il = List.rev (Hashtbl.find func2il_table f.func_name) in
             Hashtbl.replace func2cfg_table f.func_name
-              {preds = pred_cfg; succs = succ_cfg; il = ordered_il}
+              { preds = pred_cfg; succs = succ_cfg; il = ordered_il }
           | i::i'::il' ->
             let i_op = get_op i in
             let _ = match i_op with
@@ -1592,6 +1608,9 @@ module Func_utils = struct
             | Intel_OP (Intel_ControlOP RET) | Intel_OP (Intel_ControlOP RETN)
             | Intel_OP (Intel_ControlOP RETQ) | Intel_OP (Intel_ControlOP LEAVE)
             | Intel_OP (Intel_ControlOP LEAVEQ) -> ()
+            | Arm_OP (Arm_StackOP POP, _) ->
+              (* ARM Thumb *)
+              ()
             | _ ->
               let pred_cfg = add_edge pred_cfg (Some i') (Some i) in
               let succ_cfg = add_edge succ_cfg (Some i) (Some i') in ()

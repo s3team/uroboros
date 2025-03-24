@@ -1,4 +1,5 @@
 open Type
+open Tag_utils
 
 let flip f x y = f y x
 
@@ -134,7 +135,16 @@ let p_ptraddr = function
       | Intel_Reg r -> (p_loc i)^"("^(p_intel_reg r)^")"
       | Arm_Reg r -> "["^(p_arm_reg r)^", #"^(p_hex i)^"]"
     end
-  | BinOP_PLUS_S (r, s) -> s^"("^(p_reg r)^")"
+  | BinOP_PLUS_R (r1, r2) ->
+    begin
+      "["^(p_arm_reg r1)^", "^(p_arm_reg r2)^"]"
+    end
+  | BinOP_PLUS_S (r, s) ->
+    begin
+      match r with
+      | Intel_Reg r -> s^"("^(p_intel_reg r)^")"
+      | Arm_Reg r -> "["^(p_arm_reg r)^", #"^s^"]"
+    end
   | BinOP_PLUS_WB (r, i) -> "["^(p_arm_reg r)^", #"^(p_hex i)^"]!"
   | BinOP_MINUS (r, i) ->
     begin
@@ -243,18 +253,25 @@ and p_prefix pre =
 
 let get_loc i =
   match i with
-  | SingleInstr (_, l, _, _) -> l
-  | DoubleInstr (_, _, l, _, _) -> l
-  | TripleInstr (_, _, _, l, _, _) -> l
-  | FourInstr (_, _, _, _, l, _, _) -> l
-  | FifInstr (_, _, _, _, _, l, _, _) -> l
+  | SingleInstr (_, l, _, _, _) -> l
+  | DoubleInstr (_, _, l, _, _, _) -> l
+  | TripleInstr (_, _, _, l, _, _, _) -> l
+  | FourInstr (_, _, _, _, l, _, _, _) -> l
+  | FifInstr (_, _, _, _, _, l, _, _, _) -> l
+
+let p_tag tag =
+  let hex_str num = Printf.sprintf "0x%x" num in
+  match tag with
+  | Some Del -> "del"
+  | Some (Sym value) -> "sym#" ^ hex_str value
+  | None -> "none"
 
 let pp_print_instr i =
   match get_loc i with
   | {loc_visible = false; _} -> (get_loc i |> p_location)
   | _ ->
     match i with
-    | SingleInstr (p, l, pre, tags) -> begin
+    | SingleInstr (p, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_location l)
@@ -266,7 +283,7 @@ let pp_print_instr i =
         ^(p_prefix pre)
         ^(p_single p))
       end
-    | DoubleInstr (p, exp1, l, pre, tags) -> begin
+    | DoubleInstr (p, exp1, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_location l)
@@ -279,7 +296,7 @@ let pp_print_instr i =
         ^(p_prefix pre)
         ^(p_double p exp1))
       end
-    | TripleInstr (p, exp1, exp2, l, pre, tags) -> begin
+    | TripleInstr (p, exp1, exp2, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_location l)
@@ -292,7 +309,7 @@ let pp_print_instr i =
         ^(p_prefix pre)
         ^(p_triple p exp1 exp2))
       end
-    | FourInstr (p, exp1, exp2, exp3, l, pre, tags) -> begin
+    | FourInstr (p, exp1, exp2, exp3, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_location l)
@@ -304,7 +321,7 @@ let pp_print_instr i =
         ^(p_prefix pre)
         ^(p_four p exp1 exp2 exp3))
       end
-    | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, tags) -> begin
+    | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_location l)
@@ -322,7 +339,7 @@ let pp_print_instr' i =
   | {loc_visible = false; _} -> (get_loc i |> p_location)
   | _ ->
     match i with
-    | SingleInstr (p, l, pre, tags) -> begin
+    | SingleInstr (p, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_addr l)
@@ -336,7 +353,7 @@ let pp_print_instr' i =
         ^(p_prefix pre)
         ^(p_single p))
       end
-    | DoubleInstr (p, exp1, l, pre, tags) -> begin
+    | DoubleInstr (p, exp1, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_addr l)
@@ -350,7 +367,7 @@ let pp_print_instr' i =
         ^(p_prefix pre)
         ^(p_double p exp1))
       end
-    | TripleInstr (p, exp1, exp2, l, pre, tags) -> begin
+    | TripleInstr (p, exp1, exp2, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_addr l)
@@ -364,7 +381,7 @@ let pp_print_instr' i =
         ^(p_prefix pre)
         ^(p_triple p exp1 exp2))
       end
-    | FourInstr (p, exp1, exp2, exp3, l, pre, tags) -> begin
+    | FourInstr (p, exp1, exp2, exp3, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_addr l)
@@ -378,7 +395,7 @@ let pp_print_instr' i =
         ^(p_prefix pre)
         ^(p_four p exp1 exp2 exp3))
       end
-    | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, tags) -> begin
+    | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, _, tags) -> begin
       match Hashtbl.find_opt tags "comment" with
       | Some Str value ->
         ((p_addr l)
@@ -402,9 +419,15 @@ let pp_print_list instr_list =
 	| []   -> List.rev acc in
     help [] instr_list
 
-let pp_print_file instr_list =
-    let oc = open_out_gen [Open_append; Open_creat] 0o666 "final.s" in
-      Printf.fprintf oc ".section .text\n";
-      (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) instr_list; *)
-      List.iter (fun l -> output_string oc l; output_char oc '\n') instr_list;
-      close_out oc
+let pp_print_file (arch : string) (instr_list : string list) =
+  let oc = open_out_gen [Open_append; Open_creat] 0o666 "final.s" in
+  if arch = "arm" then
+    let _ = Printf.fprintf oc ".syntax unified\n" in
+    let _ = Printf.fprintf oc ".thumb\n" in
+    Printf.fprintf oc ".section .text\n";
+  else
+    Printf.fprintf oc ".section .text\n";
+  (* Printf.fprintf oc ".intel_syntax noprefix\n"; *)
+  (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) instr_list; *)
+  List.iter (fun l -> output_string oc l; output_char oc '\n') instr_list;
+  close_out oc

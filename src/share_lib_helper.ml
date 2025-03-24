@@ -210,11 +210,11 @@ class lib32_helper (instr_list : instr list) =
     (match_add op) && (String.exists es "_GLOBAL_OFFSET_TABLE_") in*)
   let update_track i =
     match i with
-    | TripleInstr (p, e1, e2, l, pre, tags) ->
+    | TripleInstr (p, e1, e2, l, pre, tag, tags) ->
        begin
          r := index_of_reg e1;
          rv := value_of_reg e2 l;
-         TripleInstr(p, e1, Label "$_GLOBAL_OFFSET_TABLE_", l, pre, tags)
+         TripleInstr(p, e1, Label "$_GLOBAL_OFFSET_TABLE_", l, pre, tag, tags)
        end
     | _ ->
        failwith "unsupport pic register pattern in update track" in
@@ -282,11 +282,11 @@ class lib32_helper (instr_list : instr list) =
            end
         | _ -> e in
       match i with
-      | SingleInstr (p, l, pre, tags) -> i
-      | DoubleInstr (p, e, l, pre, tags) -> DoubleInstr (p, v_exp e, l, pre, tags)
-      | TripleInstr (p, e1, e2, l, pre, tags) -> TripleInstr (p, v_exp e1, v_exp e2, l, pre, tags)
-      | FourInstr (p, e1, e2, e3, l, pre, tags) -> FourInstr (p, e1, v_exp e2, e3, l, pre, tags)
-      | FifInstr (p, e1, e2, e3, e4, l, pre, tags) -> FifInstr (p, e1, v_exp e2, e3, e4, l, pre, tags)
+      | SingleInstr (p, l, pre, tag, tags) -> i
+      | DoubleInstr (p, e, l, pre, tag, tags) -> DoubleInstr (p, v_exp e, l, pre, tag, tags)
+      | TripleInstr (p, e1, e2, l, pre, tag, tags) -> TripleInstr (p, v_exp e1, v_exp e2, l, pre, tag, tags)
+      | FourInstr (p, e1, e2, e3, l, pre, tag, tags) -> FourInstr (p, e1, v_exp e2, e3, l, pre, tag, tags)
+      | FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags) -> FifInstr (p, e1, v_exp e2, e3, e4, l, pre, tag, tags)
 
     method traverse =
       let rec aux l =
@@ -296,7 +296,7 @@ class lib32_helper (instr_list : instr list) =
         | (h1::h2::t) ->
            begin
              match h1 with
-             | DoubleInstr (p, e, l, pre, tags) ->
+             | DoubleInstr (p, e, l, pre, tag, tags) ->
                 (* if (match_global_tbl p e2) then *)
                 if (match_get_pc_thunk p e) then
                   begin

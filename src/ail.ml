@@ -188,6 +188,7 @@ object (self)
     ignore ( Sys.command ("cat gcc_exception_table.data >> final.s") )
 
   method post_process (f : string) (arch : string) : unit =
+    ignore ( Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch) );
     ignore ( Sys.command ("python3 post_process.py "^arch) );
     ignore ( Sys.command ("python3 post_process_lib.py") )
     (*
@@ -213,7 +214,7 @@ object (self)
 
     print_endline "3: analysis";
 
-    let fbl, bbl, cfg_t, cg, il', re, ufl = A.analyze_one il fl re in
+    let fbl, bbl, cfg_t, cg, il', re, ufl = A.analyze_one il fl re arch in
 
     let il', ufl', fch = S.apply il' ufl f in
 
@@ -230,7 +231,7 @@ object (self)
     in
 
     print_endline "4: post processing";
-    A.post_analyze instrumented_il re;
+    A.post_analyze instrumented_il re arch;
 
     self#post_process f arch
 end

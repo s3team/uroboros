@@ -167,8 +167,8 @@ def get_entry_point_address(fn) -> str:
 def dump(fn):
     entry_point_str = get_entry_point_address(fn)
     is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
-    is_32bit_binary = is_32()
-    
+    is_32bit_binary = check_32()
+
     if arch == "intel":
         os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")
     elif arch == "arm":
@@ -198,8 +198,10 @@ def process(f, i, arch):
         # suppose we use this method to obtain function information
         os.system("cp " + f + " func_discover/")
         os.system(f"python3 func_discover/func_addr.py func_discover/{f} {str(i)} {arch}")
-        os.system("rm final_data.s")
-        os.system("rm useless_func.info")
+        if os.path.exists("final_data.s"):
+            os.system("rm final_data.s")
+        if os.path.exists("useless_func.info"):
+            os.system("rm useless_func.info")
         os.system(f"rm func_discover/{f}")
         if i > 0:
             os.system(f"python3 useless_func_discover.py {f} {arch}")
@@ -245,6 +247,9 @@ def process(f, i, arch):
 
         os.system(f"python3 compile_process.py {arch}")
         os.system("python3 label_adjust.py")
+
+        if arch == "arm":
+            os.system("python3 arm_postprocess.py final.s")
 
         reassemble("final.s", arch)
 
@@ -418,10 +423,6 @@ assumption two and three: -a 2 -a 3""",
     arch = args.arch
     k = args.keep > 0
     u = args.unstripped
-
-    if arch == "arm":
-        print("The ARM support is under development. Please check back later.")
-        exit(0)
 
     # if unstripped mode is enabled, check if the input binary is unstripped
     if u:

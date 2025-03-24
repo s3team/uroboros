@@ -60,6 +60,8 @@ object (self)
                        ^(string_of_bool !is_32)^" "^arch));
 
     ret := Sys.command(objdump_command ^ " -s -j \
+                        .text "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 > text.info");
+    ret := Sys.command(objdump_command ^ " -s -j \
                         .rodata "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
                         > rodata.info");
     self#checkret ret "rodata.info";
@@ -123,7 +125,7 @@ object (self)
     ignore (Sys.command("python3 sec_empty_creator.py .bss"));
     ignore (Sys.command(objdump_command ^ " -R "^f^" | \
                        awk \'/GLOB_DAT/ {print $1, $2, $3}\' > globalbss.info"));
-    ignore (Sys.command(objdump_command ^ " -R "^f^" | \ 
+    ignore (Sys.command(objdump_command ^ " -R "^f^" | \
                        awk \'/COPY/ {print $1, $2, $3}\' >> globalbss.info"))
 
   method checkret (r : int ref) (file : string) : unit =
@@ -273,8 +275,12 @@ let check_strip (f : string) : bool =
  * existence could affect the semantics of the framework
  *)
 let clear_code : unit =
-  ignore (Sys.command ("rm final.s"));
-  ignore (Sys.command ("rm inline_symbols.txt"))
+  (* check if there is final.s *)
+  if Sys.file_exists "final.s" then
+    ignore(Sys.command ("rm final.s"));
+  if Sys.file_exists "inline_symbols.txt" then
+    ignore(Sys.command ("rm inline_symbols.txt"));
+  ()
 
 let check_arch (arch : string) : bool =
   if String.exists arch "intel" || String.exists arch "arm" then

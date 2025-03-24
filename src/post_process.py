@@ -184,7 +184,10 @@ else:
 
     def help(l):
         if main_symbol1 != "" and l.startswith(main_symbol1):
-            l = ".globl main\nmain:\n"+l
+            main_directive = ".globl main\nmain:\n"
+            if arch == "arm":
+                main_directive += ".type main, %function\n"
+            l = main_directive + l
             if os.path.exists("plt_handler.txt") and is_static():
                 with open("plt_handler.txt") as f:
                     plt_handler = f.readlines()

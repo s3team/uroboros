@@ -2,6 +2,7 @@ open Batteries
 
 open Printf
 open Visit
+open Common_reassemble_symbol_get
 open Type
 open Ail_utils
 
@@ -1588,7 +1589,7 @@ class reassemble =
   and text_set = Hashtbl.create 30 in
 
   object(self)
-    inherit ailVisitor
+    inherit common_reassemble
 
     val mutable label : (string * int) list = []
     val mutable align : (string * int) list = []
@@ -1759,6 +1760,7 @@ class reassemble =
     method has_text l =
       Hashtbl.mem text_set l = true
 
+    (** [v_exp] *)
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
       (* bug : test $0x70F0000, %eax  could be incorrectly symbolized; note
        * that we should check { test | testl | testw | testb } + Const Normal v; *)
@@ -2168,15 +2170,15 @@ class reassemble =
           end
         | Arm_OP _ -> false in
       match i with
-      | SingleInstr (p, l, pre, tags) -> i
-      | DoubleInstr (p, e, l, pre, tags) -> DoubleInstr (p, (self#v_exp2 e i f false), l, pre, tags)
-      | TripleInstr (p, e1, e2, l, pre, tags) when is_test p
-        ->  TripleInstr (p, (self#v_exp2 e1 i f true), (self#v_exp2 e2 i f true), l, pre, tags)
-      | TripleInstr (p, e1, e2, l, pre, tags)
+      | SingleInstr (p, l, pre, tag, tags) -> i
+      | DoubleInstr (p, e, l, pre, tag, tags) -> DoubleInstr (p, (self#v_exp2 e i f false), l, pre, tag, tags)
+      | TripleInstr (p, e1, e2, l, pre, tag, tags) when is_test p
+        ->  TripleInstr (p, (self#v_exp2 e1 i f true), (self#v_exp2 e2 i f true), l, pre, tag, tags)
+      | TripleInstr (p, e1, e2, l, pre, tag, tags)
         -> TripleInstr (p, (self#v_exp2 e1 i f false)
-                       , (self#v_exp2 e2 i f false), l, pre, tags)
-      | FourInstr (p, e1, e2, e3, l, pre, tags) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre, tags)
-      | FifInstr (p, e1, e2,e3,e4, l, pre, tags) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre, tags)
+                       , (self#v_exp2 e2 i f false), l, pre, tag, tags)
+      | FourInstr (p, e1, e2, e3, l, pre, tag, tags) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre, tag, tags)
+      | FifInstr (p, e1, e2,e3,e4, l, pre, tag, tags) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre, tag, tags)
 
     method find_jmp_table_dests
         (rodata_sec : section)
@@ -2370,6 +2372,7 @@ class reassemble =
         let l = get_loc i in
         self#check_text l.loc_addr in
       instr_list <- instrs;
+
       let tl = List.map (self#vinst2 func) instrs in
       let module EU = ELF_utils in
       let addr_len =

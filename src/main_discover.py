@@ -2,11 +2,11 @@ import sys
 import os
 import subprocess
 
-import arm_preprocess
+from arm_concrete_eval import ArmConcreteEval
+from arm_inst import Inst
 
 fn = sys.argv[1]
 arch = sys.argv[2]
-THUMB_OFFSET = 1
 
 os.system('file ' + fn + ' > elf.info')
 
@@ -115,6 +115,7 @@ def find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
     else:
         raise Exception("Unknown architecture")
 
+
 def get_arm_main_symbol(start_section, is_32bit_binary):
     main_symbol = None
     if is_32bit_binary:
@@ -132,18 +133,33 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
         # 10354:	f7ff efd4 	blx	10300 <__libc_start_main@plt>
         # 10358:	f7ff efe4 	blx	10324 <abort@plt>
 
-        start_addr = int(start_section[0].split(':')[0].strip(), 16)
-        end_addr = None
+        objdump_lines = []
+        start_collect = False
         for i, line in enumerate(start_section):
+            if "sl" in line:
+                start_collect = True
+
+            if start_collect:
+                objdump_lines.append(start_section[i])
+
             if (
-                "ldr" in start_section[i-2]
-                and "blx" in start_section[i-1]
-                and "blx" in start_section[i]
+                "ldr" in start_section[i]
+                and "blx" in start_section[i + 1]
+                and "blx" in start_section[i + 2]
             ):
-                end_addr = int(start_section[i-1].split(':')[0].strip(), 16)
                 break
 
-        # TODO: ARM main symbol
+        # angr gives thumb mode address, while objdump result does not.
+        # So, we need to subtract 1 from the symbolic execution result.
+        instrs = []
+        for line in objdump_lines:
+            inst = Inst()
+            inst.init_parse(line)
+            instrs.append(inst)
+
+        eval = ArmConcreteEval()
+        eval.run(instrs)
+        main_symbol = hex(eval.reg_value_dict["r0"])
 
     else:
         # The "b" instruction has the address of main function:
@@ -153,13 +169,13 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
         # nop
         # ret
         for i, line in enumerate(start_section):
-            if ("ret" in line and
-                "nop" in start_section[i-1]):
-                split_line = start_section[i-2].split('\t')
+            if "ret" in line and "nop" in start_section[i - 1]:
+                split_line = start_section[i - 2].split("\t")
                 main_symbol = split_line[-1].split()[0].strip()
                 break
 
     return main_symbol
+
 
 def get_intel_main_symbol(start_section):
     i = len(start_section) - 1
@@ -249,7 +265,8 @@ else:
     # _GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
     # ....
 
-    os.system('rm main.info')
+    if os.path.exists('main.info'):
+        os.system('rm main.info')
 
     if '0x' in main_symbol:
         main_symbol = main_symbol.split('0x')[1]

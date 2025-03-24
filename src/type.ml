@@ -48,6 +48,8 @@ and ptraddr =
   (* mov (%eax) ,%eax *)
   | UnOP_WB of arm_reg
   | BinOP_PLUS of (intel_arm_reg * int)
+  | BinOP_PLUS_R of (arm_reg * arm_reg)
+  (* ldr r3, [r4, r3] *)
   | BinOP_PLUS_S of (intel_arm_reg * string)
   (* mov 0x3c(%esp),%eax *)
   | BinOP_PLUS_WB of (arm_reg * int)
@@ -95,15 +97,19 @@ and exp =
   | Ptr of ptraddr
   | Label of label
 and prefix = LOCK | ADDR32 | BND
+and tag =
+  | Del (* Delete *)
+  | Sym of int (* Symbolization of taget addr *)
+  | Deref (* Dereference *)
 and tags_val =
   | Str of string
   | Exp of exp
 and instr =
-  | SingleInstr of op * loc * prefix option * (string, tags_val) Hashtbl.t
-  | DoubleInstr of op * exp * loc * prefix option * (string, tags_val) Hashtbl.t
-  | TripleInstr of op * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
-  | FourInstr of op * exp * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
-  | FifInstr of op * exp * exp * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
+  | SingleInstr of op * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | DoubleInstr of op * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | TripleInstr of op * exp * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | FourInstr of op * exp * exp * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | FifInstr of op * exp * exp * exp * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
 (* as far as I know, imul $0xe10,%ebp,%eax *)
 
 and bblock =
@@ -452,7 +458,7 @@ let show_intel_op = function
             | AND -> "and" | ANDB -> "andb" | OR -> "or" | XOR -> "xor" | PXOR -> "pxor" | NOT -> "not" | ANDL -> "andl" | NOTL -> "notl" | ORW -> "orw"
             | XORB -> "xorb" | XORL -> "xorl" | SAHF -> "sahf" | ANDW -> "andw" | NOTB -> "notb" | NOTW -> "notw" | XORPD -> "xorpd" | XORPS -> "xorps" | ANDQ -> "andq"
             | XORQ -> "xorq" | ANDPS -> "andps" | ANDNPS -> "andnps" | ORPS -> "orps" | ANDPD -> "andpd" | NOTQ -> "notq" | ANDNPD -> "andnpd"
-            | ORPD -> "orpd" | PAND -> "pand" | POR -> "por" | PANDN -> "pandn" | VPXOR -> "vpxor" | VPXORD -> "vpxord" | VPXORQ -> "vpxorq" | VPORQ -> "vporq" 
+            | ORPD -> "orpd" | PAND -> "pand" | POR -> "por" | PANDN -> "pandn" | VPXOR -> "vpxor" | VPXORD -> "vpxord" | VPXORQ -> "vpxorq" | VPORQ -> "vporq"
             | VPAND -> "vpand" | VPTERNLOGD -> "vpternlogd"  | VPTESTMB -> "vptestmb" | VPTESTNMB -> "vptestnmb" | SHLX -> "shlx"
             | KORTESTD -> "kortestd"  | KORD -> "kord" | ANDN -> "andn" | KORTESTQ -> "kortestq" | BLSR -> "blsr" | VPTESTNMD -> "vptestnmd" | KXNORQ -> "kxnorq"
         end
@@ -466,7 +472,7 @@ let show_intel_op = function
             | PSHUFLW -> "pshuflw" | PSHUFB -> "pshufb" | PSHUFW -> "pshufw" | PSHUFHW -> "pshufhw" | PSHUFD -> "pshufd"
             | VPSHUFLW -> "vpshuflw" | VPSHUFB -> "vpshufb" | VPSHUFW -> "vpshufw" | VPSHUFHW -> "vpshufhw" | VPSHUFD -> "vpshufd"
             | VPSRLDQ -> "vpsrldq" | VPSLLDQ -> "vpslldq"
-            | SARQ -> "sarq" | SARX ->"sarx" 
+            | SARQ -> "sarq" | SARX ->"sarx"
         end
       | Intel_Assign icommon_ias ->
         begin
@@ -494,7 +500,7 @@ let show_intel_op = function
             | PINSRW -> "pinsrw" | VPINSRW -> "vpinsrw"
             | PUNPCKLQDQ -> "punpcklqdq" | PUNPCKLWD -> "punpcklwd" | VPUNPCKLWD -> "vpunpcklwd" | MOVHPD -> "movhpd" | MOVHPS -> "movhps" | MOVLPD -> "movlpd"
             | VPUNPCKLQDQ -> "vpunpcklqdq" | VMOVHPD -> "vmovhpd" | VMOVHPS -> "vmovhps" | PUNPCKHDQ -> "punpckhdq"
-            | KUNPCKDQ -> "kunpckdq" | KUNPCKBW -> "kunpckbw" 
+            | KUNPCKDQ -> "kunpckdq" | KUNPCKBW -> "kunpckbw"
             | LAHF -> "lahf" | SAHF -> "sahf"
             | VINSERTI128 -> "vinserti128" | VEXTRACTI128 -> "vextracti128"
             | PSADBW -> "psadbw" | VPSADBW -> "vpsadbw"
@@ -518,7 +524,7 @@ let show_intel_op = function
           | CMPNLTSD -> "cmpnltsd" | PCMPGTD -> "pcmpgtd" | PCMPGTB -> "pcmpgtb" | PCMPEQD -> "pcmpeqd" | VPCMPEQD -> "vpcmpeqd" | PCMPEQB -> "pcmpeqb" | VPCMPEQB | CMPLTSD -> "cmpltsd" | PCMPEQW -> "pcmpeqw"
           | CMPEQSS -> "cmpeqss" | FCOMI -> "fcomi" | COMISS -> "comiss" | COMISD -> "comisd" | CMPXCHG -> "cmpxchg"
           | XTEST -> "xtest"
-          | VPCMPNEQUB -> "vpcmpnequb" | VPCMPNEQB -> "vpcmpneqb" | VPCMPNEQD -> "vpcmpneqd" 
+          | VPCMPNEQUB -> "vpcmpnequb" | VPCMPNEQB -> "vpcmpneqb" | VPCMPNEQD -> "vpcmpneqd"
         end
       | Intel_Set icommon_is ->
         begin

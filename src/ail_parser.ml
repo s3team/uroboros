@@ -7,16 +7,21 @@ open Common_parser
 open Parser
 open Arm_parser
 open Pp_print
-open Func_slicer
+open Common_func_slicer
+open Tag_utils
 
 class ailParser =
 object (self)
   val mutable instrs : instr list = []
   val mutable funcs : func list = []
   val mutable secs: section list = []
+  val mutable arch : string = ""
 
   method set_funcs (l : func list) =
     funcs <- l
+
+  method set_arch (a : string) =
+    arch <- a
 
   method update_func_info (l : func list) : func list =
     let rec help l acc =
@@ -117,9 +122,14 @@ object (self)
     in
     List.iter help funcs
 
+  method create_func_slicer instrs funcs arch = match arch with
+    | "intel" -> (new Func_slicer.func_slicer instrs funcs :> common_func_slicer)
+    | "arm" -> (new Arm_func_slicer.arm_func_slicer instrs funcs :> common_func_slicer)
+    | _ -> failwith "unsupported architecture"
+
   method func_slicing =
     (* self#print_f funcs; *)
-    let fs = new func_slicer instrs funcs in
+    let fs = self#create_func_slicer instrs funcs arch in
     fs#update_text_info;
     fs#update_func;
     fs#get_funcs;
@@ -138,6 +148,40 @@ object (self)
     | "arm" -> (new Arm_parser.arm_parse :> common_parser)
     | _ -> failwith "unsupported architecture"
 
+  method remove_literal_pools (instr_list : instr list) =
+    let is_going_through_literal_pool = ref false in
+    let pop_detected = ref false in
+    let process_instr instr = match (get_op instr) with
+      | Arm_OP (Arm_StackOP PUSH, _) ->
+        (* initalization *)
+        is_going_through_literal_pool := false;
+        pop_detected := false;
+      | Arm_OP (Arm_StackOP POP, _) ->
+        pop_detected := true;
+      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _) ->
+        (* see what the next instruction is *)
+        ()
+      | Arm_OP (Arm_CommonOP (Arm_Rol LSLS), _)
+      | Arm_OP (Arm_CommonOP (Arm_Rol LSRS), _) ->
+        if !pop_detected = true then
+          is_going_through_literal_pool := true
+        else
+          is_going_through_literal_pool := false
+      | _ ->  ()
+    in
+    let rec aux acc = function
+      | [] -> acc
+      | instr :: t -> begin
+        process_instr instr;
+        if !is_going_through_literal_pool = true then
+          (* skip this instruction *)
+          aux acc t
+        else
+          aux (instr :: acc) t
+        end
+    in
+    aux [] (List.rev instr_list)
+
   method process_instrs (l : string list) (arch : string) =
     let cat_tail s =
       match s with
@@ -152,7 +196,7 @@ object (self)
                  fun i ->
                  let items = split i in
                  let len = List.length items in
-                 len > 1 ) l in            
+                 len > 1 ) l in
     let help i =
       let items = split i in
       let loc = List.nth items 0 in
@@ -160,7 +204,8 @@ object (self)
       in
       instrs <- (p#parse_instr instr loc arch)::instrs;
     in
-    List.iter help l'; 
+    List.iter help l';
+    instrs <- self#remove_literal_pools instrs;
     funcs <- p#get_funclist
 
   method process_asms (l : string list) (arch : string) =
@@ -170,7 +215,7 @@ object (self)
     in
     List.iter help l;
     instrs <- List.rev instrs
-    
+
   method p_instrs =
     List.iter (fun i -> let is = pp_print_instr' i in print_endline is) instrs
 

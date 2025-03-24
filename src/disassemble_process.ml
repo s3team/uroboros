@@ -3,13 +3,17 @@
 exception Pass_Validator
 
 module Disam = struct
-
+    open Arm_got_instr_analysis
     open Semantic_analysis
+    open Common_reassemble_symbol_get
+    open Arm_reassemble_symbol_get
     open Flow_insensitive_analysis
     open Reassemble_symbol_get
+    open Visit
     open Disassemble_validator
     open Ail_parser
     open Ail_utils
+    open Tag_utils
     open Type
     open Pp_print
 
@@ -30,6 +34,11 @@ module Disam = struct
     ()
 
   let get_userfuncs fl = List.filter (fun f -> f.is_lib = false) fl
+
+  let create_re (arch : string) = match arch with
+    | "intel" -> (new reassemble :> common_reassemble)
+    | "arm" -> (new arm_reassemble :> common_reassemble)
+    | _ -> failwith "unsupported architecture for reassemble"
 
   let adjust_esp (il : instr list) : instr list =
     let rec traverse il =
@@ -85,7 +94,7 @@ module Disam = struct
 
   let disassemble f funcs secs arch =
     let module TR = Time_Record in
-    let re = new reassemble in
+    let re = create_re arch in
     let dis_valid = new dis_validator in
     let ail_parser = new ailParser in
     let il = ref [] in
@@ -100,9 +109,12 @@ module Disam = struct
       let module EU = ELF_utils in
       let module GA = GotAbs in
       let module D = DFA(GA) in
+      let module AGA = ArmGotAbs in
+      let module AD = DFA(AGA) in
+      let module TU = TagUtils in
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
-
+      ail_parser#set_arch arch;
       let instr_list = read_file "instrs.info" in
       ail_parser#process_instrs instr_list arch;
 
@@ -155,20 +167,31 @@ module Disam = struct
                 | _ -> ()
           ) func2cfg in
           GA.result
+        else if EU.elf_32 () && arch = "arm" then
+        let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
+        let _ = Hashtbl.iter (
+          fun f cfg ->
+            let _ = AD.flow_analysis cfg in
+            ()
+        ) func2cfg_table in
+        AGA.result
         else Hashtbl.create 1
       in
 
       let rewriting_result = got_rewrite il_init in
 
       il :=
-        if EU.elf_32 () && arch <> "arm" then
+        if EU.elf_32 () && arch = "intel" then
           ( FnU.replace_got_ref rewriting_result @@ il_init )
           |> re#jmp_table_rewrite
           (* second call to got_rewrite account switch dests in CFGs *)
           (*|> (fun il -> FnU.replace_got_ref (got_rewrite il) @@ il )*)
-          |> re#visit_heuristic_analysis
-        else
+        else if EU.elf_64 () && arch = "intel" then
           re#jmp_table_rewrite64 @@ il_init
+        else begin
+            FnU.replace_got_ref AGA.result @@ ail_parser#get_instrs
+          end
+          |> TU.process_tags
           |> re#visit_heuristic_analysis
           |> re#adjust_loclabel |> re#adjust_jmpref
           |> re#add_func_label @@ get_userfuncs fl

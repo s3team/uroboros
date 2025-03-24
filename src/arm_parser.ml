@@ -6,6 +6,7 @@ open Common_parser
 open Type
 open Lex_new
 open Printf
+open Pp_print
 
 type stack_type = Op of op
                 | Exp of exp
@@ -114,6 +115,7 @@ class arm_parse =
 
   let binptr_p_symb s =
     if not (String.contains s ',') then raise ParseError
+    else if not (String.contains s '#') then raise ParseError
     else
       let bracket_removed_s =
         (* Check exclamation mark for write-back syntax: *)
@@ -132,6 +134,23 @@ class arm_parse =
       if offset.[0] = '-' then raise ParseError
       else
         (reg_symb reg, int_of_string offset) in
+
+  let binptr_p_r_symb s =
+    if not (String.contains s ',') then raise ParseError
+    else
+      let bracket_removed_s =
+        (* Check exclamation mark for write-back syntax: *)
+        (* LDR r0, [sp,#4]! *)
+        if s.[(String.length s)-1] = '!' then
+          raise ParseError
+        else
+          String.sub s 1 ((String.length s)-2)
+      in
+      let split = Str.split (Str.regexp_string ",") in
+      let items = split bracket_removed_s in
+      let first_reg = List.nth items 0 in
+      let second_reg = List.nth items 1 in
+      (reg_symb first_reg, reg_symb second_reg) in
 
   let binptr_p_wb_symb s =
     if not (String.contains s ',') then raise ParseError
@@ -336,28 +355,31 @@ class arm_parse =
 
   method ptraddr_symb s =
     try UnOP (Arm_Reg (unptr_symb s))
-    with _ ->
+    with _ -> (
       (* ARM-specific write-back syntax *)
       try UnOP_WB (unptr_symb_wb s)
-      with _ ->
+      with _ -> (
         try
-          let (r, i) = (binptr_p_symb s) in
+          let r, i = binptr_p_symb s in
           BinOP_PLUS (Arm_Reg r, i)
-        with _ ->
+        with _ -> (
           try
-            let (r, i) = (binptr_m_symb s) in
-            (* ARM-specific write-back syntax *)
-            BinOP_PLUS_WB (r, i)
-          with _ ->
+            let r1, r2 = binptr_p_r_symb s in
+            BinOP_PLUS_R (r1, r2)
+          with _ -> (
             try
-              let (r, i) = (binptr_m_symb s) in
-              BinOP_MINUS (Arm_Reg r, i)
-            with _ ->
+              let r, i = binptr_m_symb s in
+              (* ARM-specific write-back syntax *)
+              BinOP_PLUS_WB (r, i)
+            with _ -> (
               try
-                let (r, i) = (binptr_m_wb_symb s) in
-                BinOP_MINUS_WB (r, i)
-              with _ ->
-                raise ParseError
+                let r, i = binptr_m_symb s in
+                BinOP_MINUS (Arm_Reg r, i)
+              with _ -> (
+                try
+                  let r, i = binptr_m_wb_symb s in
+                  BinOP_MINUS_WB (r, i)
+                with _ -> raise ParseError))))))
 
   method ptr_symb s =
     let has s1 s2 =
@@ -466,18 +488,34 @@ class arm_parse =
     else
       (self#jumpdes_symb s')
 
-  method exp_symb s =
-    try Ptr (self#ptr_symb s)
+  method is_inline_shift (s : string) =
+    let s' = String.trim s in
+    let s_list = Str.split (Str.regexp " ") s' in
+    let opcode = List.hd s_list in
+    try
+      let _ = rolop_symb opcode in
+      true
     with _ ->
-      try Reg (Arm_Reg (reg_symb s))
+      false
+
+  method exp_symb s =
+    (* To prevent the following instruction to be classified as a Symbol,
+     * check if an instruction contains an inline shift:
+     * andeq r0,r0,ip,lsl r0 *)
+    if self#is_inline_shift s then
+      Label (s)
+    else
+      try Ptr (self#ptr_symb s)
       with _ ->
-        try Const (const_symb s)
+        try Reg (Arm_Reg (reg_symb s))
         with _ ->
-          try Symbol (self#symbol_symb s)
+          try Const (const_symb s)
           with _ ->
-            try Label (s)   (* we jut consider these as labels *)
+            try Symbol (self#symbol_symb s)
             with _ ->
-              raise ParseError
+              try Label (s)   (* we just consider these as labels *)
+              with _ ->
+                raise ParseError
 
   method push_stack lex =
     match lex with
@@ -494,13 +532,13 @@ class arm_parse =
     | Lloc s -> Loc (loc_symb s)
     | _ -> raise ParseError
 
-  method reduce_stack stack pre =
+  method reduce_stack stack pre (tag : tag option) =
     match stack with
-    | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre, Hashtbl.create 0)
-    | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre, Hashtbl.create 0)
-    | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre, Hashtbl.create 0)
-    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre, Hashtbl.create 0)
-    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre, Hashtbl.create 0)
+    | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre, tag, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre, tag, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre, tag, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre, tag, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre, tag, Hashtbl.create 0)
     | _ -> raise ParseError
 
   method print_f (fl : func list) =
@@ -551,9 +589,19 @@ class arm_parse =
 
   method parse_instr instr loc (arch : string) =
     self#init_process;
-    let compact_instr = Str.global_replace (Str.regexp ", ") "," instr in
-    let pre = prefix_identify compact_instr
-    and compact_instr' = prefix_sub compact_instr in
+    let compact (instr : string) =
+      let instr' = Str.global_replace (Str.regexp ", ") "," instr in
+      if contains instr' "lsl " then
+        let instr' =
+          Str.global_replace (Str.regexp "lsl ") "lsl" instr
+        in
+        instr'
+      else instr'
+    in
+    let compact_instr = compact instr in
+    let pre = prefix_identify compact_instr in
+    let (compact_instr, tag) = tag_identify compact_instr in
+    let compact_instr' = prefix_sub compact_instr in
     let lexem_list = Array.to_list (lexer compact_instr' loc arch) in
     let s : stack_type list = [] in
     let parse_one s l =
@@ -561,6 +609,8 @@ class arm_parse =
       | Lend -> s
       | _ -> (self#push_stack l)::s
     in
-    let stack = List.fold_left parse_one s lexem_list in
-    self#reduce_stack stack pre
+  let stack = List.fold_left parse_one s lexem_list in
+  let parsed_instr = self#reduce_stack stack pre tag in
+  parsed_instr
+
 end
