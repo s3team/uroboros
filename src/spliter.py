@@ -29,6 +29,22 @@ with open('text_split.info', 'w') as f:
     f.write(s+'\n')
 
 lines = []
+with open('text.info') as f:
+    lines = f.readlines()
+
+s = []
+for l in (lines):
+    items = l.split()
+    for item in (items):
+        l = len(item)
+        for i in range(0,l,2):
+            s.append(".byte 0x"+item[i:i+2])
+s = '\n'.join(reversed(s))
+
+with open('text_split.info', 'w') as f:
+    f.write(s+'\n')
+
+lines = []
 with open('rodata.info') as f:
     lines = f.readlines()
 

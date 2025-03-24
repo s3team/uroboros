@@ -186,15 +186,20 @@ def dump(fn):
 def process(f, i, arch):
     is_32bit_binary = is_32()
     strip_command = ""
+    objdump_commamnd = ""
     if arch == "intel":
         strip_command = "strip"
+        objdump_commamnd = "objdump"
     elif arch == "thumb":
         strip_command = "arm-linux-gnueabihf-strip"
+        objdump_commamnd = "arm-linux-gnueabihf-objdump"
     elif arch == "arm":
         if is_32bit_binary:
             strip_command = "arm-linux-gnueabihf-strip"
+            objdump_commamnd = "arm-linux-gnueabihf-objdump"
         else:
             strip_command = "aarch64-linux-gnu-strip"
+            objdump_commamnd = "aarch64-linux-gnu-objdump"
 
     try:
         os.system("rm final_*.txt")
@@ -212,13 +217,12 @@ def process(f, i, arch):
 
         os.system(f"echo \"{str(i)}\" > count.txt")
         os.system(f"cp {f} {f}.sym")
-        os.system(f"nm {f}.sym > nm.info")
+        os.system(f"nm {f}.sym > nm.info 2> /dev/null")
         if is_static():
-            os.system(f"objdump -d --section=.plt {f} > plt_whole.info")
+            os.system(f"{objdump_commamnd} -d --section=.plt {f} > plt_whole.info 2> /dev/null")
             os.system(f"readelf -r {f} > rela_plt.info")
             os.system(f"readelf -l {f} > headers.info")
         os.system(f"{strip_command} {f}")
-
         dump(f)
 
         bit_mode = "32" if is_32bit_binary else "64"
@@ -227,7 +231,6 @@ def process(f, i, arch):
         if init_result.returncode != 0:
             print("init failed")
             return False
-
 
         os.system(f"python3 main_discover.py {f} {arch}")
 

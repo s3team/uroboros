@@ -1422,6 +1422,7 @@ class instrhandler instr_list des' =
     (* let lld2 = List.sort Int.compare lld1 in
        List.map (Printf.sprintf "S_0x%X") lld2 *)
 
+    (** Check if symbols in [dlist] match with instructions in [llist] *)
     method process =
       let dec_hex (s : int) : string = Printf.sprintf "S_0x%X" s in
       let do_update s n = if String.exists s n then s else s ^ "\n" ^ n in
@@ -1436,10 +1437,9 @@ class instrhandler instr_list des' =
               let lh' = { lh with loc_label = label' } in
               help (lh' :: acc) lt dt
             else if dh < lhd then
-              (* this is not a label indeed*)
-              help (lh :: acc) lt dt
-            else
-              help (lh :: acc) lt dlist
+              (* this is not a label indeed *)
+              help acc llist dt
+            else help (lh :: acc) lt dlist
         | a, b ->
             print_string "reassemble process\n";
             print_string (dec_hex (List.nth b 0) ^ "\n");
@@ -1784,7 +1784,8 @@ class arm_reassemble =
       | Point s -> "=S_" ^ dec_hex s
       | Normal s -> "=S_" ^ dec_hex s
       | Immediate s -> begin
-          failwith "build_symbol: check immediate value" (* "=S_" ^ dec_hex s *)
+          (* only for branch targets *)
+          "S_" ^ dec_hex s
         end
 
     method build_plt_symbol c =
@@ -1834,6 +1835,10 @@ class arm_reassemble =
         | Normal v, true -> false
         | _ -> true
       in
+      let is_control_opcode (i : instr) : bool =
+        let i_op = get_op i in
+        match i_op with Arm_OP (Arm_ControlOP _, _, _) -> true | _ -> false
+      in
       let dec_hex (s : int) : string = Printf.sprintf "0x%X" s in
       match e with
       | Const l -> begin
@@ -1867,20 +1872,25 @@ class arm_reassemble =
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                   Label s_label
                 end
-                else
+                (* else
                   (* To avoid symbolizing the below cases:
                    * mov.w	r2, #131072	; 0x20000
                    * cmp.w	r3, #131072	; 0x20000
                    *)
-                  e
-                  (* else begin
-                  Hashtbl.replace text_set l' "";
-                  let s_label = self#build_symbol l in
-                  deslist <- s_label :: deslist;
-                  let loc' = get_loc i in
-                  deslist_reloc <- loc'.loc_addr :: deslist_reloc;
-                  Label s_label
-                end *)
+                  e *)
+                  else begin
+                  if is_control_opcode i then begin
+                    Hashtbl.replace text_set l' "";
+                    let s_label = self#build_symbol l in
+                    deslist <- s_label :: deslist;
+                    let loc' = get_loc i in
+                    deslist_reloc <- loc'.loc_addr :: deslist_reloc;
+                    Label s_label
+                  end
+                  else begin
+                    e
+                  end
+                end
               else
                 let module
                   (* in dynamically-linked binaries, call to library functions are replaced with their name *)
@@ -1955,8 +1965,6 @@ class arm_reassemble =
               else if self#has_text_as_data pc_relative_addr then begin
                 Hashtbl.replace literal_pool_candidates pc_relative_addr i;
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
-                let _ = Printf.printf "text_as_data symbol: %s\n" s_label in
-                let _ = Printf.printf "\t%s\n" (pp_print_instr' i) in
                 (* [label] is used to create c2d symbols *)
                 label <- (".text_as_data", pc_relative_addr) :: label;
                 (* for data in text section *)
@@ -2191,12 +2199,11 @@ class arm_reassemble =
               TripleInstr (ldr_op, Const (Point value), e2, l, pre, None, tags)
             in
             let deref_instr =
-              TripleInstr (ldr_op, Const (Point value), e2, l, pre, Some Deref, tags)
+              TripleInstr
+                (ldr_op, Const (Point value), e2, l, pre, Some Deref, tags)
             in
             match self#check_sec value with
             | Some s ->
-                (* giyeol: debug *)
-                (* let _ = Printf.printf "\tsection: %s\n" s.sec_name in *)
                 if s.sec_name = ".rodata" then pointer_instr
                 else if s.sec_name = ".got" then begin
                   match self#get_got_as_data_int value with
@@ -2226,7 +2233,13 @@ class arm_reassemble =
           end
         | TripleInstr (p, e1, e2, l, pre, tag, tags) when is_test p ->
             TripleInstr
-              (p, self#v_exp2 e1 i f true, self#v_exp2 e2 i f true, l, pre, tag, tags)
+              ( p,
+                self#v_exp2 e1 i f true,
+                self#v_exp2 e2 i f true,
+                l,
+                pre,
+                tag,
+                tags )
         | TripleInstr (p, e1, e2, l, pre, tag, tags) ->
             TripleInstr
               ( p,
@@ -2244,8 +2257,8 @@ class arm_reassemble =
     method vinst_symbol (f : instr -> bool) (i : instr) : instr =
       let module TU = TagUtils in
       match i with
-      | TripleInstr (p, Label label, e2, l, pre, tag, tags) when contains ~str:label ~sub:"=S_"
-        -> begin
+      | TripleInstr (p, Label label, e2, l, pre, tag, tags)
+        when contains ~str:label ~sub:"=S_" -> begin
           let sub_label = String.sub label 3 (String.length label - 3) in
           let addr = int_of_string sub_label in
           match self#check_sec addr with
@@ -2266,11 +2279,8 @@ class arm_reassemble =
         end
       | _ -> i
 
-    method jmp_table_rewrite (instrs : instr list) =
-      instrs
-
-    method jmp_table_rewrite64 (instrs : instr list) =
-      instrs
+    method jmp_table_rewrite (instrs : instr list) = instrs
+    method jmp_table_rewrite64 (instrs : instr list) = instrs
 
     method visit_heuristic_analysis (instrs : instr list) =
       let func (i : instr) : bool =

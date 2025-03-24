@@ -62,31 +62,31 @@ object (self)
                        ^(string_of_bool !is_32)^" "^arch));
 
     ret := Sys.command(objdump_command ^ " -s -j \
-                        .text "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 > text.info");
+                        .text "^f^" 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 > text.info");
     ret := Sys.command(objdump_command ^ " -s -j \
-                        .rodata "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
+                        .rodata "^f^" 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
                         > rodata.info");
     self#checkret ret "rodata.info";
     ret := Sys.command(objdump_command ^ " -s -j \
-                        .data "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
+                        .data "^f^" 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
                         > data.info");
     self#checkret ret "data.info";
     ret := Sys.command(objdump_command ^ " -s -j \
-                        .data.rel.ro "^f^" | grep \"^ \" | \
+                        .data.rel.ro "^f^" 2>/dev/null | grep \"^ \" | \
                         cut -d \" \" -f3,4,5,6 > data_rel_ro.info");
     self#checkret ret "data_rel_ro.info";
     ret := Sys.command(objdump_command ^ " -s -j \
-                        rodata.cst32 "^f^" | grep \"^ \" | \
+                        rodata.cst32 "^f^" 2>/dev/null | grep \"^ \" | \
                         cut -d \" \" -f3,4,5,6 > rodata_cst32.info");
     self#checkret ret "rodata_cst32.info";
     ret := Sys.command(objdump_command ^ " -s -j \
-                        .eh_frame "^f^" | grep \"^ \" | \
+                        .eh_frame "^f^" 2>/dev/null | grep \"^ \" | \
                         cut -d \" \" -f3,4,5,6 > eh_frame.info");
     ret := Sys.command(objdump_command ^ " -s -j \
-                        .eh_frame_hdr "^f^" | grep \"^ \" | \
+                        .eh_frame_hdr "^f^" 2>/dev/null | grep \"^ \" | \
                         cut -d \" \" -f3,4,5,6 > eh_frame_hdr.info");
     ret := Sys.command(objdump_command ^  " -s -j \
-                        .got "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
+                        .got "^f^" 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
                         > got.info");
     let module EU = ELF_utils in
     if EU.elf_static () then begin
@@ -94,13 +94,13 @@ object (self)
                           .got.plt "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
                           > got_plt.info");
       ret := Sys.command(objdump_command ^ " -d -j \
-                          .plt "^f^" | grep jmp | wc -l > plt_entries.info");
+                          .plt "^f^" 2>/dev/null | grep jmp | wc -l > plt_entries.info");
       ret := Sys.command(objdump_command ^ " -s -j \
-                          __libc_IO_vtables "^f^" | grep \"^ \" | \
+                          __libc_IO_vtables "^f^" 2>/dev/null | grep \"^ \" | \
                           cut -d \" \" -f3,4,5,6 > __libc_IO_vtables.info");
       self#checkret ret "__libc_IO_vtables.info";
       ret := Sys.command(objdump_command ^ " -s -j \
-                          __libc_freeres_ptrs "^f^" | grep \"^ \" | \
+                          __libc_freeres_ptrs "^f^" 2>/dev/null | grep \"^ \" | \
                           cut -d \" \" -f3,4,5,6 > __libc_freeres_ptrs.info");
       self#checkret ret "__libc_freeres_ptrs.info"
     end
@@ -125,9 +125,9 @@ object (self)
 
   method bss_handler (f : string) : unit =
     ignore (Sys.command("python3 sec_empty_creator.py .bss"));
-    ignore (Sys.command(objdump_command ^ " -R "^f^" | \
+    ignore (Sys.command(objdump_command ^ " -R "^f^" 2>/dev/null | \
                        awk \'/GLOB_DAT/ {print $1, $2, $3}\' > globalbss.info"));
-    ignore (Sys.command(objdump_command ^ " -R "^f^" | \
+    ignore (Sys.command(objdump_command ^ " -R "^f^" 2>/dev/null | \
                        awk \'/COPY/ {print $1, $2, $3}\' >> globalbss.info"))
 
   method checkret (r : int ref) (file : string) : unit =
@@ -249,7 +249,7 @@ object (self)
     ignore (Sys.command("readelf -s "^f^" | grep GLOBAL > export_tbl.info"))
 
   method plt_process (f : string) : unit =
-    ignore (Sys.command(objdump_command ^  " -j .plt -Dr "^f^" | grep \">:\" > \
+    ignore (Sys.command(objdump_command ^  " -j .plt -Dr "^f^" 2>/dev/null | grep \">:\" > \
                                             plts.info"))
 
   method extern_data_process (f : string) : unit =

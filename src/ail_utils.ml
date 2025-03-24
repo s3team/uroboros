@@ -98,6 +98,7 @@ let unify_hash_list h =
 
 (* on 32bit system, OCaml's maxinum integer is 0x3fffffff *)
 let string_to_int32 s = try Some (int_of_string s) with _ -> None
+
 let compare_loc l1 l2 = l1.loc_addr = l2.loc_addr && l1.loc_label = l2.loc_label
 
 let get_prefix (i : instr) =
@@ -108,6 +109,14 @@ let get_prefix (i : instr) =
   | FourInstr (_, _, _, _, _, pre, _, _) -> pre
   | FifInstr (_, _, _, _, _, _, pre, _, _) -> pre
 
+
+let get_prefix (i : instr) =
+  match i with
+  | SingleInstr (_, _, pre, _, _) -> pre
+  | DoubleInstr (_, _, _, pre, _, _) -> pre
+  | TripleInstr (_, _, _, _, pre, _, _) -> pre
+  | FourInstr (_, _, _, _, _, pre, _, _) -> pre
+  | FifInstr (_, _, _, _, _, _, pre, _, _) -> pre
 
 let get_tags i =
   match i with
@@ -129,16 +138,16 @@ let get_loc i =
 
 let set_loc i l =
   match i with
-  | SingleInstr (p, _, pre, tag, tags) -> SingleInstr (p, l, pre, tag, tags)
+  | SingleInstr (p, _, pre, tag, tags) ->
+    SingleInstr (p, l, pre, tag, tags)
   | DoubleInstr (p, e, _, pre, tag, tags) ->
-      DoubleInstr (p, e, l, pre, tag, tags)
+    DoubleInstr (p, e, l, pre, tag, tags)
   | TripleInstr (p, e1, e2, _, pre, tag, tags) ->
-      TripleInstr (p, e1, e2, l, pre, tag, tags)
+    TripleInstr (p, e1, e2, l, pre, tag, tags)
   | FourInstr (p, e1, e2, e3, _, pre, tag, tags) ->
-      FourInstr (p, e1, e2, e3, l, pre, tag, tags)
+    FourInstr (p, e1, e2, e3, l, pre, tag, tags)
   | FifInstr (p, e1, e2, e3, e4, _, pre, tag, tags) ->
-      FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags)
-
+    FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags)
 
 let get_addr i =
   let l = get_loc i in
@@ -162,7 +171,6 @@ let get_op i =
   | TripleInstr (p, _, _, _, _, _, _) -> p
   | FourInstr (p, _, _, _, _, _, _, _) -> p
   | FifInstr (p, _, _, _, _, _, _, _, _) -> p
-
 
 let change_op i new_op =
   match i with
@@ -1469,7 +1477,7 @@ module Func_utils = struct
             let f_ea = hf.func_end_addr in
             let i_loc = get_loc hi in
             let i_addr = i_loc.loc_addr in
-            (* giyeol: debug *)
+            (* debug *)
             (* let _ = Printf.printf "\tfunc: %s, 0x%x - 0x%x\n%!" hf.func_name f_ba f_ea in *)
             (* let _ = Printf.printf "\tinstr: %s\n%!" (Pp_print.pp_print_instr' hi) in *)
             (* end debug *)
@@ -1494,7 +1502,7 @@ module Func_utils = struct
           end
       in
       let func2il' = slice_il funcs il in
-      (* giyeol: debug *)
+      (* debug *)
       (* let _ = *)
       (*   Hashtbl.iter *)
       (*     (fun k v -> *)
@@ -1536,7 +1544,6 @@ module Func_utils = struct
     let func2il_table = func2il il in
 
     let rec create_cfg f (f_il : instr list) pred_cfg succ_cfg =
-      (* giyeol: debug *)
       match f_il with
       | [] ->
           let ordered_il = List.rev (Hashtbl.find func2il_table f.func_name) in
@@ -1600,7 +1607,7 @@ module Func_utils = struct
           in
           create_cfg f (i' :: il') pred_cfg succ_cfg
     in
-    (* giyeol: kind of function main starting here *)
+    (* kind of function main starting here *)
     List.iter
       (fun f ->
         match Hashtbl.find_opt func2il_table f.func_name with

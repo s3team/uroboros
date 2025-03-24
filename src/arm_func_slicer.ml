@@ -7,6 +7,7 @@ open Ail_utils
 class arm_func_slicer instrs funcs =
   object (self)
     inherit common_func_slicer instrs funcs
+    val mutable push_lr_added : bool = false
 
     method process2 =
       let has_pc_reg (lab : label) : bool =
@@ -18,6 +19,11 @@ class arm_func_slicer instrs funcs =
         let has_brackets = String.contains lab '{' && String.contains lab '}' in
         let has_lr = String.exists lab "lr" in
         has_brackets && has_lr
+      in
+      let has_fp_reg (lab : label) : bool =
+        let has_brackets = String.contains lab '{' && String.contains lab '}' in
+        let has_fp = String.exists lab "fp" in
+        has_brackets && has_fp
       in
       let has_sp_reg (lab : label) : bool =
         let has_sp = String.exists lab "sp" in
@@ -34,6 +40,21 @@ class arm_func_slicer instrs funcs =
         String.exists op_str "lsrs"
       in
       let get_loc_addr (l : loc) : int = l.loc_addr in
+      let is_func_prologue (inst : instr) : bool =
+        match inst with
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _, _)
+        | TripleInstr
+            ( Arm_OP (Arm_StackOP STMDB, _, _),
+              Label lab,
+              Ptr (WB (Arm_StackReg SP)),
+              _,
+              _,
+              _,
+              _ )
+          when has_lr_reg lab ->
+            true
+        | _ -> false
+      in
       let is_push (op : arm_stackop) : bool =
         match op with PUSH | VPUSH | STMDB -> true | _ -> false
       in
@@ -49,7 +70,8 @@ class arm_func_slicer instrs funcs =
               Reg (Arm_Reg (Arm_LinkReg LR)),
               _,
               _,
-              _, _) ->
+              _,
+              _ ) ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -62,13 +84,33 @@ class arm_func_slicer instrs funcs =
             last_pop <- true
         (* add a function *)
         (* push {r4, lr} *)
-        | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _, _)
-          when is_push op && has_lr_reg lab ->
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _, _)
+        (* stmdb sp!, {r4, r5, lr} *)
+        | TripleInstr
+            ( Arm_OP (Arm_StackOP STMDB, _, _),
+              Label lab,
+              Ptr (WB (Arm_StackReg SP)),
+              _,
+              _,
+              _,
+              _ )
+          when has_lr_reg lab || has_fp_reg lab
+          (* The above when condition was commented out due to the following case:
+           * in make-prime-list:
+           * 1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+           * should be recognized as a function beginning
+           *)
+          ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- false;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+            if not push_lr_added then begin
+              func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+            end
+            else begin
+              push_lr_added <- false
+            end
         (* add a function *)
         (* push	{r7}
          * sub	sp, #12
@@ -90,22 +132,26 @@ class arm_func_slicer instrs funcs =
                 last_special <- false;
                 last_pop <- false;
                 func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
-            | _ -> ()
+            | _ -> begin
+                (* When there is a `push {..., lr}` within the next two instructions,
+                 * add the current instruction as a function beginning
+                 *)
+                let check_push_lr (instr_list : instr list) : bool =
+                  List.exists (fun i -> is_func_prologue i) instr_list
+                in
+                let next_next_instr = List.nth ordered_il (idx + 2) in
+                let instrs_to_check = [ next_instr; next_next_instr ] in
+                if check_push_lr instrs_to_check then begin
+                  last_nop <- false;
+                  last_ret <- false;
+                  last_special <- false;
+                  last_pop <- false;
+                  push_lr_added <- true;
+                  func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+                end
+                else ()
+              end
           end
-        (* add a function *)
-        | TripleInstr
-            ( Arm_OP (Arm_StackOP STMDB, _, _),
-              _,
-              Ptr (WB (Arm_StackReg SP)),
-              _,
-              _,
-              _,
-              _ ) ->
-            last_nop <- false;
-            last_ret <- false;
-            last_special <- false;
-            last_pop <- false;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* S_0x14FB4:
          * ldr r3,[pc, #0x8]
          * movs r1,#0x0

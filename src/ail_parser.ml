@@ -1139,6 +1139,24 @@ object (self)
       in
       let illegal_opcodes = [
         "bfl"; "vrhadd";
+
+        (* original: stcl p1, c10, [ip], 8
+         * in objdump: stfp f2, [ip], #8 ;; wrong
+         *)
+        "stfp";
+
+        (* original: ldcl p1, c10, [ip], 8
+         * in objdump: ldfp f2, [ip], #8 ;; wrong
+         *)
+        "ldfp";
+
+
+        "stfe";
+
+        (* original: ldcl p1, c0, [r0], 8
+         * in objdump: ldfe    f0, [r0], #8 ;; wrong
+         *)
+        "ldfe";
       ]
       in
       let rec has_illegal_instr instr' = function
@@ -1163,18 +1181,15 @@ object (self)
     let _ = p#set_funclist(funcs)
     and _ = p#set_seclist(secs)
     and split = Str.split (Str.regexp_string ":") in
-
     (* change empty instruction to "undefined" string *)
-    let l' =
-      List.map
-        (fun i ->
-          let items = split i in
-          let len = List.length items in
-          if len > 1 then i
-          else
-            let loc = List.nth items 0 in
-            loc ^ ":\tundefined") l
-    in
+    let l' = List.map (
+                 fun i ->
+                 let items = split i in
+                 let len = List.length items in
+                 if len > 1 then i
+                 else
+                  let loc = List.nth items 0 in
+                  loc ^ ":\tundefined") l in
     let help i =
       let items = split i in
       let loc = List.nth items 0 in
