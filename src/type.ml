@@ -39,15 +39,19 @@ and calldes = func
 
 and op =
   | Intel_OP of intel_op
-  | Arm_OP of (arm_op * arm_suffix option)
+  | Arm_OP of (arm_op * arm_condsuff option * arm_widthsuff option)
+  | Undefined_OP
 and intel_arm_reg =
 | Intel_Reg of intel_reg
 | Arm_Reg of arm_reg
 and ptraddr =
   | UnOP of intel_arm_reg
   (* mov (%eax) ,%eax *)
+  | WB of arm_reg
   | UnOP_WB of arm_reg
   | BinOP_PLUS of (intel_arm_reg * int)
+  | BinOP_PLUS_R of (arm_reg * arm_reg)
+  (* ldr r3, [r4, r3] *)
   | BinOP_PLUS_S of (intel_arm_reg * string)
   (* mov 0x3c(%esp),%eax *)
   | BinOP_PLUS_WB of (arm_reg * int)
@@ -60,6 +64,8 @@ and ptraddr =
   (* stp x29,x30,[sp,#-32]! *)
   | ThreeOP of (intel_arm_reg * intel_arm_reg * int)
   (* lea (%edi, %esi, 8), %edi *)
+  | ThreeOP_S of (intel_arm_reg * intel_arm_reg * string)
+  (* tbh	[pc, r2, lsl #1] *)
   | FourOP_PLUS of (intel_arm_reg * intel_arm_reg * int * int)
   (* mov 0x18(%esp,%eax,4),%edx *)
   | FourOP_MINUS of (intel_arm_reg * intel_arm_reg * int * int)
@@ -95,15 +101,20 @@ and exp =
   | Ptr of ptraddr
   | Label of label
 and prefix = LOCK | ADDR32 | BND
+and tag =
+  | Del (* Delete *)
+  | Sym of int (* Symbolization of taget addr *)
+  | Deref (* Dereference *)
+  | Pad (* Padding *)
 and tags_val =
   | Str of string
   | Exp of exp
 and instr =
-  | SingleInstr of op * loc * prefix option * (string, tags_val) Hashtbl.t
-  | DoubleInstr of op * exp * loc * prefix option * (string, tags_val) Hashtbl.t
-  | TripleInstr of op * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
-  | FourInstr of op * exp * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
-  | FifInstr of op * exp * exp * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
+  | SingleInstr of op * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | DoubleInstr of op * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | TripleInstr of op * exp * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | FourInstr of op * exp * exp * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | FifInstr of op * exp * exp * exp * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
 (* as far as I know, imul $0xe10,%ebp,%eax *)
 
 and bblock =
@@ -298,6 +309,7 @@ and arm_op =
   | Arm_StackOP of arm_stackop
   | Arm_ControlOP of arm_controlop
   | Arm_SystemOP of arm_systemop
+  | Arm_Condition of arm_conditionop
   | Arm_ErrorOP of arm_errorop
 and arm_errorop = BAD
 and arm_commonop =
@@ -313,22 +325,33 @@ and arm_controlop =
    * 2. MOV PC, LR
    *)
   | B | BL | BX | BLX | BXJ | TBB | TBH
-  | BCC | BCS | BGE | BGT | BHI | BLE | BLS | BLT| BMI | BNE | BPL | BVC | BVS
   | CBNZ | CBZ
-  | BEQ | BR | BXEQ | BLEQ
+  | BR
+  | BXNS | BLXNS
   (* AArch64 *)
   | RET | RETAA | RETAB | RETAASPPC | RETABSPPC | RETAASPPCR | RETABSPPCR
-and arm_stackop = PUSH | POP | VPUSH | VPOP
+and arm_stackop =
+  | PUSH | POP | VPUSH | VPOP
+  | STMDB (* push when used with sp! *)
+  | LDMIA (* pop when used with sp! *)
 and arm_systemop =
   | BKPT | CLREX | CPS | CPSIE | CPSID | DBG | DMB
-  | DSB | ISB | PLD | PLI | RFE | SEV | SMC | SRS
+  | DSB | ISB
+  | PLD | PLDW
+  | PLI | RFE | SEV | SMC | SRS
   | SVC | WFE | WFI | YIELD | UDF
+  | MCR | MCR2 | MCRR | MCRR2
+  | MRC | MRC2
+  | SETPAN
 and arm_arithmop =
   | ADC | ADCS | ADD | ADDS | ADDW | ADR | AND | ANDS
-  | ANDEQ
-  | CLZ | MLA | MLS | MUL | NEG | QADD | QADD16 | QADD8
+  | CLZ | MLA | MLS
+  | MUL | MULS
+  | NEG | QADD | QADD16 | QADD8
   | QASX | QDADD | QDSUB | QSAX | QSUB | QSUB16 | QSUB8
-  | RSB | RSBS | SADD16 | SADD8 | SASX | SBC | SBCS
+  | RSB | RSBS
+  | RSC | RSCS
+  | SADD16 | SADD8 | SASX | SBC | SBCS
   | SDIV | SHADD16 | SHADD8 | SHASX | SHSAX | SHSUB16
   | SHSUB8 | SMLABB | SMLABT | SMLATB | SMLATT | SMLAD
   | SMLADX | SMLAL | SMLALBB | SMLALBT | SMLALTB | SMLALTT
@@ -337,13 +360,19 @@ and arm_arithmop =
   | SMMUL | SMMULR | SMUAD | SMUADX | SMULBB | SMULBT
   | SMULTB | SMULTT | SMULL | SMULWB | SMULWT | SMUSD
   | SMUSDX | SSAT | SSAT16 | SSAX | SSUB16 | SSUB8
-  | SUB | SUBS | SUBW | SXTAB | SXTAB16 | SXTAH | SXTB
+  | SUB | SUBS | SUBW
+  | SXTAB | SXTAB16 | SXTAH | SXTB
+  | MAR | MRA
+  | NEGS
   | SXTB16 | SXTH | UADD16 | UADD8 | UASX | UDIV | UHADD16
   | UHADD8 | UHASX | UHSAX | UHSUB16 | UHSUB8 | UMAAL
   | UMLAL | UMULL | UQADD16 | UQADD8 | UQASX | UQSAX
   | UQSUB16 | UQSUB8 | USAD8 | USADA8 | USAT | USAT16
   | USAX | USUB16 | USUB8 | UXTAB | UXTAB16 | UXTAH
-  | UXTB | UXTB16 | UXTH | VMUL | VNMUL | VMLA | VMLS
+  | UXTB | UXTB16 | UXTH
+  | VHADD | VHSUB
+  | VADDHN
+  | VMUL | VNMUL | VMLA | VMLS
   | VNMLS | VNMLA | VADD | VSUB | VDIV | VABS | VNEG
   | VSQRT | VRHADD | VADDL | VRADDHN | VMAX
   (* AArch64 *)
@@ -354,32 +383,56 @@ and arm_logicop =
   | UBFX
 and arm_rolop =
   | ASR | ASRS | LSL | LSLS | LSR | LSRS | ROR | RORS | RRX | RRXS
+  | VQRSHL
+  | VSHL | VSHR
 and arm_assignop =
-  | BFC | BFI | CPY | LDM | STM | LDMDB | LDMEA | LDMIA | LDMFD
+  | BFC | BFI | CPY | LDM
+  | STM | STMDA | STMED
+  | LDMDB | LDMEA | LDMIA | LDMFD
   | LDR | LDRB | LDRBT | LDRD | LDREX | LDREXB | LDREXD
   | LDREXH | LDRH | LDRHT | LDRSB | LDRSBT | LDRSH | LDRSHT
-  | LDRT | MOV | MOVS | MOVW | MOVT | MRS | MSR | MVN | MVNS
+  | LDRT | MOV | MOVS | MOVW | MOVT | MRS | MSR
+  | MVN | MVNS
+  | STMIB
+  | LDMIB
   | SEL | STMDB | STMFD | STMIA | STMEA | STR | STRB | STRBT
   | STRD | STREX | STREXB | STREXD | STREXH | STRH | STRHT
   | STRT | VCVT | VCVTT | VCVTR | VCVTB | VMOV | VMSR
-  | VSTR | VSTM | VSTMDB | VPUSH | VLDR | VLDM | VLDMDB
+  | VSTR | VST4
+  | VSTM | VSTMDB | VPUSH | VLDR | VLDM | VLDMDB
   | VLD4 | VSTMIA | VLDMIA | VMRS
+  | VEXT
+  | VREV16 | VREV32 | VREV64
+  | VSWP
   (* AArch64 *)
   | STP | LDP
 and arm_compareop =
-  | CMN | CMP | IT | TEQ | TST | VCMPE | VCMP | ITE | ITT
-  | ITTT | ITTE | ITEE | ITET | ITTTT | ITTTE | ITTET | ITTEE
+  | CMN | CMP
+  | TEQ
+  | TST | VCMPE | VCMP
+  | CMEQ
+and arm_conditionop =
+  | IT
+  | ITE | ITT
+  | ITTT | ITTE | ITEE | ITET
+  | ITTTT | ITTTE | ITTET | ITTEE
   | ITETT | ITETE | ITEET | ITEEE
-and arm_otherop = NOP | HLT | NOPW | NOPL | UD2
+and arm_otherop = NOP | HLT | NOPW | NOPL | UD2 | SETEND | VSLI
 and arm_condsuff =
   | EQ | NE | CS | CC | MI | PL | VS | VC | LO
   | HI | LS | GE | LT | GT | LE | AL | HS
+  | UND (* <und> by objdump *)
 and arm_opqualifier =
   | W | N | F32 | F64 | U8 | U16 | U32 | S8 | S16 | S32 | I16
   | I8 (* not sure if I8 or 8 *)
-and arm_suffix =
-  | Arm_Condsuff of arm_condsuff
+  | S64 | U64
+  | SIZE of int (* 8, 16, 32, 64 *)
+(* and arm_suffix =
+  | Arm_Condsuff of arm_condsuff *)
+and arm_widthsuff =
   | Arm_Opqualifier of arm_opqualifier
+  | Arm_Double_Opqualifier of arm_opqualifier * arm_opqualifier
+    (* vcvt.f64.u32	d7, s15 *)
 and arm_reg =
   | Arm_CommonReg of arm_commonreg
   | Arm_SpecialReg of arm_specialreg
@@ -452,7 +505,7 @@ let show_intel_op = function
             | AND -> "and" | ANDB -> "andb" | OR -> "or" | XOR -> "xor" | PXOR -> "pxor" | NOT -> "not" | ANDL -> "andl" | NOTL -> "notl" | ORW -> "orw"
             | XORB -> "xorb" | XORL -> "xorl" | SAHF -> "sahf" | ANDW -> "andw" | NOTB -> "notb" | NOTW -> "notw" | XORPD -> "xorpd" | XORPS -> "xorps" | ANDQ -> "andq"
             | XORQ -> "xorq" | ANDPS -> "andps" | ANDNPS -> "andnps" | ORPS -> "orps" | ANDPD -> "andpd" | NOTQ -> "notq" | ANDNPD -> "andnpd"
-            | ORPD -> "orpd" | PAND -> "pand" | POR -> "por" | PANDN -> "pandn" | VPXOR -> "vpxor" | VPXORD -> "vpxord" | VPXORQ -> "vpxorq" | VPORQ -> "vporq" 
+            | ORPD -> "orpd" | PAND -> "pand" | POR -> "por" | PANDN -> "pandn" | VPXOR -> "vpxor" | VPXORD -> "vpxord" | VPXORQ -> "vpxorq" | VPORQ -> "vporq"
             | VPAND -> "vpand" | VPTERNLOGD -> "vpternlogd"  | VPTESTMB -> "vptestmb" | VPTESTNMB -> "vptestnmb" | SHLX -> "shlx"
             | KORTESTD -> "kortestd"  | KORD -> "kord" | ANDN -> "andn" | KORTESTQ -> "kortestq" | BLSR -> "blsr" | VPTESTNMD -> "vptestnmd" | KXNORQ -> "kxnorq"
         end
@@ -466,7 +519,7 @@ let show_intel_op = function
             | PSHUFLW -> "pshuflw" | PSHUFB -> "pshufb" | PSHUFW -> "pshufw" | PSHUFHW -> "pshufhw" | PSHUFD -> "pshufd"
             | VPSHUFLW -> "vpshuflw" | VPSHUFB -> "vpshufb" | VPSHUFW -> "vpshufw" | VPSHUFHW -> "vpshufhw" | VPSHUFD -> "vpshufd"
             | VPSRLDQ -> "vpsrldq" | VPSLLDQ -> "vpslldq"
-            | SARQ -> "sarq" | SARX ->"sarx" 
+            | SARQ -> "sarq" | SARX ->"sarx"
         end
       | Intel_Assign icommon_ias ->
         begin
@@ -494,7 +547,7 @@ let show_intel_op = function
             | PINSRW -> "pinsrw" | VPINSRW -> "vpinsrw"
             | PUNPCKLQDQ -> "punpcklqdq" | PUNPCKLWD -> "punpcklwd" | VPUNPCKLWD -> "vpunpcklwd" | MOVHPD -> "movhpd" | MOVHPS -> "movhps" | MOVLPD -> "movlpd"
             | VPUNPCKLQDQ -> "vpunpcklqdq" | VMOVHPD -> "vmovhpd" | VMOVHPS -> "vmovhps" | PUNPCKHDQ -> "punpckhdq"
-            | KUNPCKDQ -> "kunpckdq" | KUNPCKBW -> "kunpckbw" 
+            | KUNPCKDQ -> "kunpckdq" | KUNPCKBW -> "kunpckbw"
             | LAHF -> "lahf" | SAHF -> "sahf"
             | VINSERTI128 -> "vinserti128" | VEXTRACTI128 -> "vextracti128"
             | PSADBW -> "psadbw" | VPSADBW -> "vpsadbw"
@@ -518,7 +571,7 @@ let show_intel_op = function
           | CMPNLTSD -> "cmpnltsd" | PCMPGTD -> "pcmpgtd" | PCMPGTB -> "pcmpgtb" | PCMPEQD -> "pcmpeqd" | VPCMPEQD -> "vpcmpeqd" | PCMPEQB -> "pcmpeqb" | VPCMPEQB | CMPLTSD -> "cmpltsd" | PCMPEQW -> "pcmpeqw"
           | CMPEQSS -> "cmpeqss" | FCOMI -> "fcomi" | COMISS -> "comiss" | COMISD -> "comisd" | CMPXCHG -> "cmpxchg"
           | XTEST -> "xtest"
-          | VPCMPNEQUB -> "vpcmpnequb" | VPCMPNEQB -> "vpcmpneqb" | VPCMPNEQD -> "vpcmpneqd" 
+          | VPCMPNEQUB -> "vpcmpnequb" | VPCMPNEQB -> "vpcmpneqb" | VPCMPNEQD -> "vpcmpneqd"
         end
       | Intel_Set icommon_is ->
         begin
@@ -548,7 +601,7 @@ let show_intel_op = function
   | Intel_ControlOP icontrol ->
     begin
     match icontrol with
-      | CALL -> "call" | CALLQ -> "callq" | LEAVE -> "leave" | LEAVEQ -> "leaveq"
+      | CALL -> "call" | CALLQ -> "callq" | LEAVE -> "leave"
       | RET -> "ret" | RETN -> "retn" | RETQ -> "retq"
       | FXAM -> "fxam" | FCHS -> "fchs"
       | Intel_Jump icontrol_ij ->
@@ -638,10 +691,13 @@ let show_intel_reg = function
           begin
             match acommon_arith with
             | ADC -> "adc" | ADCS -> "adcs" | ADD -> "add" | ADDS -> "adds" | ADDW -> "addw" | ADR -> "adr" | AND -> "and" | ANDS -> "ands"
-            | ANDEQ -> "andeq"
-            | CLZ -> "clz" | MLA -> "mla" | MLS -> "mls" | MUL -> "mul" | NEG -> "neg" | QADD -> "qadd" | QADD16 -> "qadd16" | QADD8 -> "qadd8"
+            | CLZ -> "clz" | MLA -> "mla" | MLS -> "mls"
+            | MUL -> "mul" | MULS -> "muls"
+            | NEG -> "neg" | QADD -> "qadd" | QADD16 -> "qadd16" | QADD8 -> "qadd8"
             | QASX -> "qasx" | QDADD -> "qdadd" | QDSUB -> "qdsub" | QSAX -> "qsax" | QSUB -> "qsub" | QSUB16 -> "qsub16" | QSUB8 -> "qsub8"
-            | RSB -> "rsb" | RSBS -> "rsbs" | SADD16 -> "sadd16" | SADD8 -> "sadd8" | SASX -> "sasx" | SBC -> "sbc" | SBCS -> "sbcs"
+            | RSB -> "rsb" | RSBS -> "rsbs"
+            | RSC -> "rsc" | RSCS -> "rscs"
+            | SADD16 -> "sadd16" | SADD8 -> "sadd8" | SASX -> "sasx" | SBC -> "sbc" | SBCS -> "sbcs"
             | SDIV -> "sdiv" | SHADD16 -> "shadd16" | SHADD8 -> "shadd8" | SHASX -> "shasx" | SHSAX -> "shsax" | SHSUB16 -> "shsub16"
             | SHSUB8 -> "shsub8" | SMLABB -> "smlabb" | SMLABT -> "smlabt" | SMLATB -> "smlatb" | SMLATT -> "smlatt" | SMLAD -> "smlad"
             | SMLADX -> "smladx" | SMLAL -> "smlal" | SMLALBB -> "smlalbb" | SMLALBT -> "smlalbt" | SMLALTB -> "smlaltb" | SMLALTT -> "smlaltt"
@@ -650,13 +706,22 @@ let show_intel_reg = function
             | SMMUL -> "smmul" | SMMULR -> "smmulr" | SMUAD -> "smuad" | SMUADX -> "smuadx" | SMULBB -> "smulbb" | SMULBT -> "smulbt"
             | SMULTB -> "smultb" | SMULTT -> "smultt" | SMULL -> "smull" | SMULWB -> "smulwb" | SMULWT -> "smulwt" | SMUSD -> "smusd"
             | SMUSDX -> "smusdx" | SSAT -> "ssat" | SSAT16 -> "ssat16" | SSAX -> "ssax" | SSUB16 -> "ssub16" | SSUB8 -> "ssub8"
-            | SUB -> "sub" | SUBS -> "subs" | SUBW -> "subw" | SXTAB -> "sxtab" | SXTAB16 -> "sxtab16" | SXTAH -> "sxtah" | SXTB -> "sxtb"
-            | SXTB16 -> "sxtb16" | SXTH -> "sxth" | UADD16 -> "uadd16" | UADD8 -> "uadd8" | UASX -> "uasx" | UDIV -> "udiv" | UHADD16 -> "uhadd16"
+            | SUB -> "sub" | SUBS -> "subs" | SUBW -> "subw"
+            | SXTAB -> "sxtab" | SXTAB16 -> "sxtab16"
+            | SXTH -> "sxth"
+            | SXTAH -> "sxtah" | SXTB -> "sxtb"
+            | MAR -> "mar" | MRA -> "mra"
+            | NEGS -> "negs"
+            | SXTB16 -> "sxtb16"
+            | UADD16 -> "uadd16" | UADD8 -> "uadd8" | UASX -> "uasx" | UDIV -> "udiv" | UHADD16 -> "uhadd16"
             | UHADD8 -> "uhadd8" | UHASX -> "uhasx" | UHSAX -> "uhsax" | UHSUB16 -> "uhsub16" | UHSUB8 -> "uhsub8" | UMAAL -> "umaal"
             | UMLAL -> "umlal" | UMULL -> "umull" | UQADD16 -> "uqadd16" | UQADD8 -> "uqadd8" | UQASX -> "uqasx" | UQSAX -> "uqsax"
             | UQSUB16 -> "uqsub16" | UQSUB8 -> "uqsub8" | USAD8 -> "usad8" | USADA8 -> "usada8" | USAT -> "usat" | USAT16 -> "usat16"
             | USAX -> "usax" | USUB16 -> "usub16" | USUB8 -> "usub8" | UXTAB -> "uxtab" | UXTAB16 -> "uxtab16" | UXTAH -> "uxtah"
-            | UXTB -> "uxtb" | UXTB16 -> "uxtb16" | UXTH -> "uxth" | VMUL -> "vmul" | VNMUL -> "vnmul" | VMLA -> "vmla" | VMLS -> "vmls"
+            | UXTB -> "uxtb" | UXTB16 -> "uxtb16" | UXTH -> "uxth"
+            | VHADD -> "vhadd" | VHSUB -> "vhsub"
+            | VADDHN -> "vaddhn"
+            | VMUL -> "vmul" | VNMUL -> "vnmul" | VMLA -> "vmla" | VMLS -> "vmls"
             | VNMLS -> "vnmls" | VNMLA -> "vnmla" | VADD -> "vadd" | VSUB -> "vsub" | VDIV -> "vdiv" | VABS -> "vabs" | VNEG -> "vneg"
             | VSQRT -> "vsqrt" | VRHADD -> "vrhadd" | VADDL -> "vaddl" | VRADDHN -> "vraddhn" | VMAX -> "vmax"
             | ABS -> "abs" | ADDG -> "addg" | ADDPT -> "addpt" | ADRP -> "adrp"
@@ -672,55 +737,82 @@ let show_intel_reg = function
           begin
             match acommon_rol with
             | ASR -> "asr" | ASRS -> "asrs" | LSL -> "lsl" | LSLS -> "lsls" | LSR -> "lsr" | LSRS -> "lsrs" | ROR -> "ror" | RORS -> "rors" | RRX -> "rrx" | RRXS -> "rrxs"
+            | VQRSHL -> "vqrshl"
+            | VSHL -> "vshl" | VSHR -> "vshr"
           end
         | Arm_Assign acommon_assign ->
           begin
             match acommon_assign with
-            | BFC -> "bfc" | BFI -> "bfi" | CPY -> "cpy" | LDM -> "ldm" | STM -> "stm" | LDMDB -> "ldmdb" | LDMEA -> "ldmea" | LDMIA -> "ldmia" | LDMFD -> "ldmfd"
+            | BFC -> "bfc" | BFI -> "bfi" | CPY -> "cpy" | LDM -> "ldm"
+            | STM -> "stm" | STMDA -> "stmda" | STMED -> "stmed"
+            | LDMDB -> "ldmdb" | LDMEA -> "ldmea" | LDMIA -> "ldmia" | LDMFD -> "ldmfd"
             | LDR -> "ldr" | LDRB -> "ldrb" | LDRBT -> "ldrbt" | LDRD -> "ldrd" | LDREX -> "ldrex" | LDREXB -> "ldrexb" | LDREXD -> "ldrexd"
             | LDREXH -> "ldrexh" | LDRH -> "ldrh" | LDRHT -> "ldrht" | LDRSB -> "ldrsb" | LDRSBT -> "ldrsbt" | LDRSH -> "ldrsh" | LDRSHT -> "ldrsht"
-            | LDRT -> "ldrt" | MOV -> "mov" | MOVS -> "movs" | MOVW -> "movw" | MOVT -> "movt" | MRS -> "mrs" | MSR -> "msr" | MVN -> "mvn" | MVNS -> "mvns"
+            | LDRT -> "ldrt" | MOV -> "mov" | MOVS -> "movs" | MOVW -> "movw" | MOVT -> "movt" | MRS -> "mrs" | MSR -> "msr"
+            | MVN -> "mvn" | MVNS -> "mvns"
+            | STMIB -> "stmib"
+            | LDMIB -> "ldmib"
             | SEL -> "sel" | STMDB -> "stmdb" | STMFD -> "stmfd" | STMIA -> "stmia" | STMEA -> "stmea" | STR -> "str" | STRB -> "strb" | STRBT -> "strbt"
             | STRD -> "strd" | STREX -> "strex" | STREXB -> "strexb" | STREXD -> "strexd" | STREXH -> "strexh" | STRH -> "strh" | STRHT -> "strht"
             | STRT -> "strt" | VCVT -> "vcvt" | VCVTT -> "vcvtt" | VCVTR -> "vcvtr" | VCVTB -> "vcvtb" | VMOV -> "vmov" | VMSR -> "vmsr"
-            | VSTR -> "vstr" | VSTM -> "vstm" | VSTMDB -> "vstmdb" | VPUSH -> "vpush" | VLDR -> "vldr" | VLDM -> "vldm" | VLDMDB -> "vldmdb"
+            | VSTR -> "vstr" | VST4 -> "vst4"
+            | VSTM -> "vstm" | VSTMDB -> "vstmdb" | VPUSH -> "vpush" | VLDR -> "vldr" | VLDM -> "vldm" | VLDMDB -> "vldmdb"
             | VLD4 -> "vld4" | VSTMIA -> "vstmia" | VLDMIA -> "vldmia" | VMRS -> "vmrs"
+            | VEXT -> "vext"
+            | VREV16 -> "vrev16" | VREV32 -> "vrev32" | VREV64 -> "vrev64"
+            | VSWP -> "vswp"
             | STP -> "stp" | LDP -> "ldp"
           end
         | Arm_Compare acommon_compare ->
           begin
             match acommon_compare with
-            | CMN -> "cmn" | CMP -> "cmp" | IT -> "it" | TEQ -> "teq" | TST -> "tst" | VCMPE -> "vcmpe" | VCMP -> "vcmp" | ITE -> "ite" | ITT -> "itt"
-            | ITTT -> "ittt" | ITTE -> "itte" | ITEE -> "itee" | ITET -> "itet" | ITTTT -> "itttt" | ITTTE -> "ittte" | ITTET -> "ittet" | ITTEE -> "ittee"
-            | ITETT -> "itett" | ITETE -> "itete" | ITEET -> "iteet" | ITEEE -> "iteee"
+            | CMN -> "cmn" | CMP -> "cmp"
+            | TEQ -> "teq"
+            | TST -> "tst" | VCMPE -> "vcmpe" | VCMP -> "vcmp"
+            | CMEQ -> "cmeq"
           end
         | Arm_Other acommon_other ->
           begin
             match acommon_other with
             | NOP -> "nop" | HLT -> "hlt" | NOPW -> "nopw" | NOPL -> "nopl" | UD2 -> "ud2"
+            | SETEND -> "setend"
+            | VSLI -> "vsli"
           end
       end
     | Arm_StackOP astack ->
       begin
         match astack with
         | PUSH -> "push" | POP -> "pop" | VPUSH -> "vpush" | VPOP -> "vpop"
+        | LDMIA -> "ldmia" | STMDB -> "stmdb"
       end
     | Arm_ControlOP acontrol ->
       begin
         match acontrol with
         | B -> "b" | BL -> "bl" | BX -> "bx" | BLX -> "blx" | BXJ -> "bxj" | TBB -> "tbb" | TBH -> "tbh"
-        | CBNZ -> "cbnz" | CBZ -> "cbz" | BEQ -> "beq" | BR -> "br" | BXEQ -> "bxeq" | BLEQ -> "bleq"
-        | BCC -> "bcc" | BCS -> "bcs" | BGE -> "bge" | BGT -> "bgt" | BHI -> "bhi" | BLE -> "ble" | BLS -> "bls" | BLT -> "blt"
-        | BMI -> "bmi" | BNE -> "bne" | BPL -> "bpl" | BVC -> "bvc" | BVS -> "bvs"
+        | CBNZ -> "cbnz" | CBZ -> "cbz" | BR -> "br"
+        | BXNS -> "bxns" | BLXNS -> "blxns"
         | RET -> "ret" | RETAA -> "retaa" | RETAB -> "retab" | RETAASPPC -> "retaasppc" | RETABSPPC -> "retabsppc"
         | RETAASPPCR -> "retaasppcr" | RETABSPPCR -> "retabsppcr"
+      end
+    | Arm_Condition acondition ->
+      begin
+        match acondition with
+          | IT -> "it" | ITE -> "ite" | ITT -> "itt"
+          | ITTT -> "ittt" | ITTE -> "itte" | ITEE -> "itee" | ITET -> "itet"
+          | ITTTT -> "itttt" | ITTTE -> "ittte" | ITTET -> "ittet" | ITTEE -> "ittee"
+          | ITETT -> "itett" | ITETE -> "itete" | ITEET -> "iteet" | ITEEE -> "iteee"
       end
     | Arm_SystemOP asystem ->
       begin
         match asystem with
         | BKPT -> "bkpt" | CLREX -> "clrex" | CPS -> "cps" | CPSIE -> "cpsie" | CPSID -> "cpsid" | DBG -> "dbg" | DMB -> "dmb"
-        | DSB -> "dsb" | ISB -> "isb" | PLD -> "pld" | PLI -> "pli" | RFE -> "rfe" | SEV -> "sev" | SMC -> "smc" | SRS -> "srs"
+        | DSB -> "dsb" | ISB -> "isb"
+        | PLD -> "pld" | PLDW -> "pldw"
+        | PLI -> "pli" | RFE -> "rfe" | SEV -> "sev" | SMC -> "smc" | SRS -> "srs"
         | SVC -> "svc" | WFE -> "wfe" | WFI -> "wfi" | YIELD -> "yield" | UDF -> "udf"
+        | MCR -> "mcr" | MCR2 -> "mcr2" | MCRR -> "mcrr" | MCRR2 -> "mcrr2"
+        | MRC -> "mrc" | MRC2 -> "mrc2"
+        | SETPAN -> "setpan"
       end
     | Arm_ErrorOP aerror ->
       begin
@@ -731,10 +823,13 @@ let show_intel_reg = function
   let show_arm_opqualifier = function
     | W -> "w" | N -> "n" | F32 -> "f32" | F64 -> "f64" | U8 -> "u8" | U16 -> "u16" | U32 -> "u32" | S8 -> "s8" | S16 -> "s16"
     | S32 -> "s32" | I16 -> "i16" | I8 -> "i8"
+    | S64 -> "s64" | U64 -> "u64"
+    | SIZE s -> string_of_int s
 
   let show_arm_condsuff = function
     | EQ -> "eq" | NE -> "ne" | CS -> "cs" | CC -> "cc" | MI -> "mi" | PL -> "pl" | VS -> "vs" | VC -> "vc"
     | LO -> "lo" | HI -> "hi" | LS -> "ls" | GE -> "ge" | LT -> "lt" | GT -> "gt" | LE -> "le" | AL -> "al" | HS -> "hs"
+    | UND -> "<und>"
     | _ -> failwith "Unknown ARM condsuff"
 
   let show_arm_reg = function

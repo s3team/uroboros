@@ -2,6 +2,7 @@ open Batteries
 
 open Printf
 open Visit
+open Common_reassemble_symbol_get
 open Type
 open Ail_utils
 
@@ -1588,8 +1589,9 @@ class reassemble =
   and text_set = Hashtbl.create 30 in
 
   object(self)
-    inherit ailVisitor
+    inherit common_reassemble
 
+    val mutable arch : string = "intel"
     val mutable label : (string * int) list = []
     val mutable align : (string * int) list = []
     (* collect relocation info in c2d *)
@@ -1612,6 +1614,9 @@ class reassemble =
 
     (* collect all the symbols from code section or from data sections *)
     val mutable symbol_list : int list = []
+
+    method set_arch (arch_name : string) =
+      arch <- arch_name
 
     method rodata_collect =
       rodata_list <- List.rev (collect "rodata_split.info")
@@ -1664,6 +1669,10 @@ class reassemble =
         text_sec <- (addr, size)
       in
       Enum.iter help filelines
+
+    method instr_addrs_collect (instrs : instr list) =
+      (* do nothing *)
+      ()
 
     method plt_sec_collect =
       let filelines = File.lines_of "plt_sec.info"
@@ -1759,6 +1768,7 @@ class reassemble =
     method has_text l =
       Hashtbl.mem text_set l = true
 
+    (** [v_exp] *)
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
       (* bug : test $0x70F0000, %eax  could be incorrectly symbolized; note
        * that we should check { test | testl | testw | testb } + Const Normal v; *)
@@ -2168,15 +2178,15 @@ class reassemble =
           end
         | Arm_OP _ -> false in
       match i with
-      | SingleInstr (p, l, pre, tags) -> i
-      | DoubleInstr (p, e, l, pre, tags) -> DoubleInstr (p, (self#v_exp2 e i f false), l, pre, tags)
-      | TripleInstr (p, e1, e2, l, pre, tags) when is_test p
-        ->  TripleInstr (p, (self#v_exp2 e1 i f true), (self#v_exp2 e2 i f true), l, pre, tags)
-      | TripleInstr (p, e1, e2, l, pre, tags)
+      | SingleInstr (p, l, pre, tag, tags) -> i
+      | DoubleInstr (p, e, l, pre, tag, tags) -> DoubleInstr (p, (self#v_exp2 e i f false), l, pre, tag, tags)
+      | TripleInstr (p, e1, e2, l, pre, tag, tags) when is_test p
+        ->  TripleInstr (p, (self#v_exp2 e1 i f true), (self#v_exp2 e2 i f true), l, pre, tag, tags)
+      | TripleInstr (p, e1, e2, l, pre, tag, tags)
         -> TripleInstr (p, (self#v_exp2 e1 i f false)
-                       , (self#v_exp2 e2 i f false), l, pre, tags)
-      | FourInstr (p, e1, e2, e3, l, pre, tags) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre, tags)
-      | FifInstr (p, e1, e2,e3,e4, l, pre, tags) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre, tags)
+                       , (self#v_exp2 e2 i f false), l, pre, tag, tags)
+      | FourInstr (p, e1, e2, e3, l, pre, tag, tags) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre, tag, tags)
+      | FifInstr (p, e1, e2,e3,e4, l, pre, tag, tags) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre, tag, tags)
 
     method find_jmp_table_dests
         (rodata_sec : section)
@@ -2257,6 +2267,7 @@ class reassemble =
                 Ptr (JmpTable_PLUS (base_addr_i1, reg2_i1, 4)),
                 loc_i1,
                 prefix_i1,
+                tag_i1,
                 tags_i1 ),
             TripleInstr
               ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
@@ -2264,12 +2275,14 @@ class reassemble =
                 Const (Normal lab_i2),
                 loc_i2,
                 prefix_i2,
+                tag_i2,
                 tags_i2 ),
             DoubleInstr
               ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
                 Symbol (StarDes (Reg dest_reg_i3)),
                 loc_i3,
                 prefix_i3,
+                tag_i3,
                 tags_i3 )
             when (p_reg dest_reg_i1 = p_reg dest_reg_i2)
               && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
@@ -2309,6 +2322,7 @@ class reassemble =
                 Ptr (BinOP_PLUS (reg2_i0, base_addr_i0)),
                 loc_i0,
                 prefix_i0,
+                tag_i0,
                 tags_i0 ),
             TripleInstr
               ( Intel_OP (Intel_CommonOP (Intel_Assign MOVSLQ)),
@@ -2316,6 +2330,7 @@ class reassemble =
                 Ptr (ThreeOP (reg2_1_i1, reg2_2_i1, 4)),
                 loc_i1,
                 prefix_i1,
+                tag_i1,
                 tags_i1 ),
             TripleInstr
               ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
@@ -2323,12 +2338,14 @@ class reassemble =
                 Ptr (ThreeOP (reg2_1_i2, reg2_2_i2, 1)),
                 loc_i2,
                 prefix_i2,
+                tag_i2,
                 tags_i2 ),
             DoubleInstr
               ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
                 Symbol (StarDes (Reg dest_reg_i3)),
                 loc_i3,
                 prefix_i3,
+                tag_i3,
                 tags_i3 )
             when ((p_reg dest_reg_i1 = p_reg reg2_1_i2) || (p_reg dest_reg_i1 = p_reg reg2_2_i2))
               && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
@@ -2352,6 +2369,7 @@ class reassemble =
                         Ptr (ThreeOP (reg2_1_i1, reg2_2_i1, 4)),
                         loc_i1,
                         prefix_i1,
+                        tag_i1,
                         tags_i1 )
                   in
                   i0 :: i1' :: rewrite3 (List.tl (List.tl (List.tl instrs')))
@@ -2370,6 +2388,7 @@ class reassemble =
         let l = get_loc i in
         self#check_text l.loc_addr in
       instr_list <- instrs;
+
       let tl = List.map (self#vinst2 func) instrs in
       let module EU = ELF_utils in
       let addr_len =

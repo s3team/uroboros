@@ -45,7 +45,7 @@ module Analysis = struct
   let get_userfuncs funcs =
     List.filter (fun f -> f.is_lib=false) funcs
 
-  let analyze_one il fl re =
+  let analyze_one il fl re (arch : string) =
     let cfg = new cfg in
     let cg = new cg in
 
@@ -76,10 +76,11 @@ module Analysis = struct
     let il = re#add_bblock_label bbl il' in
     ( fbl, bbl, cfg_t, cg, il, re, u_fl )
 
-  let post_analyze il re =
+  let post_analyze il re (arch : string) =
+    let pp_print_file_arch = pp_print_file arch in
     ( re#unify_loc il
       |> pp_print_list
       |> re#adjust_globallabel @@ global_bss ()
-      |> pp_print_file )
+      |> pp_print_file_arch )
 
   end

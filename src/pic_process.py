@@ -261,8 +261,12 @@ def text_process_strip(f):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3:
+    if len(sys.argv) == 4:
         is_32 = sys.argv[2]
+        arch = sys.argv[3]
+        if arch != "intel":
+            exit(0)
+
         if is_32 == "true":
             if is_exe == True:  # executable
                 binary = sys.argv[1]

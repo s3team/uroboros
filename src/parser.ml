@@ -6,6 +6,7 @@ open Common_parser
 open Lex_new
 open Type
 open Printf
+      open Pp_print
 
 exception ParseError
 
@@ -78,7 +79,7 @@ class parse =
     {loc_label=""; loc_addr=(int_of_string s); loc_visible = true;}
 
   and const_symb s =
-    if contains ~str:s ~sub:" # " && not (contains ~str:s ~sub:"*") then
+    if (contains ~str:s ~sub_str:"#") && not (contains ~str:s ~sub_str:"*") then
       (* ex 64-bit: 0xa8f3e(%rip)        # 4aa098 <_GLOBAL_OFFSET_TABLE_+0xb0> *)
       (* ex 32-bit: jmp    *0xa8fd6(%rip)        # 0x4aa000 *)
       let after_hash = String.split_on_char '#' s in
@@ -781,11 +782,11 @@ let eiz_symb = function s ->
 
     method reduce_stack stack pre =
       match stack with
-      | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre, Hashtbl.create 0)
-      | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre, Hashtbl.create 0)
-      | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre, Hashtbl.create 0)
-      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre, Hashtbl.create 0)
-      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre, Hashtbl.create 0)
+      | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre, None, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre, None, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre, None, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre, None, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre, None, Hashtbl.create 0)
       | _ -> raise ParseError
 
     method print_f (fl : func list) =

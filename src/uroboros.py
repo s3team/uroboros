@@ -89,10 +89,13 @@ def reassemble(assembly_file, arch):
             compile_option += "-m32 "
         else:
             compile_option += "-m64 -lcrypto -lselinux -lgmp "
+    elif arch == "thumb":
+        compiler = "arm-linux-gnueabihf-gcc"
+        compile_option += "-march=armv7-a -mthumb -mfpu=vfpv3-d16 -mfloat-abi=hard "
     elif arch == "arm":
-        # arm-linux-gnueabihf-gcc does not require additional options
         if is_32bit_binary:
             compiler = "arm-linux-gnueabihf-gcc"
+            compile_option += "-marm "
         else:
             compiler = "aarch64-linux-gnu-gcc"
 
@@ -145,11 +148,7 @@ def update_final(plt_addr2entry, plt_new_entry2addr):
 
 
 def check_thumb_mode(arch: str, entry_point: int) -> bool:
-    # if entry point is odd, then it is thumb mode
-    if arch == "arm" and entry_point % 2 == 1:
-        return True
-    else:
-        return False
+    return arch == "thumb"
 
 
 def get_entry_point_address(fn) -> str:
@@ -168,17 +167,20 @@ def dump(fn):
     entry_point_str = get_entry_point_address(fn)
     is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
     is_32bit_binary = is_32()
-    
+
     if arch == "intel":
         os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")
-    elif arch == "arm":
+    elif arch == "thumb" or arch == "arm":
         if is_32bit_binary:
             if is_thumb:
                 arm_preprocess.disassemble_arm_thumb_binary(fn, None)
             else:
-                raise Exception("Only ARM Thumb mode is supported.")
+                arm_preprocess.disassemble_arm32_binary(fn, None)
         else:
             os.system(f"aarch64-linux-gnu-objdump -Dr -j .text {fn} > {fn}.temp")
+    else:
+        print("dump: Invalid architecture")
+        raise Exception("Invalid architecture")
 
 
 def process(f, i, arch):
@@ -186,6 +188,8 @@ def process(f, i, arch):
     strip_command = ""
     if arch == "intel":
         strip_command = "strip"
+    elif arch == "thumb":
+        strip_command = "arm-linux-gnueabihf-strip"
     elif arch == "arm":
         if is_32bit_binary:
             strip_command = "arm-linux-gnueabihf-strip"
@@ -198,8 +202,10 @@ def process(f, i, arch):
         # suppose we use this method to obtain function information
         os.system("cp " + f + " func_discover/")
         os.system(f"python3 func_discover/func_addr.py func_discover/{f} {str(i)} {arch}")
-        os.system("rm final_data.s")
-        os.system("rm useless_func.info")
+        if os.path.exists("final_data.s"):
+            os.system("rm final_data.s")
+        if os.path.exists("useless_func.info"):
+            os.system("rm useless_func.info")
         os.system(f"rm func_discover/{f}")
         if i > 0:
             os.system(f"python3 useless_func_discover.py {f} {arch}")
@@ -221,6 +227,7 @@ def process(f, i, arch):
         if init_result.returncode != 0:
             print("init failed")
             return False
+
 
         os.system(f"python3 main_discover.py {f} {arch}")
 
@@ -245,6 +252,9 @@ def process(f, i, arch):
 
         os.system(f"python3 compile_process.py {arch}")
         os.system("python3 label_adjust.py")
+
+        if arch == "thumb" or arch == "arm":
+            os.system("python3 arm_postprocess.py final.s")
 
         reassemble("final.s", arch)
 
@@ -418,10 +428,6 @@ assumption two and three: -a 2 -a 3""",
     arch = args.arch
     k = args.keep > 0
     u = args.unstripped
-
-    if arch == "arm":
-        print("The ARM support is under development. Please check back later.")
-        exit(0)
 
     # if unstripped mode is enabled, check if the input binary is unstripped
     if u:

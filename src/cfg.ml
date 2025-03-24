@@ -39,7 +39,7 @@ class cfg =
     (* last loc for the whole instruction sequence *)
     val mutable end_loc : loc = {loc_label = ""; loc_addr = 0; loc_visible = true;}
     val mutable entry_instr : instr =
-      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), {loc_label=""; loc_addr = 0; loc_visible=true;}, None, Hashtbl.create 0)
+      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), {loc_label=""; loc_addr = 0; loc_visible=true;}, None, None, Hashtbl.create 0)
     val mutable bb_list = []
     val mutable bl = []
     (* opt: opt the performance *)
@@ -68,11 +68,11 @@ class cfg =
 
     method get_loc i =
       match i with
-      | SingleInstr (_, l, _, _) -> l
-      | DoubleInstr (_, _, l, _, _) -> l
-      | TripleInstr (_, _, _, l, _, _) -> l
-      | FourInstr (_, _, _, _, l, _, _) -> l
-      | FifInstr (_, _, _, _, _, l, _, _) -> l
+      | SingleInstr (_, l, _, _, _) -> l
+      | DoubleInstr (_, _, l, _, _, _) -> l
+      | TripleInstr (_, _, _, l, _, _, _) -> l
+      | FourInstr (_, _, _, _, l, _, _, _) -> l
+      | FifInstr (_, _, _, _, _, l, _, _, _) -> l
 
     method vinst' (i: instr) =
       (* check whether is control flow transfer opcodes *)
@@ -90,7 +90,7 @@ class cfg =
               end
             | _ -> false
           end
-        | Arm_OP (ao, _) ->
+        | Arm_OP (ao, _, _) ->
           begin
             match ao with
             | Arm_ControlOP _ -> true
@@ -98,7 +98,7 @@ class cfg =
           end
         | _ -> false in
       match i with
-      | DoubleInstr (p, e, l, _, _) when (is_ct p) ->
+      | DoubleInstr (p, e, l, _, _, _) when (is_ct p) ->
          self#cfg_exp e l;
          i
       | _ -> i
@@ -111,6 +111,12 @@ class cfg =
        * the possible control flow transfer op in the context
        * of basic block reordering
        * *)
+      let has_pc_reg (i : instr) =
+        let exp = get_exp_1 i in
+        match exp with
+        | Label l -> if contains ~str:l ~sub:"pc" then true else false
+        | _ -> false
+      in
       let is_last_instr l =
 	(*
         let llast = sec_end_memo ".text" in
@@ -119,8 +125,8 @@ class cfg =
 	*)
 	if l.loc_addr = end_loc.loc_addr then true
         else false in
-      let bb_exit op l =
-        match op with
+      let bb_exit (i : instr) l =
+        match get_op i with
         | Intel_OP io ->
           begin
             match io with
@@ -135,12 +141,11 @@ class cfg =
               end
             | _ -> false
           end
-        | Arm_OP (ao, _) ->
+        | Arm_OP (ao, _, _) ->
           begin
             match ao with
             | Arm_ControlOP _ -> true
-            (* TODO: ARM: This is naive because we need to check if POP uses PC register *)
-            | Arm_StackOP POP -> true
+            | Arm_StackOP POP when has_pc_reg i -> true
             | _ -> false
           end
         | _ -> false
@@ -258,7 +263,7 @@ class cfg =
            skip_entry <- false;
            last_loc <- self#get_loc i;
            let module OP = Opcode_utils in
-           if OP.is_control_transfer_op @@ get_op i then
+           if OP.is_control_transfer_op i then
              (* if it is a control transfer instruction, and it is the beginning of a bb,
             then it is also the end of a bb. *)
              help_exit i
@@ -270,15 +275,15 @@ class cfg =
       | _ when bb_entry i ->
          help_entry i;
          let module OP = Opcode_utils in
-         if OP.is_control_transfer_op @@ get_op i then
+         if OP.is_control_transfer_op i then
            (* if it is a control transfer instruction, and it is the beginning of a bb,
             then it is also the end of a bb. *)
            help_exit i
          else
            i
-      | DoubleInstr (p, e, l, _, _) when (bb_exit p l) ->
+      | DoubleInstr (p, e, l, _, _, _) when (bb_exit i l) ->
            help_exit i
-      | SingleInstr (p, l, _, _) when (bb_exit p l) ->
+      | SingleInstr (p, l, _, _, _) when (bb_exit i l) ->
          help_exit i
       | _ ->
          begin
@@ -542,32 +547,32 @@ class cfg =
           | _ -> false in
       let aux (bnl : string list) acc i =
         match i with
-        | SingleInstr (p, _, _, _) when (is_ret p) ->
+        | SingleInstr (p, _, _, _, _) when (is_ret i) ->
            (indirect_ret i)::acc
-        | DoubleInstr (_, _, _, _, _) when (is_arm_ret i) ->
+        | DoubleInstr (_, _, _, _, _, _) when (is_arm_ret i) ->
            (indirect_ret i)::acc
         (* 2 seconds *)
-        | DoubleInstr (_, e, _, _, _) when (is_indirect e) ->
+        | DoubleInstr (_, e, _, _, _, _) when (is_indirect e) ->
            (indirect i)::acc
-        | DoubleInstr (p, _, _, _, _) when (is_call p) ->
+        | DoubleInstr (p, _, _, _, _, _) when (is_call p) ->
            let (d1, d2) = (dir_c bnl i) in
-           d1::d2::acc
+           d1 :: d2 :: acc
         (* is it possible that jmp strcpy *)
         (* 2 seconds *)
-        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = true) ->
+        | DoubleInstr (p, e, _, _, _, _) when (is_jmp i) && (is_func e = true) ->
            (dir_sin_c i)::acc
-        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = false) ->
+        | DoubleInstr (p, e, _, _, _, _) when (is_jmp i) && (is_func e = false) ->
            (dir_sin_j i e)::acc
         (* 10 second *)
-        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
+        | DoubleInstr (p, e, _, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
            let (d1, d2) = (dir_dou_j bnl i e) in
            d1::d2::acc
-        | DoubleInstr (p, e, l, _, _) when (is_cond_jmp p) && (is_func e = true)->
+        | DoubleInstr (p, e, l, _, _, _) when (is_cond_jmp p) && (is_func e = true)->
            print_endline (p_exp e);
            print_endline @@ dec_hex @@ l.loc_addr;
            assert(false)
         (* 5 seconds *)
-        | _ -> (dir_fall bnl i)::acc
+        | _ -> (dir_fall bnl i) :: acc
         | _ -> acc in
       Hashtbl.fold (
           fun f bl cfg_f ->

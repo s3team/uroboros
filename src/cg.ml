@@ -133,7 +133,7 @@ class cg =
                 end
               | _ -> false
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
               | Arm_ControlOP _ -> true
@@ -152,7 +152,7 @@ class cg =
              end
           | _ -> false in
       match il with
-      | ((DoubleInstr (p, e, l, _, _) as h)::t) when (is_dct p e) ->
+      | ((DoubleInstr (p, e, l, _, _, _) as h)::t) when (is_dct p e) ->
          (* follow direct control flow *)
          self#cg_process e l;
          aux t (h::acc)

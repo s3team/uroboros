@@ -93,7 +93,7 @@ class dis_validator =
 
     method invalid_opcode (i : instr) : bool =
       match i with
-      | SingleInstr (p, _, _, _) ->
+      | SingleInstr (p, _, _, _, _) ->
         begin
           match p with
           | Intel_OP io ->
@@ -102,12 +102,13 @@ class dis_validator =
               | Intel_ErrorOP _ -> true
               | _ -> false
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
               | Arm_ErrorOP _ -> true
               | _ -> false
             end
+          | _ -> failwith "invalid_opcode: Undefined_OP"
         end
       | _ -> false
 
@@ -126,7 +127,7 @@ class dis_validator =
                 end
             | _ -> false
           end
-        | Arm_OP (ao, _) ->
+        | Arm_OP (ao, _, _) ->
           begin
             match ao with
             | Arm_ControlOP _ -> true
@@ -162,7 +163,7 @@ class dis_validator =
       let is_inside addr =
 	      bbn_byloc addr text_mem_arr in
       match i with
-      | DoubleInstr (p, e1, _, _, _) ->
+      | DoubleInstr (p, e1, _, _, _, _) ->
         if is_cp p == true then
           match is_des e1 with
           | Some d -> is_outside d || is_inside d
@@ -229,7 +230,7 @@ class dis_validator =
                         end
                     | _ -> false
                   end
-                | Arm_OP (ao, _) ->
+                | Arm_OP (ao, _, _) ->
                   begin
                     match ao with
                     | Arm_ControlOP _ -> true
@@ -259,10 +260,10 @@ class dis_validator =
                   end
               | _ -> false
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
-              (* TODO: ARM: before main function, push/pop can be call and return *)
+              (* TODO: ARM: before main function, push/pop can be used as calls and returns *)
               | Arm_ControlOP aco ->
                   begin
                     match aco with

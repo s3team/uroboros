@@ -2,11 +2,11 @@ import sys
 import os
 import subprocess
 
-import arm_preprocess
+from arm_concrete_eval import ArmConcreteEval
+from arm_inst import Inst
 
 fn = sys.argv[1]
 arch = sys.argv[2]
-THUMB_OFFSET = 1
 
 os.system('file ' + fn + ' > elf.info')
 
@@ -49,11 +49,8 @@ def check_main_symbol():
     return "not stripped" in lines[0]
 
 def check_thumb_mode(arch: str, entry_point: int) -> bool:
-    # if entry point is odd, then it is thumb mode
-    if arch == "arm" and entry_point % 2 == 1:
-        return True
-    else:
-        return False
+    return arch == "thumb"
+
 
 def get_entry_point_address() -> str:
     output = subprocess.getoutput("readelf -h " + fn)
@@ -77,8 +74,8 @@ def find_intel_start_section(lines, entry_point_str):
 
 
 def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
-    # if thumb mode, we need to subtract 1 from entry point
-    if is_thumb_mode:
+    # For ARM 32-bit binary, the entry function is Thumb mode
+    if is_32bit_binary:
         entry_point = int(entry_point_str, 16)
         entry_point -= 1
         entry_point_str = hex(entry_point)[2:]
@@ -91,7 +88,7 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
                 while (ln < ll) and "Cannot identify main function using entry point":
                     # There could be other forms of nop for ARM such as "nop", "movs r8, r8", etc.
                     # So far, did not handle those cases.
-                    if "movs	r0, r0" in lines[ln]:
+                    if "movs" in lines[ln] and "movs" in lines[ln+1]:
                         return lines[i:ln+1]
                     ln += 1
             else:
@@ -110,10 +107,12 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
 def find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
     if arch == "intel":
         return find_intel_start_section(lines, entry_point_str)
-    elif arch == "arm":
+    elif arch == "thumb" or arch == "arm":
         return find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode)
     else:
+        print("find_start_section: Unknown architecture")
         raise Exception("Unknown architecture")
+
 
 def get_arm_main_symbol(start_section, is_32bit_binary):
     main_symbol = None
@@ -132,18 +131,35 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
         # 10354:	f7ff efd4 	blx	10300 <__libc_start_main@plt>
         # 10358:	f7ff efe4 	blx	10324 <abort@plt>
 
-        start_addr = int(start_section[0].split(':')[0].strip(), 16)
-        end_addr = None
+        objdump_lines = []
+        start_collect = False
         for i, line in enumerate(start_section):
+            if "sl" in line:
+                start_collect = True
+
+            if start_collect:
+                objdump_lines.append(start_section[i])
+
             if (
-                "ldr" in start_section[i-2]
-                and "blx" in start_section[i-1]
-                and "blx" in start_section[i]
+                "ldr" in start_section[i]
+                and "blx" in start_section[i + 1]
+                and "blx" in start_section[i + 2]
             ):
-                end_addr = int(start_section[i-1].split(':')[0].strip(), 16)
                 break
 
-        # TODO: ARM main symbol
+        # angr gives thumb mode address, while objdump result does not.
+        # So, we need to subtract 1 from the symbolic execution result.
+        instrs = []
+        for line in objdump_lines:
+            inst = Inst()
+            inst.init_parse(line)
+            instrs.append(inst)
+
+        arch_mode = "thumb" if is_thumb else "arm"
+        eval = ArmConcreteEval(arch=arch_mode)
+        # if thumb mode, we need to set the arch to thumb
+        eval.run(instrs)
+        main_symbol = hex(eval.reg_value_dict["r0"])
 
     else:
         # The "b" instruction has the address of main function:
@@ -153,13 +169,13 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
         # nop
         # ret
         for i, line in enumerate(start_section):
-            if ("ret" in line and
-                "nop" in start_section[i-1]):
-                split_line = start_section[i-2].split('\t')
+            if "ret" in line and "nop" in start_section[i - 1]:
+                split_line = start_section[i - 2].split("\t")
                 main_symbol = split_line[-1].split()[0].strip()
                 break
 
     return main_symbol
+
 
 def get_intel_main_symbol(start_section):
     i = len(start_section) - 1
@@ -175,9 +191,10 @@ def get_intel_main_symbol(start_section):
 def get_main_symbol(start_section, is_32bit_binary):
     if arch == "intel":
         return get_intel_main_symbol(start_section)
-    elif arch == "arm":
+    elif arch == "thumb" or arch == "arm":
         return get_arm_main_symbol(start_section, is_32bit_binary)
     else:
+        print("get_main_symbol: Unknown architecture")
         raise Exception("Unknown architecture")
 
 
@@ -249,7 +266,8 @@ else:
     # _GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
     # ....
 
-    os.system('rm main.info')
+    if os.path.exists('main.info'):
+        os.system('rm main.info')
 
     if '0x' in main_symbol:
         main_symbol = main_symbol.split('0x')[1]

@@ -25,6 +25,7 @@ let got_rewrite_instr
         Symbol (StarDes (Ptr (FourOP_MINUS (reg1, reg2, const1, const2)))),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg1)) ->
       (* reg1 contains GOT pointer,
@@ -42,12 +43,14 @@ let got_rewrite_instr
             Symbol (StarDes (Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)))),
             loc,
             prefix,
+            tag,
             tags ) )
   | DoubleInstr
       ( Intel_OP (Intel_ControlOP CALL),
         Symbol (StarDes (Ptr (BinOP_PLUS (reg, const)))),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -59,12 +62,14 @@ let got_rewrite_instr
             Symbol (StarDes (Const (Point got_plus_offset))),
             loc,
             prefix,
+            tag,
             tags ) )
   | DoubleInstr
       ( Intel_OP (Intel_ControlOP CALL),
         Symbol (StarDes (Ptr (BinOP_MINUS (reg, const)))),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr - const in
@@ -76,6 +81,7 @@ let got_rewrite_instr
             Symbol (StarDes (Const (Point got_plus_offset))),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
@@ -83,6 +89,7 @@ let got_rewrite_instr
         Ptr (BinOP_MINUS (reg, const)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr - const in
@@ -95,6 +102,7 @@ let got_rewrite_instr
             Const (Point got_plus_offset),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
@@ -102,6 +110,7 @@ let got_rewrite_instr
         Ptr (BinOP_PLUS (reg, const)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -114,6 +123,7 @@ let got_rewrite_instr
             Const (Point got_plus_offset),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
@@ -121,6 +131,7 @@ let got_rewrite_instr
         Ptr (BinOP_PLUS (reg, const)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -133,6 +144,7 @@ let got_rewrite_instr
             Const (Point got_plus_offset),
             loc,
             prefix,
+            tag,
             tags ) )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
@@ -140,6 +152,7 @@ let got_rewrite_instr
           Reg reg2,
           loc,
           prefix,
+          tag,
           tags )
       when got_reg = (p_exp (Reg reg2)) ->
         Hashtbl.replace
@@ -151,6 +164,7 @@ let got_rewrite_instr
             Const (Normal got_addr),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -158,6 +172,7 @@ let got_rewrite_instr
         Ptr (FourOP_PLUS (reg1, reg2, const1, const2)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg1)) ->
       let got_plus_offset = got_addr + const2 in
@@ -170,6 +185,7 @@ let got_rewrite_instr
           Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
           loc,
           prefix,
+          tag,
           tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -177,6 +193,7 @@ let got_rewrite_instr
         Ptr (FourOP_MINUS (reg1, reg2, const1, const2)),
         loc,
         prefix,
+        tag,
         tags )
     (* reg1 is base address, reg2 is offset *)
     when got_reg = (p_exp (Reg reg1)) ->
@@ -190,6 +207,7 @@ let got_rewrite_instr
           Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
           loc,
           prefix,
+          tag,
           tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
@@ -197,6 +215,7 @@ let got_rewrite_instr
         dest_ptr,
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -209,6 +228,7 @@ let got_rewrite_instr
             dest_ptr,
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -216,6 +236,7 @@ let got_rewrite_instr
         Ptr (BinOP_PLUS (reg, const)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -228,6 +249,7 @@ let got_rewrite_instr
             Const (Point got_plus_offset),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -235,6 +257,7 @@ let got_rewrite_instr
         dest_ptr,
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -247,6 +270,7 @@ let got_rewrite_instr
             dest_ptr,
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
@@ -254,6 +278,7 @@ let got_rewrite_instr
         Ptr (BinOP_PLUS (reg, const)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -266,6 +291,7 @@ let got_rewrite_instr
             Const (Point got_plus_offset),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
@@ -273,6 +299,7 @@ let got_rewrite_instr
         dest_ptr,
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -285,6 +312,7 @@ let got_rewrite_instr
             dest_ptr,
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -292,6 +320,7 @@ let got_rewrite_instr
         cmp_to,
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -304,6 +333,7 @@ let got_rewrite_instr
             cmp_to,
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -311,6 +341,7 @@ let got_rewrite_instr
         Ptr (BinOP_PLUS (reg, const)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -323,6 +354,7 @@ let got_rewrite_instr
             Const (Point got_plus_offset),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -330,6 +362,7 @@ let got_rewrite_instr
         cmp_to,
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -342,6 +375,7 @@ let got_rewrite_instr
             cmp_to,
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -349,6 +383,7 @@ let got_rewrite_instr
         Ptr (BinOP_MINUS (reg, const)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg)) ->
       let got_plus_offset = got_addr + const in
@@ -361,6 +396,7 @@ let got_rewrite_instr
             Const (Point got_plus_offset),
             loc,
             prefix,
+            tag,
             tags ) )
   | _ -> ()
 
@@ -382,7 +418,7 @@ let is_reassign (reg : string) (il : instr list) : bool =
   let reassigned = List.find_opt (
     fun instr ->
       match instr with
-      | TripleInstr (p, e1, e2, _, _, _) -> (
+      | TripleInstr (p, e1, e2, _, _, _, _) -> (
           match (p, e1, e2) with
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->

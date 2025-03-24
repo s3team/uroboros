@@ -7,6 +7,8 @@ black_list = ('_start', '__do_global_dtors_aux', 'frame_dummy', '__do_global_cto
 
 if arch == "intel":
     os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")
+elif arch == "thumb":
+    os.system(f"arm-linux-gnueabihf-objdump -Dr -j .text -M force-thumb {fn} > {fn}.temp")
 elif arch == "arm":
     os.system(f"arm-linux-gnueabihf-objdump -Dr -j .text {fn} > {fn}.temp")
 else:
@@ -43,7 +45,7 @@ for l in lines:
             end_addr = last_addr
             if end_addr[-1] == ':':
                 end_addr = end_addr[:-1]
-            # start and end addrs of a useless func, i.e., a func in black_list 
+            # start and end addrs of a useless func, i.e., a func in black_list
             res[in_func] = (start_addr, end_addr)
             in_func = "NULL"
     else:
