@@ -448,14 +448,14 @@ class arm_parse =
 
   method ptraddr_symb s =
     try UnOP (Arm_Reg (unptr_symb s))
-    with _ ->
+    with _ -> (
       (* ARM-specific write-back syntax *)
       try UnOP_WB (unptr_wb_symb s)
       with _ ->
         try
           let r, i = binptr_p_symb s in
           BinOP_PLUS (Arm_Reg r, i)
-        with _ ->
+        with _ -> (
           try
             let r1, r2 = binptr_p_r_symb s in
             BinOP_PLUS_R (r1, r2)
