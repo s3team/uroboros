@@ -206,16 +206,8 @@ object (self)
       instrs <- (p#parse_instr instr loc arch)::instrs;
     in
     List.iter help l';
-    instrs <- self#remove_literal_pools instrs;
-    funcs <- p#get_funclist
 
-  method process_asms (l : string list) (arch : string) =
-    let p = self#create_parser arch in
-    let help instr =
-      instrs <- (p#parse_instr instr "0" arch)::instrs
-    in
-    List.iter help l;
-    instrs <- List.rev instrs
+    funcs <- p#get_funclist;
 
   method p_instrs =
     List.iter (fun i -> let is = pp_print_instr' i in print_endline is) instrs

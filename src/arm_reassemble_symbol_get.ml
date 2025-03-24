@@ -2128,13 +2128,39 @@ class arm_reassemble =
         | FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags) ->
             FifInstr (p, e1, self#v_exp2 e2 i f false, e3, e4, l, pre, tag, tags)
 
+    method vinst_symbol (f : instr -> bool) (i : instr) : instr =
+      let module TU = TagUtils in
+      match i with
+      | TripleInstr (p, Label label, e2, l, pre, tag, tags) when contains ~str:label ~sub:"=S_"
+        -> begin
+          let sub_label = String.sub label 3 (String.length label - 3) in
+          let addr = int_of_string sub_label in
+          match self#check_sec addr with
+          | Some s -> begin
+              if s.sec_name = ".rodata" then
+                (* Assume that the "pointer" matters, no need to change it *)
+                i
+              else
+                (* Assume that the "dereferenced value" of the pointer matters *)
+                let new_instr = TU.replace_tag i (Some Deref) in
+                new_instr
+            end
+          | None ->
+              if self#has_text_as_data addr then
+                let new_instr = TU.replace_tag i (Some Deref) in
+                new_instr
+              else i
+        end
+      | _ -> i
+
     method visit_heuristic_analysis (instrs : instr list) =
       let func (i : instr) : bool =
         let l = get_loc i in
         self#check_text l.loc_addr
       in
       instr_list <- instrs;
-      let tl = List.map (self#vinst2 func) instrs in
+      let tl' = List.map (self#vinst2 func) instrs in
+      let tl = List.map (self#vinst_symbol func) tl' in
       let module EU = ELF_utils in
       let addr_len =
         match (EU.elf_32 (), EU.elf_exe ()) with

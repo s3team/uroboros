@@ -268,6 +268,40 @@ let tag_identify (instr : string) =
     (instr_without_tag, Some tag)
   else (instr, None)
 
+(** Return true if str contains sub_str *)
+let contains (str : string) (sub_str : string) : bool =
+  let regex = Str.regexp_string sub_str in
+  try
+    ignore (Str.search_forward regex str 0);
+    true
+  with Not_found -> false
+
+(** Return (instr_without_tag, tag) *)
+let tag_identify (instr : string) =
+  let get_tag = function
+    | "del" -> Del
+    | tag_str -> begin
+        let sym_prefix = "sym#" in
+        if String.starts_with tag_str sym_prefix then
+          let value =
+            String.sub tag_str (String.length sym_prefix)
+              (String.length tag_str - String.length sym_prefix)
+          in
+          Sym (int_of_string value)
+        else failwith ("Unknown tag: " ^ tag_str)
+      end
+  in
+  let has_tag = contains instr "@@" in
+  if has_tag then
+    let split = Str.split (Str.regexp_string "@@") in
+    let tag_str = List.nth (split instr) 1 in
+    let instr_without_tag =
+      Str.global_replace (Str.regexp_string ("@@" ^ tag_str)) "" instr
+    in
+    let tag = get_tag tag_str in
+    (instr_without_tag, Some tag)
+  else (instr, None)
+
 let prefix_sub instr =
   let has_lock = prefix_lock instr in
   let has_addr32 = prefix_addr32 instr in
