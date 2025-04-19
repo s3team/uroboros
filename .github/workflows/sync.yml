@@ -1,0 +1,26 @@
+name: Sync private uroboro's release branch with public uroboro's main branch
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set PAT
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          git remote add public https://x-access-token:$TOKEN@github.com/s3team/uroboros.git
+
+      - name : Sync
+        run: |
+          git config -l | grep 'http\..*\.extraheader' | cut -d= -f1 | xargs -L1 git config --unset-all
+          git push --force public HEAD:main

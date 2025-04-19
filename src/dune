@@ -1,0 +1,7 @@
+(executable
+ (name init)
+ (public_name init)
+ (libraries ppx_deriving batteries parmap)
+ (preprocess (pps ppx_deriving.show))
+ (ocamlopt_flags (:standard -inline 20 -nodynlink))
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
