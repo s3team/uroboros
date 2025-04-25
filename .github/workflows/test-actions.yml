@@ -1,0 +1,99 @@
+name: test-actions
+run-name: ${{ github.actor }} is running tests
+on:
+  push:
+    branches:
+      - dev
+jobs:
+  execute-tests-ubuntu22:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - run: |
+          sudo apt-get update
+          sudo apt-get upgrade -y
+          sudo apt-get install -y -q \
+            git \
+            opam \
+            autoconf \
+            automake \
+            debianutils \
+            m4 \
+            gcc \
+            g++ \
+            gcc-multilib \
+            g++-multilib \
+            build-essential \
+            wget \
+            python3 \
+            python3-pip \
+            cmake \
+            libtool \
+            curl \
+            pkg-config \
+            zip \
+            vim \
+            autopoint \
+            bison \
+            gettext \
+            gperf \
+            texinfo \
+            gfortran \
+            libgmp-dev
+      - run: gcc --version
+      - run: objdump --version
+      - run: pip3 install angr
+      - run: opam init -a --disable-sandboxing
+      - run: opam switch create 5.3.0
+      - run: opam install -y ppx_deriving ocamlfind parmap batteries
+      - run: eval $(opam env)
+      - run: sudo chmod +x $(pwd)/test/test_action.sh
+      - run: $(pwd)/test/test_action.sh
+  execute-tests-ubuntu24:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - run: |
+          sudo apt-get update
+          sudo apt-get upgrade -y
+          sudo apt-get install -y -q \
+            git \
+            opam \
+            autoconf \
+            automake \
+            debianutils \
+            m4 \
+            gcc \
+            g++ \
+            gcc-multilib \
+            g++-multilib \
+            build-essential \
+            wget \
+            python3 \
+            python3-pip \
+            cmake \
+            libtool \
+            curl \
+            pkg-config \
+            zip \
+            vim \
+            autopoint \
+            bison \
+            gettext \
+            gperf \
+            texinfo \
+            gfortran \
+            libgmp-dev
+      - run: gcc --version
+      - run: objdump --version
+      - run: pip3 install angr
+      - run: opam init -a --disable-sandboxing
+      - run: opam switch create 5.3.0
+      - run: opam install -y ppx_deriving ocamlfind parmap batteries
+      - run: eval $(opam env)
+      - run: sudo chmod +x $(pwd)/test/test_action.sh
+      - run: $(pwd)/test/test_action.sh

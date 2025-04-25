@@ -38,24 +38,48 @@ module Disam = struct
     let total = ref 0.0 in
     let cond = ref false in
     (* less than 10 minutes *)
-    
+
     while !cond = false && !total < 600.0 do
       let once = TR.get_utime () in
       let module FnU = Func_utils in
       let module EU = ELF_utils in
+      let module D = Dataflow in
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
-      
+
       let instr_list = read_file "instrs.info" in
       ail_parser#processInstrs instr_list arch;
-      
+
       let fl = ail_parser#get_funcs in
       print_endline "2: disassembly validates --> ";
+
+      (*let _ = List.iter (
+        fun f ->
+          let name = f.func_name in
+          let addr = f.func_begin_addr in
+          let ea = f.func_end_addr in
+          let ba = dec_hex addr in
+          let ea = dec_hex ea in
+          print_endline (name ^ ", " ^ ba ^ ", " ^ ea);
+      ) fl in*)
+
+      let addr2newi = Hashtbl.create 100 in
+      if EU.elf_32 () && arch <> "arm" then
+        let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
+        let _ = Hashtbl.iter (
+          fun f (pred_cfg,succ_cfg,f_il) ->
+            (*if f = "S_0x8063395" then*)
+              let _ = D.got_flow pred_cfg succ_cfg f_il addr2newi in
+              ()
+            (*else ()*)
+        ) func2cfg_table in ()
+      else ();
+      
 
       il :=
         if EU.elf_32 () && arch <> "arm" then
           begin
-            FnU.data_ref_from_got fl @@ ail_parser#get_instrs
+            FnU.replace_got_ref addr2newi @@ ail_parser#get_instrs
             |> re#visit_heuristic_analysis
           end
         else

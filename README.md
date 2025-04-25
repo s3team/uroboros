@@ -50,7 +50,7 @@ $ python3 uroboros.py bzip -i 500 -k
 ```
 
 A subfolder will be created in `./src` folder, with input binary name and
-timestamp(e.g., `test_fold_bzip_2021-09-19_05:51:00`).
+timestamp (e.g., `test_fold_bzip_2021-09-19_05:51:00`).
 
 # Instrumentation
 
@@ -62,7 +62,6 @@ operation.
 To register instrumentation code:
 ```
 $ cp plugins/mem_write.ml instrumentation_plugin.ml
-$ ./build
 ```
 
 # Publication

@@ -22,6 +22,17 @@ module IntSet = Set.Make(
 
 module StringSet = Set.Make(String)
 
+let read_lines filename =
+  File.with_file_in filename (fun input ->
+    List.of_enum (IO.lines_of input)
+  )
+
+let contains s1 s2 =
+  let re = Str.regexp_string s2
+  in
+      try ignore (Str.search_forward re s1 0); true
+      with Not_found -> false
+
 let unify_int_list (l: int list) : int list =
   let s =
     List.fold_left (fun s ele -> IntSet.add ele s) IntSet.empty l in
@@ -1342,110 +1353,168 @@ module Func_utils = struct
         | _ -> acc in
       List.fold_left help [] instrs
 
-      (* if identify GOT assigned to a register, for all instructions in current function,
-       * replace indirect memory address using that register with actual address *)
-      let data_ref_from_got funcs ils = 
-        let p = object
-          val mutable got_assigned = false
-          val mutable got_reg : intel_arm_reg = Intel_Reg (Intel_OtherReg (EIZ))
-          val mutable got_func_b: int option = None
-          val mutable got_addr = 0x0;
-          val mutable got_size = 0x0;
-          val funcs = funcs
-
-          method init_got =
-            let split_by_space s =
-              Str.split (Str.regexp " ") s in
-            let filelines : string list = read_file "pic_secs.info" in
-            let info = List.nth filelines 0 in
-            let info_str = split_by_space info in
-            let got_addr_str = "0x"^(List.nth info_str 1) in
-            let got_size_str = "0x"^(List.nth info_str 3) in
-            got_addr <- (int_of_string got_addr_str);
-            got_size <- (int_of_string got_size_str)
-
-          method process ils : instr list = 
-            let contains s1 s2 =
-              let re = Str.regexp_string s2
-              in
-                  try ignore (Str.search_forward re s1 0); true
-                  with Not_found -> false
-            in
-            let addr2func addr =
-              let rec help_rf fs ar =
-                match fs with
-                | h::t -> (
-                    let b = h.func_begin_addr in
-                    let e = h.func_end_addr in
-                    if (ar>=b && ar < e) then
-                      Some (b)
-                    else  help_rf t addr )
-                | [] -> None in
-              help_rf funcs addr
-            in
-            let is_got_str p exp1 exp2 loc =
-              match p, exp1, exp2 with
-              | (Intel_OP (Intel_CommonOP (Intel_Arithm (ADD))), Label l, Reg r) 
-              | (Intel_OP (Intel_CommonOP (Intel_Arithm (ADD))), Reg r, Label l) -> 
-                if contains l "$_GLOBAL_OFFSET_TABLE_" then 
-                  begin
-                    (* found instr that assigns GOT to a reg *)
-                    got_assigned <- true;
-                    got_reg <- r;
-                    got_func_b <- addr2func loc.loc_addr;
-                    true
-                  end
-                else false
-              | _ -> false in
-            let help i : instr =
-              match i with
-              | TripleInstr (p, e1, e2, loc, pre) when is_got_str p e1 e2 loc = true
-                -> i
-              | SingleInstr (_, loc, _) | DoubleInstr (_, _, loc, _) | TripleInstr (_, _, _, loc, _) 
-              | FourInstr (_, _, _, _, loc, _) | FifInstr (_, _, _, _, _, loc, _) ->
+      let print_func2cfg func2cfg_table =
+        let aux f (pred_cfg,succ_cfg,_) =
+          Hashtbl.iter
+            (fun i_from i_tos ->
+              match i_from,i_tos with
+              | Some i_from, i_tos ->
                 begin
-                  match got_func_b with
-                  (* GOT ptr has been assigned *)
-                  (* two possibilities: *)
-                  (* 1. curr instr is in the same function that assigns the GOT ptr *)
-                  (* 2. curr instr is the func start of the func following the one that assigns the GOT ptr *)
-                  | Some ga -> 
-                    begin
-                      let curr_instr_func_b_option = addr2func loc.loc_addr in
-                      match curr_instr_func_b_option with
-                      | Some curr_instr_func_b -> 
-                        begin
-                          if curr_instr_func_b = ga then
-                            (* curr instr resides in a func that assigns the GOT ptr to a reg *)
-                            (* check for GOT dereference patterns *)
-                            match i with
-                            | DoubleInstr (Intel_OP (Intel_ControlOP CALL), Symbol (StarDes (Ptr (BinOP_PLUS (reg,const)))), loc, prefix) when reg = got_reg ->
-                              (*let loc_addr:string = "FOUND @ "^(string_of_int loc.loc_addr) in*)
-                              if const > got_size then
-                                (* got ptr is used to reference func addr in the data section *)
-                                let got_plus_offset = got_addr + const in
-                                DoubleInstr (Intel_OP (Intel_ControlOP CALL), Symbol (StarDes (Const (Point got_plus_offset))), loc, prefix)
-                              else i
-                            | _ -> i
-                          else
-                            begin
-                              (* curr instr is in a different func than the func that assigns GOT ptr *)
-                              (* the func that assigns GOT ptr is done processing *)
-                              got_assigned <- false;
-                              got_reg <- Intel_Reg (Intel_OtherReg (EIZ));
-                              got_func_b <- None;
-                              i
-                            end
-                          end
-                      | None -> i
-                    end
-                  | None -> i
-                end 
+                  print_endline ((pp_print_instr' i_from) ^ " p->");
+                  List.iter
+                    (fun i_to ->
+                      match i_to with
+                      | Some i_to ->
+                        print_endline (">>> " ^ (pp_print_instr' i_to))
+                      | None ->
+                        print_endline (">>> None")
+                    )
+                    i_tos
+                end
+              | None, i_tos -> print_endline "")
+            pred_cfg;
+          Hashtbl.iter
+            (fun i_from i_tos ->
+              match i_from,i_tos with
+              | Some i_from, i_tos ->
+                begin
+                  print_endline ((pp_print_instr' i_from) ^ " s->");
+                  List.iter
+                    (fun i_to ->
+                      match i_to with
+                      | Some i_to ->
+                        print_endline (">>> " ^ (pp_print_instr' i_to))
+                      | None ->
+                        print_endline (">>> None")
+                    )
+                    i_tos
+                end
+              | None, i_tos -> print_endline "")
+            succ_cfg
+        in
+        (*aux "S_0x80541C5" (Hashtbl.find func2cfg_table "S_0x80541C5")*)
+        Hashtbl.iter aux func2cfg_table
+
+      let func2cfg (il : instr list) funcs =
+        let func2il il =
+          let func2il_table = Hashtbl.create 40 in
+          let rec help fl il =
+            match (fl,il) with
+            | ([], il') -> func2il_table
+            | (hf::tf, []) -> func2il_table
+            | (hf::tf, hi::ti) ->
+              begin
+                let f_ba = hf.func_begin_addr in
+                let f_ea = hf.func_end_addr in
+                let i_loc = get_loc hi in
+                let i_addr = i_loc.loc_addr in
+                if i_addr >= f_ba && i_addr < f_ea then
+                  begin
+                    if Hashtbl.mem func2il_table hf.func_name then
+                      let hf_il = Hashtbl.find func2il_table hf.func_name in
+                      Hashtbl.replace func2il_table hf.func_name (hi::hf_il)
+                    else
+                      Hashtbl.add func2il_table hf.func_name [hi];
+                    help fl ti
+                  end
+                else
+                  help tf il
+              end
+          in
+          help funcs il
+        in
+        let is_ct op =
+          match op with
+          | Intel_OP io -> (
+              match io with
+              | Intel_ControlOP ico -> (
+                  match ico with
+                  | Intel_Jump _ -> true
+                  | _ -> false)
+              | _ -> false)
+          | Arm_OP (ao, _) -> (
+              match ao with Arm_ControlOP _ -> true | _ -> false)
+          | _ -> false
+        in
+        let get_ct_des i =
+          match i with
+          | DoubleInstr (p, e, l, _) when is_ct p -> (
+              match e with
+              | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
+              | _ -> None)
+          | _ -> None
+        in
+        let add_edge curr_cfg (i_from:instr option) (i_to:instr option) : (instr option, instr option list) Hashtbl.t =
+          if Hashtbl.mem curr_cfg i_from then
+            let existing_edges = Hashtbl.find curr_cfg i_from in
+            Hashtbl.replace curr_cfg i_from (i_to :: existing_edges)
+          else
+            Hashtbl.replace curr_cfg i_from [i_to];
+          curr_cfg
+        in
+        let func2cfg_table = Hashtbl.create 40 in
+        let func2ils = func2il il in
+        let rec create_cfg f (f_il:instr list) pred_cfg succ_cfg =
+          match f_il with
+          | [] -> Hashtbl.replace func2cfg_table f.func_name (pred_cfg,succ_cfg,(Hashtbl.find func2ils f.func_name))
+          | i::[] ->
+            let succ_cfg = add_edge succ_cfg (Some i) None in
+            Hashtbl.replace func2cfg_table f.func_name (pred_cfg,succ_cfg,(Hashtbl.find func2ils f.func_name))
+          | i::i'::il' ->
+            let i_op = get_op i in
+            let _ = match i_op with
+            | Intel_OP (Intel_ControlOP (Intel_Jump JMP)) -> ()
+            | Intel_OP (Intel_ControlOP RET) | Intel_OP (Intel_ControlOP RETN) 
+            | Intel_OP (Intel_ControlOP RETQ) | Intel_OP (Intel_ControlOP LEAVE) 
+            | Intel_OP (Intel_ControlOP LEAVEQ) -> ()
+            | _ -> 
+              let pred_cfg = add_edge pred_cfg (Some i') (Some i) in
+              let succ_cfg = add_edge succ_cfg (Some i) (Some i') in ()
+            in 
+            let pred_cfg =
+              match get_ct_des i with
+              | Some d ->
+                begin
+                  let ils_full : instr list = Hashtbl.find func2ils f.func_name in
+                  let des_is : instr list = List.filter (fun l -> ((get_loc l).loc_addr = d)) ils_full in
+                  match des_is with
+                  | [] -> pred_cfg
+                  | des_i::[] -> add_edge pred_cfg (Some des_i) (Some i)
+                  | _ -> pred_cfg
+                end
+              | None -> pred_cfg
             in
-            List.map help ils
-        end in
-        p#init_got;
-        p#process ils
+            let succ_cfg =
+              match get_ct_des i with
+              | Some d ->
+                begin
+                  let ils_full : instr list = Hashtbl.find func2ils f.func_name in
+                  let des_is : instr list = List.filter (fun l -> ((get_loc l).loc_addr = d)) ils_full in
+                  match des_is with
+                  | [] -> succ_cfg
+                  | des_i::[] -> add_edge succ_cfg (Some i) (Some des_i)
+                  | _ -> succ_cfg
+                end
+              | None -> succ_cfg
+            in
+            create_cfg f (i'::il') pred_cfg succ_cfg
+        in
+        List.iter (fun f ->
+          match Hashtbl.find_opt func2ils f.func_name with
+          | Some f_il -> create_cfg f (List.rev f_il) (Hashtbl.create 40) (Hashtbl.create 40)
+          | None -> ()
+        ) funcs;
+        func2cfg_table
+
+      let replace_got_ref (addr2newi : (int, instr) Hashtbl.t) il =
+        List.map (
+          fun i ->
+            let loc = get_loc i in
+            if Hashtbl.mem addr2newi loc.loc_addr then
+              Hashtbl.find addr2newi loc.loc_addr
+            else
+              i
+        ) il
 
 end
 

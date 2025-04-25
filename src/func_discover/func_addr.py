@@ -40,6 +40,7 @@ os.system(f"{objdump_command} -Dr -j .text {fn} > dump.s")
 # Example:
 # 0000000000401170 <__libc_csu_init>:
 os.system('grep ">:" dump.s > fl')
+os.system('grep "call" dump.s > fl_calls')
 
 fnl = []
 with open('fl') as f:
@@ -56,6 +57,7 @@ fnl_old = list(map(lambda l : int(l.split()[0],16), fnl_old))
 blacklist = ['__libc_csu_init', '__libc_csu_fini', '__i686.get_pc_thunk.bx', '__do_global_ctors_aux', '_start', '__do_global_dtors_aux', 'frame_dummy', '__cpu_indicator_init']
 addrs = []
 addrs_2 = []
+addrs_call = []
 regex = re.compile(r'S_(0x[0-9A-F]{7})',re.I)
 regex1 = re.compile(r'<(.*)>:',re.I)
 
@@ -83,6 +85,19 @@ for fn in fnl:
             addr = fn.split('<')[0].strip()
             addrs.append("0x" + addr + '\n')
             addrs_2.append(fn)
+
+fl_calls = []
+with open('fl_calls') as f:
+    fl_calls = f.readlines()
+
+for call in fl_calls:
+    callee = call.split()[-1]
+    pattern = r'^0x[a-z0-9]{2,}$'
+    if re.match(pattern, callee):
+        addrs_call.append(callee + '\n')
+
+with open('faddr_call.txt', 'w') as f:
+    f.writelines(addrs_call)
 
 with open('faddr.txt', 'w') as f:
     f.writelines(addrs)

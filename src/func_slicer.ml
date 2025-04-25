@@ -393,7 +393,7 @@ class func_slicer instrs funcs =
         | _ -> failwith "didn't support in call_des"
       in
       let is_cet_begin op = match op with
-        | Intel_OP (Intel_CommonOP (Intel_Other other_op)) -> 
+        | Intel_OP (Intel_CommonOP (Intel_Other other_op)) ->
           begin
             match other_op with
             | ENDBR32 | ENDBR64 -> true
@@ -599,7 +599,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | DoubleInstr (p, e, l, _) when (is_s_begin p e) ->
+        (*| DoubleInstr (p, e, l, _) when (is_s_begin p e) ->
            begin
              last_nop <- false;
              last_ret <- false;
@@ -607,8 +607,8 @@ class func_slicer instrs funcs =
              last_jmp <- false;
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
-           end
-        | SingleInstr (p, l, _) when (is_cet_begin p) -> 
+           end*)
+        (*| SingleInstr (p, l, _) when (is_cet_begin p) ->
           begin
             let int_to_hex n =
               Printf.sprintf "0x%X" n
@@ -619,7 +619,7 @@ class func_slicer instrs funcs =
              last_jmp <- false;
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
-          end
+          end*)
         | DoubleInstr (p, e, l, _) when (is_c_begin p e) ->
            begin
              last_nop <- false;
@@ -670,8 +670,10 @@ class func_slicer instrs funcs =
 
     method funcaddr_from_file =
       let t = read_file "faddr.txt" in
+      let t1 = read_file "faddr_call.txt" in
       let func_begins2 = List.map int_of_string t in
-      func_begins <- func_begins @ func_begins2
+      let func_begins3 = List.map int_of_string t1 in
+      func_begins <- func_begins @ func_begins2 @ func_begins3;
 
     method dump_funclist =
       let dec_hex (s:int) : string =
