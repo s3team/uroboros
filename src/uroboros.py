@@ -257,7 +257,7 @@ def iterate (f, iterations, arch):
 
     for i in range(0, iterations):
         print("########## iteration round " + str(i + 1) + " begin ! ###########")
-        if process(f, i):
+        if process(f, i, arch):
             pass
         else:
             return False
