@@ -65,25 +65,13 @@ def reassemble(assembly_file, arch):
     compiler = ""
     compile_option = "-no-pie -lm -lrt -lpthread "
     is_32bit_binary = check_32()
-    output = subprocess.getoutput("lsb_release -a")
-
-    if "22" in output:
-        is_22v = True
-    else:
-        is_22v = False
 
     if arch == "intel":
         compiler = "gcc"
         if is_32bit_binary:
-            if is_22v:
-                compile_option += "-m32 -lcrypto "
-            else:
-                compile_option += "-m32 "
+            compile_option += "-m32 "
         else:
-            if is_22v:
-                compile_option += "-m64 -lcrypto -lgmp "
-            else:
-                compile_option += "-m64 -lcrypt -lgmp "
+            compile_option += "-m64 -lgmp "
     elif arch == "arm":
         # arm-linux-gnueabihf-gcc does not require additional options
         if is_32bit_binary:

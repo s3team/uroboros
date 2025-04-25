@@ -18,7 +18,7 @@ import os, sys
 import re
 
 sec_symb = {".got.plt": "$_GLOBAL_OFFSET_TABLE_"}
-
+func_addrs = list()
 
 def info_dump(f):
     os.system(
@@ -176,6 +176,7 @@ def adjust_offset(start, instrs, base, init_reg):
 
 
 def text_process_strip(f):
+    global func_addrs
     ls = text_collect(f)
     info_dump(f)
     pic_map = info_collect()
@@ -200,6 +201,7 @@ def text_process_strip(f):
                 addr_s = m.group(1)
                 off = int(off_s, 16)
                 addr = int(addr_s, 16)
+                func_addrs.append(hex(addr)+"\n")
 
                 baddr = addr + off
 
@@ -225,6 +227,8 @@ if __name__ == "__main__":
             if is_exe == True:  # executable
                 binary = sys.argv[1]
                 t = text_process_strip(binary)
+                with open('faddr.txt', 'a') as f:
+                    f.writelines(func_addrs)
             else:
                 # shared object don't translate target addrs into
                 # GLOBAL_OFFSET_TABLE, instead, dump the thunk addr for
