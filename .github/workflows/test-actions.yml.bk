@@ -1,0 +1,67 @@
+name: test-actions
+run-name: ${{ github.actor }} is running tests
+on:
+  push:
+    branches:
+      - fix-newer-gcc-static
+jobs:
+  execute-tests-ubuntu20:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref_name }}
+
+    - name: Setup OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 5.3.0
+        opam-disable-sandboxing: true
+    - run: opam install -y ppx_deriving ocamlfind parmap batteries
+
+    - name: Install apt requirements
+      run: install/install_apt.sh
+
+    - name: Test
+      run: $(pwd)/test/test_action.sh
+
+  execute-tests-ubuntu22:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref_name }}
+
+    - name: Setup OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 5.3.0
+        opam-disable-sandboxing: true
+    - run: opam install -y ppx_deriving ocamlfind parmap batteries
+
+    - name: Install apt requirements
+      run: install/install_apt.sh
+
+    - name: Test
+      run: $(pwd)/test/test_action.sh
+
+  execute-tests-ubuntu24:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref_name }}
+
+    - name: Setup OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 5.3.0
+        opam-disable-sandboxing: true
+    - run: opam install -y ppx_deriving ocamlfind parmap batteries
+
+    - name: Install apt requirements
+      run: install/install_apt.sh
+
+    - name: Test
+      run: $(pwd)/test/test_action.sh
+

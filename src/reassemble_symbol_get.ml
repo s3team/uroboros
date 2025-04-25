@@ -891,11 +891,6 @@ class datahandler (label' : (string*int) list) =
       let begin_addrs = List.map (fun f -> f.func_begin_addr) funcs in
       let check_func_begin v =
           bbn_byloc v (Array.of_list begin_addrs) in
-      let read_lines filename =
-        File.with_file_in filename (fun input ->
-          List.of_enum (IO.lines_of input)
-        )
-      in
       (* read in file as list to ensure file is closed in a timely manner *)
       (* otherwise, we can get "Too many open files" error when check_offset is called many times *)
       let filelines = read_lines "pic_secs.info" in
