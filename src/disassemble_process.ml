@@ -4,6 +4,7 @@ exception Pass_Validator
 
 module Disam = struct
 
+    open Semantic_analysis
     open Reassemble_symbol_get
     open Disassemble_validator
     open Ail_parser
@@ -43,12 +44,13 @@ module Disam = struct
       let once = TR.get_utime () in
       let module FnU = Func_utils in
       let module EU = ELF_utils in
-      let module D = Dataflow in
+      let module GA = GotAbs in
+      let module D = DFA(GA) in
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
 
       let instr_list = read_file "instrs.info" in
-      ail_parser#processInstrs instr_list arch;
+      ail_parser#process_instrs instr_list arch;
 
       let fl = ail_parser#get_funcs in
       print_endline "2: disassembly validates --> ";
@@ -63,15 +65,12 @@ module Disam = struct
           print_endline (name ^ ", " ^ ba ^ ", " ^ ea);
       ) fl in*)
 
-      let addr2newi = Hashtbl.create 100 in
       if EU.elf_32 () && arch <> "arm" then
         let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
         let _ = Hashtbl.iter (
-          fun f (pred_cfg,succ_cfg,f_il) ->
-            (*if f = "S_0x8063395" then*)
-              let _ = D.got_flow pred_cfg succ_cfg f_il addr2newi in
-              ()
-            (*else ()*)
+          fun f cfg ->
+            let _ = D.flow_analysis cfg in
+            ()
         ) func2cfg_table in ()
       else ();
       
@@ -79,7 +78,7 @@ module Disam = struct
       il :=
         if EU.elf_32 () && arch <> "arm" then
           begin
-            FnU.replace_got_ref addr2newi @@ ail_parser#get_instrs
+            FnU.replace_got_ref GA.result @@ ail_parser#get_instrs
             |> re#visit_heuristic_analysis
           end
         else

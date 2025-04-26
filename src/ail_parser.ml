@@ -138,7 +138,7 @@ object (self)
     | "arm" -> (new Arm_parser.arm_parse :> common_parser)
     | _ -> failwith "unsupported architecture"
 
-  method processInstrs (l : string list) (arch : string) =
+  method process_instrs (l : string list) (arch : string) =
     let cat_tail s =
       match s with
       | [] -> "" (* this will never happen*)
