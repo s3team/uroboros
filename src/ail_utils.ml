@@ -4,6 +4,12 @@ open Pp_print
 
 open Type
 
+
+type cfgi = {preds: (instr option, instr option list) Hashtbl.t;
+              succs: (instr option, instr option list) Hashtbl.t;
+              il: instr list} 
+
+
 module IntOrder : Set.OrderedType = struct
   type t = int
   let compare = Stdlib.compare
@@ -1353,7 +1359,7 @@ module Func_utils = struct
         | _ -> acc in
       List.fold_left help [] instrs
 
-      let print_func2cfg func2cfg_table =
+      let pp_func2cfg func2cfg_table =
         let aux f (pred_cfg,succ_cfg,_) =
           Hashtbl.iter
             (fun i_from i_tos ->
@@ -1398,7 +1404,7 @@ module Func_utils = struct
       let func2cfg (il : instr list) funcs =
         let func2il il =
           let func2il_table = Hashtbl.create 40 in
-          let rec help fl il =
+          let rec slice_il fl il =
             match (fl,il) with
             | ([], il') -> func2il_table
             | (hf::tf, []) -> func2il_table
@@ -1415,13 +1421,13 @@ module Func_utils = struct
                       Hashtbl.replace func2il_table hf.func_name (hi::hf_il)
                     else
                       Hashtbl.add func2il_table hf.func_name [hi];
-                    help fl ti
+                    slice_il fl ti
                   end
                 else
-                  help tf il
+                  slice_il tf il
               end
           in
-          help funcs il
+          slice_il funcs il
         in
         let is_ct op =
           match op with
@@ -1453,13 +1459,13 @@ module Func_utils = struct
           curr_cfg
         in
         let func2cfg_table = Hashtbl.create 40 in
-        let func2ils = func2il il in
+        let func2il_table = func2il il in
         let rec create_cfg f (f_il:instr list) pred_cfg succ_cfg =
           match f_il with
-          | [] -> Hashtbl.replace func2cfg_table f.func_name (pred_cfg,succ_cfg,(Hashtbl.find func2ils f.func_name))
+          | [] -> Hashtbl.replace func2cfg_table f.func_name {preds = pred_cfg; succs = succ_cfg; il = (Hashtbl.find func2il_table f.func_name)}
           | i::[] ->
             let succ_cfg = add_edge succ_cfg (Some i) None in
-            Hashtbl.replace func2cfg_table f.func_name (pred_cfg,succ_cfg,(Hashtbl.find func2ils f.func_name))
+            Hashtbl.replace func2cfg_table f.func_name {preds = pred_cfg; succs = succ_cfg; il = (Hashtbl.find func2il_table f.func_name)}
           | i::i'::il' ->
             let i_op = get_op i in
             let _ = match i_op with
@@ -1475,7 +1481,7 @@ module Func_utils = struct
               match get_ct_des i with
               | Some d ->
                 begin
-                  let ils_full : instr list = Hashtbl.find func2ils f.func_name in
+                  let ils_full : instr list = Hashtbl.find func2il_table f.func_name in
                   let des_is : instr list = List.filter (fun l -> ((get_loc l).loc_addr = d)) ils_full in
                   match des_is with
                   | [] -> pred_cfg
@@ -1488,7 +1494,7 @@ module Func_utils = struct
               match get_ct_des i with
               | Some d ->
                 begin
-                  let ils_full : instr list = Hashtbl.find func2ils f.func_name in
+                  let ils_full : instr list = Hashtbl.find func2il_table f.func_name in
                   let des_is : instr list = List.filter (fun l -> ((get_loc l).loc_addr = d)) ils_full in
                   match des_is with
                   | [] -> succ_cfg
@@ -1500,7 +1506,7 @@ module Func_utils = struct
             create_cfg f (i'::il') pred_cfg succ_cfg
         in
         List.iter (fun f ->
-          match Hashtbl.find_opt func2ils f.func_name with
+          match Hashtbl.find_opt func2il_table f.func_name with
           | Some f_il -> create_cfg f (List.rev f_il) (Hashtbl.create 40) (Hashtbl.create 40)
           | None -> ()
         ) funcs;

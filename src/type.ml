@@ -446,7 +446,7 @@ let show_intel_op = function
         begin
           match icommon_il with
             | AND -> "and" | ANDB -> "andb" | OR -> "or" | XOR -> "xor" | PXOR -> "pxor" | NOT -> "not" | ANDL -> "andl" | NOTL -> "notl" | ORW -> "orw"
-            | XORB -> "xorb" | XORL -> "xor" | SAHF -> "sahf" | ANDW -> "andw" | NOTB -> "notb" | NOTW -> "notw" | XORPD -> "xorpd" | XORPS -> "xorps" | ANDQ -> "andq"
+            | XORB -> "xorb" | XORL -> "xorl" | SAHF -> "sahf" | ANDW -> "andw" | NOTB -> "notb" | NOTW -> "notw" | XORPD -> "xorpd" | XORPS -> "xorps" | ANDQ -> "andq"
             | XORQ -> "xorq" | ANDPS -> "andps" | ANDNPS -> "andnps" | ORPS -> "orps" | ANDPD -> "andpd" | NOTQ -> "notq" | ANDNPD -> "andnpd"
             | ORPD -> "orpd" | PAND -> "pand" | POR -> "por" | PANDN -> "pandn" | VPXOR -> "vpxor" | VPXORD -> "vpxord" | VPXORQ -> "vpxorq" | VPORQ -> "vporq" 
             | VPAND -> "vpand" | VPTERNLOGD -> "vpternlogd"  | VPTESTMB -> "vptestmb" | VPTESTNMB -> "vptestnmb" | SHLX -> "shlx"
