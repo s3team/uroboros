@@ -1,5 +1,5 @@
 #!/bin/sh
-
+sudo apt-get upgrade -y
 sudo apt-get update
 sudo apt-get install -y -q \
      git \
@@ -27,4 +27,7 @@ sudo apt-get install -y -q \
      gperf \
      texinfo \
      gfortran \
-     libgmp-dev
+     libgmp-dev \
+     libssl-dev \
+     libselinux-dev \
+     libselinux1 
