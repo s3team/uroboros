@@ -71,7 +71,7 @@ def reassemble(assembly_file, arch):
         if is_32bit_binary:
             compile_option += "-m32 "
         else:
-            compile_option += "-m64 -lgmp "
+            compile_option += "-m64 -lcrypto -lselinux -lgmp "
     elif arch == "arm":
         # arm-linux-gnueabihf-gcc does not require additional options
         if is_32bit_binary:

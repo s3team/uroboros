@@ -124,6 +124,9 @@ for i in range(ll):
             main_symbol = lines[i-1].split()[-1].split(',')[0]
             lines[i-1] = lines[i-1].replace(main_symbol, "main")
             main_symbol = main_symbol[1:].strip()
+
+    elif "$optarg" in l and "lea" in l:
+        l = l.replace("$optarg", "optarg")
             # print main_symbol
 
 ## Some of the PIC code/module rely on typical pattern to locate
