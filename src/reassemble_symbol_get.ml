@@ -13,14 +13,6 @@ open Data_process
 
 exception Reassemble_Error of string;;
 
-let rev_map f l =
-  let rec aux f l acc =
-    match l with
-    | h::t -> aux f t ((f h)::acc)
-    | [] -> acc in
-  f l []
-
-
 type ft = {fn : string; fbaddr : int; feaddr : int}
 
 class datahandler (label' : (string*int) list) =
@@ -104,16 +96,12 @@ class datahandler (label' : (string*int) list) =
       rodata_cst32_list <- self#data_trans rodata_cst32;
       let module EU = ELF_utils in
       if EU.elf_static () then
-        begin
-          tbss_list <- self#data_trans tbss;
-          __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
-          __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs
-        end
-      else ();
+        (tbss_list <- self#data_trans tbss;
+        __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
+        __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs);
 
       (* locations are sec,offset where labels need to be added *)
       locations <- self#label_locate;
-
 
       label_set <- List.map snd label;
       label_set <- List.sort compare label_set;
@@ -132,19 +120,14 @@ class datahandler (label' : (string*int) list) =
         ) fl' in
       fl_sort <- Array.of_list fl1;
 
-
       let module EU = ELF_utils in
-
-
       let addr_len =
         if EU.elf_32 () && EU.elf_arm () then 5
         else
-          begin
-            match (EU.elf_32 (), EU.elf_exe ()) with
-            | true, true -> 7
-            | false, true -> 6
-            | _, false -> 4
-          end
+          match (EU.elf_32 (), EU.elf_exe ()) with
+          | true, true -> 7
+          | false, true -> 6
+          | _, false -> 4
       in
 
       text_mem_addrs <-
@@ -154,29 +137,19 @@ class datahandler (label' : (string*int) list) =
             int_of_string ("0x" ^ String.sub a1 0 addr_len))
           (read_file "text_mem.info");
       text_mem_arr <- Array.of_list text_mem_addrs;
-
- (*
-    label_mem_addrs <- List.map (fun a -> let a1 = String.trim a in int_of_string (a1)) (read_file "final_d2c.stand");
-*)
       label_mem_arr <- Array.of_list (List.sort compare label_mem_addrs);
-
 
       self#set_assumption_flag ();
 
       if EU.elf_32 () then
-        begin
-          self#data_refer_solve funcs
-        end
+        self#data_refer_solve funcs
       else
-        begin
-          self#data_refer_solve_64 funcs
-        end
+        self#data_refer_solve_64 funcs
 
 
     method set_assumption_flag () =
       (* this method read assumption configuration assumption_set.info and set
       two flags *)
-
       let ll = read_file "assumption_set.info" in
       List.nth ll 0 |>
         (fun l ->
@@ -421,11 +394,8 @@ class datahandler (label' : (string*int) list) =
       got_list <- List.rev (traverse [] got_list 0x0 ".got");
       let module EU = ELF_utils in
       if EU.elf_static () then
-        begin
-          __libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
-          __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs")
-        end
-      else ()
+        (__libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
+        __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs"))
 
     (* this method solve all the references in the .data .rodata sections *)
     method data_refer_solve funcs =
@@ -1038,7 +1008,7 @@ class datahandler (label' : (string*int) list) =
 
     method data_output =
       let p = object(sp)
-        method process lbs =
+        method process lbs sym_addr2label =
           let dec_hex (s:int) : string =
             (Printf.sprintf "S_0x%X:\n" s)
           in
@@ -1050,37 +1020,49 @@ class datahandler (label' : (string*int) list) =
                   ( let off = l - (self#section_addr ".data") in
                     let s' = dec_hex l
                     and (s,d) = data_array.(off) in
-                    data_array.(off) <- (s', d);
+                    (match Hashtbl.find_opt sym_addr2label l with
+                    | Some sym_label -> (data_array.(off) <- (sym_label^":\n"^s', d))
+                    | None -> (data_array.(off) <- (s', d)));
                     help t )
                 | ".rodata" ->
                   ( let off = l - (self#section_addr ".rodata") in
                     let s' = dec_hex l
                     and (s,d) = rodata_array.(off) in
-                    rodata_array.(off) <- (s', d);
+                    (match Hashtbl.find_opt sym_addr2label l with
+                    | Some sym_label -> (rodata_array.(off) <- (sym_label^":\n"^s', d))
+                    | None -> (rodata_array.(off) <- (s', d)));
                     help t )
                 | ".got" ->
                   ( let off = l - (self#section_addr ".got") in
                     let s' = dec_hex l
                     and (s,d) = got_array.(off) in
-                    got_array.(off) <- (s', d);
+                    (match Hashtbl.find_opt sym_addr2label l with
+                    | Some sym_label -> (got_array.(off) <- (sym_label^":\n"^s', d))
+                    | None -> (got_array.(off) <- (s', d)));
                     help t )
                 | ".bss" ->
                   ( let off = l - (self#section_addr ".bss") in
                     let s' = dec_hex l
                     and (s,d) = bss_array.(off) in
-                    bss_array.(off) <- (s', d);
+                    (match Hashtbl.find_opt sym_addr2label l with
+                    | Some sym_label -> (bss_array.(off) <- (sym_label^":\n"^s', d))
+                    | None -> (bss_array.(off) <- (s', d)));
                     help t )
                 | ".data.rel.ro" ->
                   ( let off = l - (self#section_addr ".data.rel.ro") in
                     let s' = dec_hex l
                     and (s,d) = data_rel_ro_array.(off) in
-                    data_rel_ro_array.(off) <- (s', d);
+                    (match Hashtbl.find_opt sym_addr2label l with
+                    | Some sym_label -> (data_rel_ro_array.(off) <- (sym_label^":\n"^s', d))
+                    | None -> (data_rel_ro_array.(off) <- (s', d)));
                     help t )
                 | "rodata.cst32" ->
                   ( let off = l - (self#section_addr "rodata.cst32") in
                     let s' = dec_hex l in
                     let (s,d) = rodata_cst32_array.(off) in
-                    rodata_cst32_array.(off) <- (s', d);
+                    (match Hashtbl.find_opt sym_addr2label l with
+                    | Some sym_label -> (rodata_cst32_array.(off) <- (sym_label^":\n"^s', d))
+                    | None -> (rodata_cst32_array.(off) <- (s', d)));
                     help t )
                 | _ ->
                   let module EU = ELF_utils in
@@ -1091,13 +1073,17 @@ class datahandler (label' : (string*int) list) =
                         ( let off = l - (self#section_addr "__libc_IO_vtables") in
                           let s' = dec_hex l
                           and (s,d) = __libc_IO_vtables_array.(off) in
-                          __libc_IO_vtables_array.(off) <- (s', d);
+                          (match Hashtbl.find_opt sym_addr2label l with
+                          | Some sym_label -> (__libc_IO_vtables_array.(off) <- (sym_label^":\n"^s', d))
+                          | None -> (__libc_IO_vtables_array.(off) <- (s', d)));
                           help t )
                       | "__libc_freeres_ptrs" ->
                         ( let off = l - (self#section_addr "__libc_freeres_ptrs") in
                           let s' = dec_hex l
                           and (s,d) = __libc_freeres_ptrs_array.(off) in
-                          __libc_freeres_ptrs_array.(off) <- (s', d);
+                          (match Hashtbl.find_opt sym_addr2label l with
+                          | Some sym_label -> (__libc_freeres_ptrs_array.(off) <- (sym_label^":\n"^s', d))
+                          | None -> (__libc_freeres_ptrs_array.(off) <- (s', d)));
                           help t )
                       | ".tbss" ->
                         help t
@@ -1182,6 +1168,8 @@ class datahandler (label' : (string*int) list) =
        * process data resolve interleave reference among rodata and data sections
        * current we just leverage a heristic methods, which consider all the value
        * inside .data and .rodata sections as addr *)
+      let module S = Symbol_get in
+      let sym_addr2label = S.parse () in
       rodata_array <- Array.of_list rodata_list;
       got_array <- Array.of_list got_list;
       data_array <- Array.of_list data_list;
@@ -1190,19 +1178,16 @@ class datahandler (label' : (string*int) list) =
       rodata_cst32_array <- Array.of_list rodata_cst32_list;
       let module EU = ELF_utils in
       if EU.elf_static () then
-        begin
-          __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
-          __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
-          tbss_array <- Array.of_list tbss_list
-        end
-      else ();
+        (__libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
+        __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
+        tbss_array <- Array.of_list tbss_list);
       (* data_labels <- p#de_redunt data_labels; *)
       (*
       self#dump_d2d_labels data_labels_reloc;
        *)
       (* )self#dump_c2d_labels label; *)
-      p#process locations;
-      p#process data_labels;
+      p#process locations sym_addr2label;
+      p#process data_labels sym_addr2label;
       rodata_list <- Array.to_list rodata_array;
       got_list <- Array.to_list got_array;
       data_list <- Array.to_list data_array;
@@ -1210,16 +1195,13 @@ class datahandler (label' : (string*int) list) =
       data_rel_ro_list <- Array.to_list data_rel_ro_array;
       rodata_cst32_list <- Array.to_list rodata_cst32_array;
       if EU.elf_static () then
-        begin
-          __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
-          __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
-          tbss_list <- Array.to_list tbss_array;
-          ()
-        end
-      else ();
+        (__libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
+        __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
+        tbss_list <- Array.to_list tbss_array);
       p#insert_dummy;
       p#insert_head;
       p#write_file
+
     (* this method might be too slow *)
     method collect_ocaml name =
       if Sys.file_exists(name) then begin
@@ -2293,7 +2275,7 @@ class reassemble =
       p#set_datas funcs;
       let templist = p#get_textlabel in
       jmpreflist <- List.map (fun l -> (dec_hex l)) templist;
-      p#data_output; (* add labels to data sections *)
+      p#data_output (* add labels to data sections *)
 
     method data_dump_1 =
       let dec_hex (s:int) : string =
@@ -2380,7 +2362,7 @@ class reassemble =
       Sys.command("cat gcc_exception_table.data >> final.s");
 
     method reassemble_dump u_funcs =
-      self#data_dump u_funcs;
+      self#data_dump u_funcs
 
     method reassemble_dump_1 =
       self#data_dump_1

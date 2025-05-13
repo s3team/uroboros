@@ -1,12 +1,12 @@
-# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation (v1.0)
+# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation
 
-# Installation
+## Installation
 
-## Docker
+### Docker
 
 Uroboros is available as a docker image, you can check the details in [docker](docker).
 
-## Build
+### Build
 
 The OCaml compiler and dependent libraries can be obtained through
 [opam](https://opam.ocaml.org/):
@@ -18,7 +18,7 @@ $ opam install -y ppx_deriving.6.0.3 parmap.1.2.5 batteries.3.9.0
 $ eval $(opam env)
 ```
 
-# Usage
+## Usage
 
 Uroboros can take a 32-bit or 64-bit, statically-linked or dynamically-linked ELF executable as the
 input.  To use Uroboros:
@@ -52,7 +52,7 @@ $ python3 uroboros.py bzip -i 500 -k
 A subfolder will be created in `./src` folder, with input binary name and
 timestamp (e.g., `test_fold_bzip_2021-09-19_05:51:00`).
 
-# Instrumentation
+## Instrumentation
 
 Instrumentation tools process the internal data structure of
 Uroboros. Some examples are shown in the [plugins](src/plugins) folder. You
@@ -64,7 +64,7 @@ To register instrumentation code:
 $ cp plugins/mem_write.ml instrumentation_plugin.ml
 ```
 
-# Publication
+## Publication
 ```
 @inproceedings {190920,
 author = {Shuai Wang and Pei Wang and Dinghao Wu},

@@ -6,11 +6,11 @@ Use `docker build` to build the docker image from Dockerfile.
 
 ```shell
 # build using Ubuntu 20.04 (default)
-docker build -f ./Docker/Dockerfile -t uroboros:1.0 .
+docker build -f ./Docker/Dockerfile -t uroboros .
 # build using Ubuntu 22.04
-docker build --build-arg UBUNTU_VERSION=22.04 -f ./Docker/Dockerfile -t uroboros:1.0 .
+docker build --build-arg UBUNTU_VERSION=22.04 -f ./Docker/Dockerfile -t uroboros .
 # build using Ubuntu 24.04
-docker build --build-arg UBUNTU_VERSION=24.04 -f ./Docker/Dockerfile -t uroboros:1.0 .
+docker build --build-arg UBUNTU_VERSION=24.04 -f ./Docker/Dockerfile -t uroboros .
 ```
 
 ## Docker usage
@@ -18,5 +18,5 @@ docker build --build-arg UBUNTU_VERSION=24.04 -f ./Docker/Dockerfile -t uroboros
 run the Docker container with `docker run`.
 
 ```shell
-docker run -it -v <path to uroboros parent>/uroboros:/usr/src uroboros:1.0 bash
+docker run -it -v <path to uroboros parent>/uroboros:/usr/src uroboros bash
 ```

@@ -108,7 +108,7 @@ def update_final(plt_addr2entry, plt_new_entry2addr):
         lines = f.readlines()
     with open("final2.s", "w") as f:
         for line in lines:
-            if not line.startswith("call"):
+            if not line.startswith("call "):
                 f.write(line)
                 continue
             op, addr = line.split()
@@ -177,16 +177,16 @@ def process(f, i, arch):
         if i > 0:
             os.system(f"python3 useless_func_discover.py {f} {arch}")
 
-        os.system('echo \"' + str(i) + '\" > count.txt')
+        os.system(f"echo \"{str(i)}\" > count.txt")
+        os.system(f"cp {f} {f}.sym")
+        os.system(f"nm {f}.sym > nm.info")
         os.system(f"{strip_command} {f}")
-        
 
         bit_mode = "32" if is_32bit_binary else "64"
         
         dump(f)
         os.system(f"opam exec -- dune exec init {f} {arch} {bit_mode}")
         os.system(f"python3 main_discover.py {f} {arch}")
-       
         
         if not os.path.isfile("final.s"):
             return False
@@ -387,7 +387,6 @@ while assumption two and three need to be configured. For example, setting
 assumption two and three: -a 2 -a 3""",
         default=0,
     )
-    p.add_argument("--version", action="version", version="Uroboros 1.0", default=0)
     p.add_argument(
         "-u",
         "--unstripped",
