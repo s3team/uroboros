@@ -53,7 +53,7 @@ module Disam = struct
       ail_parser#process_instrs instr_list arch;
 
       let fl = ail_parser#get_funcs in
-      print_endline "2: disassembly validates --> ";
+      print_endline "2: disassembly validates";
 
       (*let _ = List.iter (
         fun f ->
@@ -73,7 +73,6 @@ module Disam = struct
             ()
         ) func2cfg_table in ()
       else ();
-      
 
       il :=
         if EU.elf_32 () && arch <> "arm" then
