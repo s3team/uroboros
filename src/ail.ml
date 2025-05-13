@@ -94,7 +94,7 @@ object (self)
     Enum.iter help filelines
 
   method ail_dump =
-    (*currently we just dump the extern function info *)
+    (* currently we just dump the extern function info *)
     let check_sym_func f =
       try
         let s = Char.escaped(f.func_name.[0])^Char.escaped(f.func_name.[1]) in
@@ -116,35 +116,33 @@ object (self)
   method post_process f (arch : string) = 
     ignore (Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch));
     ignore(Sys.command("python3 post_process.py "^arch));
-    ignore(Sys.command("python3 post_process_lib.py"));
-    ()
-  (*
-          self#ehframe_dump;
-          self#excpt_tbl_dump;
-   *)
+    ignore(Sys.command("python3 post_process_lib.py"))
+    (*
+    self#ehframe_dump;
+    self#excpt_tbl_dump;
+    *)
 
   method pre_process =
-    let  _ = Sys.command("python3 pre_process.py") in
-    ()
-
-
+    let  _ = Sys.command("python3 pre_process.py") in ()
 
   method instrProcess_2 f (arch: string) =
     let open Disassemble_process in
     let open Analysis_process in
     let module D = Disam in
     let module A = Analysis in
+    let module S = Symbol_get in
     let () = self#pre_process in
     let (il, fl, re) = D.disassemble f funcs secs arch in
 
-	print_endline "3: analysis";
+    print_endline "3: analysis";
 
     let (fbl, bbl, cfg_t, cg, il', re) = A.analyze_one il fl re in
+    let il' = S.apply il' in
     let open Instrumentation_plugin in
     let module IP = Instrumentation_Plugin in
     let instrumented_il = IP.instrument il' fbl bbl in
 
-	print_endline "4: post processing";
+    print_endline "4: post processing";
     A.post_analyze instrumented_il re;
 
     self#post_process f arch

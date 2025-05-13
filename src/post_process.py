@@ -92,7 +92,7 @@ for i in range(ll):
     # adjust it into jmp S_0x4006C1
     elif "jmpq " in l and "*" not in l:
         l = l.replace('jmpq ', 'jmp ')
-    elif "__libc_start_main" in l and is_32 == True:
+    elif "call " in l and "__libc_start_main" in l and is_32 == True:
         if arch == "arm":
             """
             In case of ARM, main symbol is not pushed into stack.
@@ -117,7 +117,7 @@ for i in range(ll):
             main_symbol = lines[i-1].split()[1]
             lines[i-1] = lines[i-1].replace(main_symbol, "main")
             main_symbol = main_symbol[1:].strip()
-    elif is_32 == False and "__libc_start_main" in l:
+    elif is_32 == False and "call " in l and "__libc_start_main" in l:
         if arch == "arm":
             pass
         else:
