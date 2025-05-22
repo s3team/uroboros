@@ -209,17 +209,17 @@ let p_print lexme =
  *   *)
 let prefix_lock instr =
   try
-     ignore(String.find instr "lock "); true
+     ignore (String.find instr "lock "); true
    with Not_found -> false
 
 let prefix_addr32 instr =
   try
-     ignore(String.find instr "addr32 "); true
+     ignore (String.find instr "addr32 "); true
    with Not_found -> false
 
 let prefix_bnd instr =
   try
-     ignore(String.find instr "bnd "); true
+     ignore (String.find instr "bnd "); true
    with Not_found -> false
 
 

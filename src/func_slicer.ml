@@ -58,7 +58,7 @@ class func_slicer instrs funcs =
     (* end *)
 
     method filter_addr_by_secs (bl : int list) : int list =
-      ignore(Sys.command("python3 init_sec_adjust.py"));
+      ignore (Sys.command("python3 init_sec_adjust.py"));
 	  let il = read_file "init_sec.info" in
 	  let l = List.nth il 0 in
       let items = Str.split (Str.regexp " +") l in

@@ -28,16 +28,15 @@ module IntSet = Set.Make(
 
 module StringSet = Set.Make(String)
 
-let read_lines filename =
+let read_lines (filename : string) : string list =
   File.with_file_in filename (fun input ->
     List.of_enum (IO.lines_of input)
   )
 
-let contains s1 s2 =
-  let re = Str.regexp_string s2
-  in
-      try ignore (Str.search_forward re s1 0); true
-      with Not_found -> false
+let contains ~(str : string) ~(sub : string) : bool =
+  let re = Str.regexp_string sub in
+  try ignore (Str.search_forward re str 0); true
+  with Not_found -> false
 
 let unify_int_list (l: int list) : int list =
   let s =
@@ -52,12 +51,10 @@ let unify_str_list (l: string list) : string list =
   (* elements should be returned in increasing order *)
   StringSet.elements s
 
-
 let unify_funclist_by_name (l : func list) : func list =
   let t = Hashtbl.create (List.length l * 2) in
   List.iter (fun f -> Hashtbl.replace t (f.func_name) f) l;
   Hashtbl.fold (fun k v s -> v::s) t []
-
 
 (* this function must be called after the sort by addr*)
 let unify_funclist_by_addr (l : func list) : func list =
@@ -86,7 +83,6 @@ let unify_funclist_by_addr (l : func list) : func list =
   in
   help l []
 
-
 let unify_hash_list h =
   let l = Hashtbl.length h in
   let h' = Hashtbl.create (l + 1)
@@ -103,7 +99,6 @@ let string_to_int32 s =
     Some (int_of_string s)
   with
   | _ -> None
-
 
 let compare_loc l1 l2 =
   l1.loc_addr = l2.loc_addr && (l1.loc_label = l2.loc_label)
@@ -174,6 +169,8 @@ let read_file (filename : string) : string list =
 let dec_hex (s:int) : string =
   (Printf.sprintf "0x%X" s)
 
+let dec_hex_sym (s:int) : string =
+  (Printf.sprintf "S_0x%X" s)
 
 let print_loclist (ll : loc list) : unit =
   List.iter (fun l ->
@@ -314,9 +311,9 @@ let memo f =
       y
 
 let get_end_addr_sec sec =
-  ignore(Sys.command("rm sec_all.info"));
-  ignore(Sys.command("cat text_sec.info >> sec_all.info"));
-  ignore(Sys.command("cat sections.info >> sec_all.info"));
+  ignore (Sys.command("rm sec_all.info"));
+  ignore (Sys.command("cat text_sec.info >> sec_all.info"));
+  ignore (Sys.command("cat sections.info >> sec_all.info"));
   let secl = read_file "sec_all.info" in
   List.fold_left (
     fun acc l ->
@@ -845,6 +842,7 @@ module Instr_utils = struct
    let tem i =
      let (_, _ , _, s) = i in
      s
+
     (* update inserted instruction at the front of target instruction *)
     let update_instrs_infront instrs instrs_update =
       let same loc1 loc2 =
@@ -880,9 +878,6 @@ module Instr_utils = struct
           end
       in
       help instrs_update instrs []
-
-
-
 
    let insert_instrument_instrs il il_update =
       il_update

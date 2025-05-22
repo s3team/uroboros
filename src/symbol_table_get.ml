@@ -2,9 +2,6 @@ open Ail_utils
 open Type
 open Pp_print
 
-
-let dec_hex (s : int) : string = "0x"^(Printf.sprintf "%X" s)
-
 let strip_symbol_prefix (s : string) : string =
   let len = String.length s in
   assert (len > 2);
@@ -22,10 +19,10 @@ let parse () : (int, string) Hashtbl.t =
   let filelines = read_lines "nm.info" in
   List.iter (
     fun l ->
-      if not (contains l " U ")
-        && not (contains l " w ")
-        && not (contains l " v ")
-        && not (contains l " V ")
+      if not (contains ~str:l ~sub:" U ")
+        && not (contains ~str:l ~sub:" w ")
+        && not (contains ~str:l ~sub:" v ")
+        && not (contains ~str:l ~sub:" V ")
       then
         let items = Str.split (Str.regexp " +") l in
         let addr = List.nth items 0 in
@@ -74,13 +71,31 @@ let is_call (i : instr) : bool =
 
 let update_loc (i : instr) (new_loc : loc) : instr =
   match i with
-  | SingleInstr (op, loc, prefix_op) -> SingleInstr (op, new_loc, prefix_op)
-  | DoubleInstr (op, exp, loc, prefix_op) -> DoubleInstr (op, exp, new_loc, prefix_op)
-  | TripleInstr (op, exp1, exp2, loc, prefix_op) -> TripleInstr (op, exp1, exp2, new_loc, prefix_op)
-  | FourInstr (op, exp1, exp2, exp3, loc, prefix_op) -> FourInstr (op, exp1, exp2, exp3, new_loc, prefix_op)
-  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op) -> FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op)
+  | SingleInstr (op, loc, prefix_op) -> 
+    SingleInstr (op, new_loc, prefix_op)
+  | DoubleInstr (op, exp, loc, prefix_op) -> 
+    DoubleInstr (op, exp, new_loc, prefix_op)
+  | TripleInstr (op, exp1, exp2, loc, prefix_op) -> 
+    TripleInstr (op, exp1, exp2, new_loc, prefix_op)
+  | FourInstr (op, exp1, exp2, exp3, loc, prefix_op) -> 
+    FourInstr (op, exp1, exp2, exp3, new_loc, prefix_op)
+  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op) -> 
+    FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op)
 
-let apply (il : instr list) : instr list =
+let update_fname2css (fname2css : (string, int list) Hashtbl.t)
+    (fname : string) (addr : int) : unit =
+  match Hashtbl.find_opt fname2css fname with
+  | Some css ->
+    if not (List.mem addr css) then
+      Hashtbl.replace fname2css fname (addr::css)
+  | None ->
+    Hashtbl.add fname2css fname [addr]
+
+let apply
+    (il : instr list)
+    (ufunc : func list)
+  : instr list * func list * (string, int list) Hashtbl.t =
+  let fname2css = Hashtbl.create 100 in  (* function name to callsites list *)
   let sym_addr2label = parse () in
   let rec add_existing_symbols il acc =
     match il with
@@ -91,19 +106,39 @@ let apply (il : instr list) : instr list =
         let i_addr = i_loc.loc_addr in
         let i_label = i_loc.loc_label in
         match Hashtbl.find_opt sym_addr2label i_addr with
-        | Some sym_name -> update_loc i {i_loc with loc_label = sym_name^":\n"^i_label}
+        | Some sym_name -> 
+          update_loc i {i_loc with loc_label = sym_name^":\n"^i_label}
         | None -> i
       in
       match i' with
-      | DoubleInstr (Intel_OP (Intel_ControlOP CALL), Label func_name, loc, prefix_op) ->
+      | DoubleInstr 
+          (Intel_OP (Intel_ControlOP CALL), Label func_name, loc, prefix_op) ->
         begin
           let func_name' = strip_symbol_prefix func_name |> int_of_string in
           match Hashtbl.find_opt sym_addr2label func_name' with
           | Some sym_name ->
-            let new_acc = DoubleInstr (Intel_OP (Intel_ControlOP CALL), Label sym_name, loc, prefix_op) :: acc in
-            add_existing_symbols rest new_acc
-          | None -> add_existing_symbols rest (i' :: acc)
+            let call' = DoubleInstr 
+              (Intel_OP (Intel_ControlOP CALL), Label sym_name, loc, prefix_op)
+            in
+            let new_acc = call'::acc in
+            (update_fname2css fname2css sym_name loc.loc_addr;
+            add_existing_symbols rest new_acc)
+          | None -> 
+            (update_fname2css fname2css func_name loc.loc_addr;
+            add_existing_symbols rest (i' :: acc))
         end
       | _ -> add_existing_symbols rest (i' :: acc)
   in
-  add_existing_symbols il []
+  let il' = add_existing_symbols il [] in
+  (* update function list with function symbols *)
+  let ufunc = 
+    List.filter (fun f -> String.starts_with ~prefix:"S_" f.func_name) ufunc in
+  let ufunc' = List.map (
+    fun f ->
+      let f_name = f.func_name |> strip_symbol_prefix |> int_of_string in
+      match Hashtbl.find_opt sym_addr2label f_name with
+      | Some sym_name ->
+        {f with func_name = sym_name}
+      | None -> f
+  ) ufunc in
+  il', ufunc', fname2css

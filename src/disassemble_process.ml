@@ -15,16 +15,16 @@ module Disam = struct
     let ba = string_of_int ba in
     let ea = string_of_int ea in
 
-    ignore(Sys.command
+    ignore (Sys.command
       ("objdump -Dr -j .text " ^ f ^ " --start-address=" ^ ba
      ^ " --stop-address=" ^ ea ^ " > " ^ f ^ ".temp"));
-    ignore(Sys.command ("python3 useless_func_del.py " ^ f));
-    ignore(Sys.command
+    ignore (Sys.command ("python3 useless_func_del.py " ^ f));
+    ignore (Sys.command
       ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f1,3 > instrs.info"));
 
-    ignore(Sys.command "python3 filter_nop.py");
+    ignore (Sys.command "python3 filter_nop.py");
 
-    ignore(Sys.command "cut -f 1 instrs.info > text_mem.info");
+    ignore (Sys.command "cut -f 1 instrs.info > text_mem.info");
     ()
 
   let get_userfuncs fl = List.filter (fun f -> f.is_lib = false) fl

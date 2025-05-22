@@ -53,6 +53,7 @@ def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool):
 
     logger.debug(f"Compiling {source} with args: {compile_args}")
     subprocess.run(compile_args, check=True)
+    subprocess.run(["cp", str(binary), str(binary)+".sym"], check=True)
     subprocess.run(["strip", str(binary)], check=True)
     if binary.exists() is False:
         logger.error(f"Compilation failed for {source}")
@@ -61,6 +62,8 @@ def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool):
 def run_uroboros(binary: Path):
     if binary.exists() is False:
         logger.error(f"Target file not found at {binary}")
+        return
+    if "test00" in str(binary):
         return
 
     uroboros_args = [uroboros, binary]
@@ -155,9 +158,11 @@ def uroboros_all(targets: list, args):
                         / f"{source.stem}.{arch}.{'pie' if pie else 'nopie'}.{'static' if static else 'dynamic'}"
                     )
 
-                    if binary.exists() is False or args.force:
-                        compile_bin(source, binary, arch, pie, static)
-                    run_uroboros(binary)
+                    # always compile
+                    #if binary.exists() is False or args.force:
+                    compile_bin(source, binary, arch, pie, static)
+                    if not args.compile:
+                        run_uroboros(binary)
 
 
 if __name__ == "__main__":
@@ -172,6 +177,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--force", "-f", action="store_true", help="Force recompile", default=False
+    )
+    parser.add_argument(
+        "--compile", "-c", action="store_true", help="Compile only", default=False
     )
 
     input_args = parser.add_argument_group(

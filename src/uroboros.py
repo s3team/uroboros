@@ -60,11 +60,15 @@ def check_static():
     else:
         return False
 
+def get_custom_objects():
+    result = subprocess.run("ls | grep '\\.o$'", shell=True, capture_output=True, text=True)
+    return result.stdout.strip().split('\n') if result.stdout else []
 
 def reassemble(assembly_file, arch):
     compiler = ""
     compile_option = "-no-pie -lm -lrt -lpthread "
     is_32bit_binary = check_32()
+    custom_objects = get_custom_objects()
 
     if arch == "intel":
         compiler = "gcc"
@@ -81,6 +85,10 @@ def reassemble(assembly_file, arch):
 
     if check_static() == True:
         compile_option += "-static"
+
+    for obj in custom_objects:
+        print(f"custom_object: {obj}")
+        compile_option += f" {obj} "
 
     print(f"reassemble: {compiler} {assembly_file} {compile_option}")
     os.system(f"{compiler} {assembly_file} {compile_option}")

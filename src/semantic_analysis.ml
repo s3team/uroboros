@@ -273,7 +273,7 @@ module GotAbs : DfaAbs = struct
         match (p, e1, e2) with
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->
-            if contains l "$_GLOBAL_OFFSET_TABLE_" then
+            if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then
               (* gen *)
               (*print_endline ("gen: " ^ (p_exp (Reg r)) ^ ", " ^ (pp_print_instr' i));*)
               ExpSet.add (Reg r) outs

@@ -1,0 +1,3 @@
+INSERTCALL BEFORE [0x401175] SELF [] "gcc -c ./fun.c" C print_args ./fun.c;
+INSERTCALL BEFORE [0x401170] SELF [int:A] "gcc -c ./fun.c" C print_int ./fun.c;
+INSERTCALL BEFORE [0x401184] SELF [char*:X] "gcc -c ./fun.c" C print_string ./fun.c;
