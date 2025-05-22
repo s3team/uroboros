@@ -355,7 +355,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       )
                     | false ->
                       begin
-                        ignore(self#check_offset_64 v_str addr sec);
+                        ignore (self#check_offset_64 v_str addr sec);
                         in_jmptable <- false;
                         traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(l2,v2)::(l1,v1)::acc) t (addr+8) sec
                       end
@@ -779,7 +779,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
 
     method data_collect =
       let module EU = ELF_utils in
-      ignore(Sys.command("python3 spliter.py"));
+      ignore (Sys.command("python3 spliter.py"));
       data <- self#collect "data_split.info";
       rodata <- self#collect "rodata_split.info";
       data_rel_ro <- self#collect "data_rel_ro_split.info";
@@ -1219,7 +1219,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
        * process data resolve interleave reference among rodata and data sections
        * current we just leverage a heristic methods, which consider all the value
        * inside .data and .rodata sections as addr *)
-      let module S = Symbol_get in
+      let module S = Symbol_table_get in
       let sym_addr2label = S.parse () in
       rodata_array <- Array.of_list rodata_list;
       got_array <- Array.of_list got_list;
@@ -1871,7 +1871,7 @@ class reassemble =
               let fn = String.sub f.func_name 2 (nl-2) in
               let is_dig_loc =
                 try
-                  ignore(int_of_string(fn)); true
+                  ignore (int_of_string(fn)); true
                 with
                 | _ ->
                   begin
@@ -2447,7 +2447,7 @@ class reassemble =
 	  else ()
 
     method export_data_dump =
-      ignore(Sys.command("python3 export_data.py"));
+      ignore (Sys.command("python3 export_data.py"));
       let addrs = List.map (String.trim) (read_file "export_datas.info") in
       let aux l =
         match (self#check_sec l) with

@@ -3,7 +3,7 @@ run-name: ${{ github.actor }} is running tests
 on:
   push:
     branches:
-      - dev
+      - instrument-framework
 jobs:
   execute-tests-ubuntu22:
     runs-on: ubuntu-22.04
@@ -23,7 +23,9 @@ jobs:
       run: install/install_apt.sh
 
     - name: Test
-      run: $(pwd)/test/test_action.sh
+      run: |
+        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        $(pwd)/test/test_action.sh
 
   execute-coreutils-ubuntu22:
     runs-on: ubuntu-22.04
@@ -46,7 +48,9 @@ jobs:
       run: install/install_coreutils.sh
 
     - name: Test
-      run: $(pwd)/test/test_coreutils.sh
+      run: |
+        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        $(pwd)/test/test_coreutils.sh
  
  
   execute-tests-ubuntu24:
@@ -67,7 +71,9 @@ jobs:
       run: install/install_apt.sh
 
     - name: Test
-      run: $(pwd)/test/test_action.sh
+      run: |
+        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        $(pwd)/test/test_action.sh
 
   execute-coreutils-ubuntu24:
     runs-on: ubuntu-24.04
@@ -90,5 +96,28 @@ jobs:
       run: install/install_coreutils.sh
 
     - name: Test
-      run: $(pwd)/test/test_coreutils.sh
+      run: |
+        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        $(pwd)/test/test_coreutils.sh
 
+  execute-instrument-tests:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref_name }}
+
+    - name: Setup OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 5.3.0
+        opam-disable-sandboxing: true
+    - run: opam install -y ppx_deriving ocamlfind parmap batteries
+
+    - name: Install apt requirements
+      run: install/install_apt.sh
+
+    - name: Instrument Test
+      run: |
+        $(pwd)/test/test_all.py -a -c
+        $(pwd)/test/test_instrument.sh

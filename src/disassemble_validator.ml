@@ -284,7 +284,7 @@ class dis_validator =
         let update_cft_track i =
           Queue.add i five_q;
           if Queue.length five_q == 6 then
-            ignore(Queue.take five_q)  in
+            ignore (Queue.take five_q)  in
         let invalid_instr i =
           let il = get_loc i in
             List.mem (il.loc_addr) locs in

@@ -1,0 +1,13 @@
+INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c ./fun.c -m32" C before_print_info ./fun.c;
+INSERT AFTER [0x80491f6,0x80491b0] SELF [] "gcc -no-pie -c ./fun.c -m32" C log_execution_times ./fun.c;
+INSERT BEFORE [0x80491a8] SELF [] "" asm x "movl $30, %eax";
+INSERT AFTER [print_info] FUNENTRY [] "" asm x
+"xor %eax, %eax
+xor %ebx, %ebx
+xor %ecx, %ecx";
+INSERT BEFORE [print_info] FUNEXIT [] "" asm x
+"xor %eax, %eax
+xor %ebx, %ebx
+xor %ecx, %ecx";
+DELETE x [0x804919a] SELF [] "" x x x;
+REPLACE x [0x80491b5-0x80491ca] SELF [] "gcc -no-pie -c ./fun.c -m32" C log_execution_times ./fun.c;
