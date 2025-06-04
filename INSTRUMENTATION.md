@@ -4,9 +4,15 @@ One application of Uroboros is binary code instrumentation,
 which is the arbitrary addition of user-specified code at a set of instrumentation
 points or memory addresses.
 Binary code instrumentation is useful for many reasons, such as
-retrofitting security mitigations and sanitizations (e.g., [ASan](https://github.com/google/sanitizers/wiki/addresssanitizer));
+retrofitting security mitigations and sanitizations (e.g., [ASan] (https://github.com/google/sanitizers/wiki/addresssanitizer));
 or enabling the collection of runtime information that is otherwise
 inaccessible (e.g., argument values before a library function call).
+
+A user needs to have knowledge of the internal data structures in Uroboros.
+The new instrumentation design with a domain specific language alleviates
+this burden and frees users from laborious instrumentation scripts.
+The backward compatibility is maintained with a special command in
+the new design. Below we specify the instrumentation language.
 
 To use Uroboros for instrumentation,
 in the file `points.ins` (placed in `src/`), a user specifies the set of
