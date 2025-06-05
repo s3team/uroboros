@@ -27,7 +27,7 @@ $ python3 uroboros.py bzip
 ```
 
 The disassembled output can be found at current directory, named
-**final.s**. Uroboros will also reassemble it back into an executable,
+**final.s**. Uroboros will also reassemble it back into an executable, named
 **a.out**.
 
 Python script uroboros.py provides options to manipulate the
@@ -54,15 +54,9 @@ timestamp (e.g., `test_fold_bzip_2021-09-19_05:51:00`).
 
 ## Instrumentation
 
-Instrumentation tools process the internal data structure of
-Uroboros. Some examples are shown in the [plugins](src/plugins) folder. You
-may start with `mem_write.ml`, which instruments every memory write
-operation.
-
-To register instrumentation code:
-```
-$ cp plugins/mem_write.ml instrumentation_plugin.ml
-```
+One application of Uroboros is binary code instrumentation.
+The documentation for Uroboros' instrumentation framework
+can be found in [INSTRUMENTATION.md](INSTRUMENTATION.md).
 
 ## Publication
 ```

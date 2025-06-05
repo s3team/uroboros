@@ -1,7 +1,212 @@
 (executable
  (name init)
+ (modules init)
  (public_name init)
- (libraries ppx_deriving batteries parmap)
- (preprocess (pps ppx_deriving.show))
- (ocamlopt_flags (:standard -inline 20 -nodynlink))
- (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+ (libraries batteries ail_utils ail)
+ (preprocess
+  (pps ppx_deriving.show))
+ (ocamlopt_flags
+  (:standard -inline 20 -nodynlink))
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name type)
+ (modules type)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name pp_print)
+ (modules pp_print)
+ (libraries type)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name ail_utils)
+ (modules ail_utils)
+ (libraries parmap batteries pp_print)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name cg)
+ (modules cg)
+ (libraries visit ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name cfg)
+ (modules cfg)
+ (libraries pp_print visit batteries ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name disassemble_validator)
+ (modules disassemble_validator)
+ (libraries batteries visit ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name disassemble_process)
+ (modules disassemble_process)
+ (libraries
+  semantic_analysis
+  reassemble_symbol_get
+  disassemble_validator
+  ail_parser)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name semantic_analysis)
+ (modules semantic_analysis)
+ (libraries pp_print ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name analysis_process)
+ (modules analysis_process)
+ (libraries pp_print reassemble_symbol_get cfg cg)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name instrumentation)
+ (modules instrumentation)
+ (libraries ail_parser ail_utils dynlink)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39-50)))
+
+(library
+ (name ail)
+ (modules ail)
+ (libraries
+  batteries
+  pp_print
+  ail_parser
+  reassemble_symbol_get
+  disassemble_process
+  cfg
+  cg
+  analysis_process
+  instrumentation)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name common_parser)
+ (modules common_parser)
+ (libraries batteries ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name lex_new)
+ (modules lex_new)
+ (libraries batteries ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name visit)
+ (modules visit)
+ (libraries type)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name func_slicer)
+ (modules func_slicer)
+ (libraries pp_print ail_utils visit)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name parser)
+ (modules parser)
+ (libraries batteries ail_utils common_parser lex_new)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name arm_parser)
+ (modules arm_parser)
+ (libraries batteries ail_utils common_parser lex_new)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name share_lib_helper)
+ (modules share_lib_helper)
+ (libraries batteries pp_print ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name data_process)
+ (modules data_process)
+ (libraries batteries pp_print ail_utils visit)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name symbol_table_get)
+ (modules symbol_table_get)
+ (libraries pp_print ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name reassemble_symbol_get)
+ (modules reassemble_symbol_get)
+ (libraries
+  batteries
+  pp_print
+  ail_utils
+  share_lib_helper
+  data_process
+  symbol_table_get)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name ail_parser)
+ (modules ail_parser)
+ (libraries
+  batteries
+  pp_print
+  ail_utils
+  common_parser
+  parser
+  arm_parser
+  func_slicer)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))

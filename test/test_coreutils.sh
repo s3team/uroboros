@@ -117,3 +117,5 @@ for i in $(ls *.out); do
 done
 
 popd
+
+echo "testing success."

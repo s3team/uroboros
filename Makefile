@@ -1,10 +1,15 @@
-
+# Local CI or Regression Testing
 
 all:
-	( cd test && python3 test_all.py -a 2>&1 | tee ../test.all )
+	test/test_all.py -a -c
+	test/test_instrument.sh 2>&1 | tee test.instrument
+	rm src/points.ins
+	test/test_action.sh 2>&1 | tee test.all
 	test/test_coreutils.sh 2>&1 | tee test.coreutils
 
 clean:
+	rm src/fl_calls
+	rm src/fl
 	( cd src && ls | grep '\.info$$' | xargs -r rm -f )
 	( cd src && ls | grep '\.disassemble$$' | xargs -r rm -f )
 	( cd src && ls | grep '\.temp$$' | xargs -r rm -f )

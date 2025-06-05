@@ -248,6 +248,11 @@ def process(f, i, arch):
                 update_final(plt_addr2entry, plt_new_entry2addr)
                 reassemble("final2.s", arch)
 
+        custom_objects = get_custom_objects()
+        for obj in custom_objects:
+            # remove .o object files from instrumentation
+            print(f"rm {obj}")
+            os.system(f"rm {obj}")
 
         if iter_num > 0:
             os.system("cp a.out " + f)

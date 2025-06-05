@@ -227,6 +227,8 @@ if __name__ == "__main__":
     root_dir = Path(args.dir).resolve()
     if os.getenv("GITHUB_ACTIONS") == "true":
         root_dir = root_dir / "AIL"
+    else:
+        root_dir = Path.cwd()
     test_dir = root_dir / "test"
     uroboros_dir = root_dir / "src"
     uroboros = uroboros_dir / "uroboros.py"

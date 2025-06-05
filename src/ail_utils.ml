@@ -1003,6 +1003,38 @@ module Instr_utils = struct
         | Some t -> Some (MEM_READ_TYPE t)
         | None -> None
 
+    let is_addr_or_label instr aols =
+      let iloc = get_loc instr in
+      let help aol = if String.get aol 0 = '0' && String.get aol 1 = 'x' then
+        (* process address *)
+        let addr = int_of_string aol in
+        if iloc.loc_addr = addr then
+          true
+        else
+          false
+      else
+        (* process label *)
+        let contains s1 s2 =
+          (* check if s2 is a substring of s1*)
+          let re = Str.regexp_string s2
+          in
+              try ignore (Str.search_forward re s1 0); true
+              with Not_found -> false
+        in
+        (* for non-bb label (e.g., S_0x...), it follows the BB block *)
+        (* therefore, has to check for substring *)
+        if contains iloc.loc_label aol then
+          true
+        else
+          false
+      in
+      if List.length (List.filter help aols) = 0 then
+        (* instr does not match addr or label *)
+        false
+      else
+        (* instr matches addr or label *)
+        true
+
     let is_jmp_instr i =
         match i with
         | SingleInstr (p, _, _) when (is_ret p) ->
@@ -1022,23 +1054,37 @@ module Instr_utils = struct
         | DoubleInstr (p, e, _, _) when (is_cond_jmp p) && (is_func e = true)->
            Some COND_JMP_INTER
         | _ -> None
-
-
 end
-
 
 
 module Instr_visitor = struct
 
-     let map_instr judge visitor il =
-       let aux i =
-         match judge i with
-         | Some t -> visitor i t
-         | None -> i
-       in
-       il |> List.rev_map aux |> List.rev
+  let map_instr judge visitor il =
+    let aux i =
+      match judge i with
+      | Some t -> visitor i t
+      | None -> i
+    in
+    il |> List.rev_map aux |> List.rev
 
-
+  let map_instr' judge visitor il labels =
+    let rec aux il visited acc =
+      match il with
+      | [] -> List.rev acc
+      | h :: t ->
+        let h_loc = get_loc h in
+        let h_addr = h_loc.loc_addr in
+        if List.mem h_addr visited then
+          aux t visited (h :: acc)
+        else
+          match judge h labels with
+          | true ->
+            let i' = visitor h in
+            aux t (h_addr :: visited) (i' :: acc)
+          | false ->
+            aux t (h_addr :: visited) (h :: acc)
+    in
+    aux il [] []
 end
 
 module Instr_template = struct

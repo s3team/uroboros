@@ -149,7 +149,7 @@ let apply
   (* TODO: rela_plt.info does not have the func addr column for 32-bit, so
    *       need another method to do the mapping from plt entry to func symbol *)
 
-  if EU.elf_static () && EU.elf_64 () then
+  if EU.elf_static () && EU.elf_64 () && EU.elf_unstrip () then
     ( plt_mapping ();
       rela_plt_mapping ();
       rela_sym_mapping () );

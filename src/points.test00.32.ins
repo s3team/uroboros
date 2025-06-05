@@ -1,3 +1,3 @@
-INSERTCALL BEFORE [0x80491a1] SELF [] "gcc -c ./fun.c -m32" C print_args ./fun.c;
-INSERTCALL BEFORE [0x80491a0] SELF [int:A] "gcc -c ./fun.c -m32" C print_int ./fun.c;
-INSERTCALL BEFORE [0x80491b3] SELF [char*:X] "gcc -c ./fun.c -m32" C print_string ./fun.c;
+INSERTCALL BEFORE [0x80491a1] SELF [] "gcc -c ./fun.c -m32" C print_args ./fun.c; # insert a call to print_args (defined in fun.c) using arguments already assigned in code before 0x80491a1
+INSERTCALL BEFORE [0x80491a0] SELF [int:A] "gcc -c ./fun.c -m32" C print_int ./fun.c; # insert a call to print_int (defined in fun.c) with argument A (defined in the binary) before 0x80491a0
+INSERTCALL BEFORE [0x80491b3] SELF [char*:X] "gcc -c ./fun.c -m32" C print_string ./fun.c; # insert a call to print_string (defined in fun.c) with argument X (defined in the binary) before 0x80491b3
