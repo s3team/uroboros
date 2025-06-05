@@ -182,12 +182,17 @@ def process(f, i, arch):
         os.system(f"nm {f}.sym > nm.info")
         os.system(f"{strip_command} {f}")
 
-        bit_mode = "32" if is_32bit_binary else "64"
-        
         dump(f)
-        os.system(f"opam exec -- dune exec init {f} {arch} {bit_mode}")
+
+        bit_mode = "32" if is_32bit_binary else "64"
+        cmd = f"opam exec -- dune exec init {f} {arch} {bit_mode}"
+        init_result = subprocess.run(cmd, shell=True)
+        if init_result.returncode != 0:
+            print("init failed")
+            return False
+
         os.system(f"python3 main_discover.py {f} {arch}")
-        
+
         if not os.path.isfile("final.s"):
             return False
 
