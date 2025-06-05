@@ -15,6 +15,7 @@ _build/
 *.log
 *.error
 *.pdf
+*.out
 *~
 test_folder*
 data
@@ -24,3 +25,4 @@ src/instrumentation_plugin.ml
 faddr.txt.*
 faddr_old.txt.*
 .venv
+typescript

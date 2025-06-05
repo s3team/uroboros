@@ -17,10 +17,12 @@ the new design. Below we specify the instrumentation language.
 To use Uroboros for instrumentation,
 in the file `points.ins` (placed in `src/`), a user specifies the set of
 instrumentation points in which an instrumentation point is specified 
-per-line in the two formats described below.
+per-line in one of the two formats described below.
 `src/` contains multiple example `points.ins` files:
 `points.test00.32.ins` and `points.test00.64.ins`
 for executables `test00.32.nopie.dynamic.sym` and `test00.64.nopie.dynamic.sym`;
+`points.test01.32.ins` and `points.test01.64.ins`
+for executables `test01.32.nopie.dynamic.sym` and `test01.64.nopie.dynamic.sym`;
 `points.test05.32.ins` and `points.test05.64.ins`
 for executables `test05.32.nopie.dynamic.sym` and `test05.64.nopie.dynamic.sym`; and
 `points.test07.32.ins` and `points.test07.64.ins`
@@ -34,6 +36,7 @@ data structures of Uroboros.
 As a starter, we recommend instrumenting using the
 first format before the second format
 since the former, provided the domain-specific language, is easier to use.
+`points.ins` can contain both formats (i.e., instrumentation points do not need to all be in format 1 or all be in format 2).
 
 ## Format 1
 ```
@@ -219,12 +222,32 @@ char* arg: %d
 3628800
 ```
 
-## Format 2 (Work-In-Progress)
+## Format 2
 ```
-user module function
+user module_path
 ```
+Format 2 must always begin with `user` and follow by module path `module_path`.
+Format 2 executes the OCaml module found in the module path for an arbitrary user-written instrumentation that operates on Uroboros' internal data structure. Function `instrument` must be defined inside `module_path` and is assumed to be the entrypoint. Examples modules can be found in the folder `src/plugins/`.
 
 ### Examples
 
-user m f
-call a function f in an Ocaml module m, for an arbitrary user written instrumentation.
+```
+user plugins/plugins/instr_asm.ml
+```
+`instr_asm.ml` inserts the assembly code defined in the file `generic_instr_asm.asm`
+at locations defined in the file `instrument_locs.ins`.
+
+```
+user plugins/plugins/instr_c.ml
+```
+`instr_c.ml` inserts the compiled C code for the C source defined in the file `generic_instr_fun.c` at locations defined in the file `instrument_locs.ins`.
+
+The instrumentation files `points.test01.32.ins` and `points.test01.64.ins`
+contain the above two instrumentation points to insert both user-defined C and
+assembly code in the executables `test01.32.nopie.dynamic.sym` and `test01.64.nopie.dynamic.sym`, respectively:
+```
+user plugins/plugins/instr_asm.ml
+user plugins/plugins/instr_c.ml
+```
+The dependent files for `instr_asm.ml` and `instr_c.ml` (e.g., `generic_instr_fun.c`, `generic_instr_asm.asm`, and
+`instrument_locs.ins`) are provided in the folder `src/`.

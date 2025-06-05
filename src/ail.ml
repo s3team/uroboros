@@ -141,12 +141,11 @@ object (self)
     let il', ufl', fch = S.apply il' ufl in
 
     let instrumented_il =
-      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in
+      I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch
+    in
 
     print_endline "4: post processing";
     A.post_analyze instrumented_il re;
 
     self#post_process f arch
-
-
 end

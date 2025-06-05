@@ -9,16 +9,44 @@ type dir = BEFORE | AFTER
 type location = ADDRESS of string | SYMBOL of string
 type locm = SELF | FUNENTRY | FUNEXIT | CALLSITE
 type lang = ASM | C | OCaml
-(* INPUT:
- * address action direction location loc-modifier
- * stack cmd language code code-entry-point *)
-(* point: address action direction stack cmd language code code-entry-point *)
-type point =
+(* instrument point:
+ *  format 1: address action direction stack cmd language code code-entry-point
+ * or
+ *  format 2: user module *)
+type point_f1 =
   int * act option * dir option * (string * string) list
   * string * lang option * string * string
+type point_f2 = string * string
+
+module type PLUGIN = sig
+  val instrument:
+    instr list ->
+    (string, bblock list) Hashtbl.t ->
+    bblock list ->
+    instr list
+end
+
+let plugin = ref None
+
+let get_plugin () : (module PLUGIN)  =
+  match !plugin with
+  | Some s -> s
+  | None ->
+    failwith ("Need to pass plugin path, failure at " ^ __LOC__)
+
+let load_plugin f =
+  let module_name = Filename.basename f in
+  let module_path = "_build/default/plugins/" ^ module_name in
+  if Sys.file_exists module_path then
+    try
+      Dynlink.loadfile_private module_path
+    with
+    | _ -> failwith ("Error loading plugin, failure at " ^ __LOC__)
+  else failwith ("Need to pass plugin path, failure at " ^ __LOC__)
 
 let do_instrumentation : bool ref = ref false
-let points : point list ref = ref []
+let points_f1 : point_f1 list ref = ref []
+let points_f2 : point_f2 list ref = ref []
 
 let stub_loc : loc = {
   loc_label = "";
@@ -26,7 +54,12 @@ let stub_loc : loc = {
   loc_visible = true
 }
 
-let remove_from_str ch s =
+let file_append (filename : string) (content : string) : unit =
+  let oc = open_out_gen [Open_append; Open_creat; Open_text] 0o644 filename in
+  output_string oc content;
+  close_out oc
+
+let remove_comment (ch : char) (s : string) : string =
   match String.index_opt s ch with
   | Some i -> String.sub s 0 i
   | None -> s
@@ -179,15 +212,15 @@ let caller_saved_after : instr list =
           None )
     ]
 
-let read_lines_by_sep ~(f : string) ~(sep : char) : string list =
+let read_points ~(f : string) : string list =
   let ic = open_in f in
   let content = really_input_string ic (in_channel_length ic) in
   let _ = close_in ic in
   let content_nocomments = List.map (
-    fun s -> remove_from_str '#' s
+    fun s -> remove_comment '#' s
   ) (String.split_on_char '\n' content) in
   let content' = String.concat "\n" content_nocomments in
-  String.split_on_char sep content'
+  String.split_on_char ';' content'
 
 let count_char ~(s : string) ~(c : char) : int =
   String.fold_left (fun acc x -> if x = c then acc + 1 else acc) 0 s
@@ -240,9 +273,9 @@ let extract_location_range (loc : string) : location list =
     let _start' = int_of_string _start in
     let _end' = int_of_string _end in
     create_range ~_start:_start' ~_end:_end'
-  | _ -> failwith "invalid loc range"
+  | _ -> failwith ("invalid loc range at " ^ __LOC__)
 
-let create_points
+let create_points_f1
     (action : act option)
     (dir : dir option)
     (locm : locm option)
@@ -280,7 +313,7 @@ let create_points
                 code_ep,
                 code )
             in
-            points := p' :: !points
+            points_f1 := p' :: !points_f1
           else
             let p' =
               ( int_of_string a,
@@ -292,7 +325,7 @@ let create_points
                 "",
                 "" )
             in
-            points := p' :: !points
+            points_f1 := p' :: !points_f1
         end
       | _ ->
         let p' =
@@ -305,7 +338,7 @@ let create_points
             code_ep,
             code )
         in
-        points := p' :: !points
+        points_f1 := p' :: !points_f1
       end
     | SYMBOL s ->
       match locm with
@@ -322,7 +355,7 @@ let create_points
               code_ep,
               code )
           in
-          points := p' :: !points
+          points_f1 := p' :: !points_f1
         | None -> ()
         end
       | Some FUNEXIT ->
@@ -342,7 +375,7 @@ let create_points
               code_ep,
               code )
           in
-          points := p' :: !points
+          points_f1 := p' :: !points_f1
         | None -> ()
         end
       | Some CALLSITE ->
@@ -359,81 +392,111 @@ let create_points
                 code_ep,
                 code )
             in
-            points := p' :: !points
+            points_f1 := p' :: !points_f1
           ) css
         | None -> ()
         end
-      | None -> failwith "invalid loc-modifier"
+      | None -> failwith ("invalid loc-modifier at " ^ __LOC__)
   in
   List.iteri visit_location locations
 
 let process_instrument_point
     (ufl : func list)
     (fname2css : (string, int list) Hashtbl.t)
+    (instrs : instr list)
+    (fbl : (string, bblock list) Hashtbl.t)
+    (bbl : bblock list)
     (line : string)
   : unit =
-  let ls' =
-    let ls = String.trim line |> String.split_on_char '\"' in
-    let ls0 = List.nth ls 0 |> String.trim |> String.split_on_char ' ' in
-    let ls1 = List.nth ls 1 in
-    let ls2 = List.nth ls 2 |> String.trim |> String.split_on_char ' ' in
-    let quotes = count_char ~s:line ~c:'\"' in
-    if quotes = 2 then
-      ls0 @ [ls1] @ ls2
-    else
-      let ls3 = List.nth ls 3 |> String.trim in
-      ls0 @ [ls1] @ ls2 @ [ls3]
-  in
-  match ls' with
-  | [a; d; l; lm; stack; cmd; lang; code_ep; code] ->
-    let code' = String.trim code in
-    let action = get_action a in
-    let dir = get_dir d in
-    let locm = get_loc_modifier lm in
-    let lang = get_lang lang in
-    let locations = l |> strip_bracket |> String.split_on_char ',' in
-    let stack' =
-      stack
-      |> strip_bracket
-      |> String.split_on_char ','
-      |> List.filter (fun s -> not (String.trim s = ""))
+  if not (String.starts_with ~prefix:"user" line) then
+    (* create a point for format 1 *)
+    let ls' =
+      let ls = String.trim line |> String.split_on_char '\"' in
+      let ls0 = List.nth ls 0 |> String.trim |> String.split_on_char ' ' in
+      let ls1 = List.nth ls 1 in
+      let ls2 = List.nth ls 2 |> String.trim |> String.split_on_char ' ' in
+      let quotes = count_char ~s:line ~c:'\"' in
+      if quotes = 2 then
+        ls0 @ [ls1] @ ls2
+      else
+        let ls3 = List.nth ls 3 |> String.trim in
+        ls0 @ [ls1] @ ls2 @ [ls3]
     in
-    let stack'' =
-      List.map (
-        fun s ->
-          let s' = String.split_on_char ':' s in
-          (List.nth s' 0, List.nth s' 1)
-      ) stack'
-    in
-    List.iter (
-      create_points action dir locm stack'' cmd lang code_ep code' ufl fname2css
-    ) locations
-  | _ ->
-    (*
-    let _ = print_endline "^^^^^ ls' ^^^^^" in
-    let _ = print_endline line in
-    let _ = List.iter (
-      fun s -> print_endline ("! " ^ s ^ " @")
-    ) ls' in
-    let _ = print_endline "~~~~~ ls' ~~~~~" in
-    *)
-    failwith "invalid instrument format"
+    match ls' with
+    | [a; d; l; lm; stack; cmd; lang; code_ep; code] ->
+      let code' = String.trim code in
+      let action = get_action a in
+      let dir = get_dir d in
+      let locm = get_loc_modifier lm in
+      let lang = get_lang lang in
+      let locations = l |> strip_bracket |> String.split_on_char ',' in
+      let stack' =
+        stack
+        |> strip_bracket
+        |> String.split_on_char ','
+        |> List.filter (fun s -> not (String.trim s = ""))
+      in
+      let stack'' =
+        List.map (
+          fun s ->
+            let s' = String.split_on_char ':' s in
+            (List.nth s' 0, List.nth s' 1)
+        ) stack'
+      in
+      List.iter (
+        create_points_f1
+          action dir locm stack'' cmd lang code_ep code' ufl fname2css
+      ) locations
+    | _ -> failwith ("invalid instrument format at " ^ __LOC__)
+  else
+    (* create a point for format 2 *)
+    let ls' = String.trim line |> String.split_on_char ' ' in
+    match ls' with
+    | [user; module_path] -> begin
+      let module_name = module_path
+        |> Filename.basename
+        |> Filename.remove_extension
+      in
+      let module_path' =
+        (Filename.dirname module_path)
+        ^ "/"
+        ^ module_name
+        ^ ".cmxs"
+      in
+      let dune_add =
+        "(subdir plugins\n"
+        ^ "  (library\n"
+        ^ "    (name " ^ module_name ^ ")\n"
+        ^ "    (modules " ^ module_name ^ ")\n"
+        ^ "    (libraries ail_utils ail_parser instrumentation)\n"
+        ^ "    (wrapped false)\n"
+        ^ "    (flags (:standard -w -7-8-26-27-10-11-32-33-39))))\n"
+      in
+      file_append "dune" dune_add;
+      (* add to points_f2 *)
+      points_f2 := (user, module_path') :: !points_f2
+    end
+    | _ -> failwith ("invalid instrument format at " ^ __LOC__)
 
 let parse_instrumentation
     ~(funcs : func list)
     ~(fname_callsites : (string, int list) Hashtbl.t)
+    ~(instrs : instr list)
+    ~(fbl : (string, bblock list) Hashtbl.t)
+    ~(bbl : bblock list)
   : unit =
-  let filelines = read_lines_by_sep ~f:"points.ins" ~sep:';' in
-  let filelines' =
-    List.filter (fun s -> not (String.trim s = "")) filelines
+  let filelines =
+    read_points ~f:"points.ins"
+    |> List.filter (fun s -> not (String.trim s = ""))
+    |> List.map (fun s -> String.trim s)
   in
   List.iter (
-    process_instrument_point funcs fname_callsites
-  ) filelines';
-  points := List.sort (
+    process_instrument_point funcs fname_callsites instrs fbl bbl
+  ) filelines;
+  points_f1 := List.sort (
     fun (addr1, _, _, _, _, _, _, _) (addr2, _, _, _, _, _, _, _) ->
       compare addr1 addr2
-  ) !points
+  ) !points_f1
 
 let arg_order_64 i =
   match i with
@@ -445,7 +508,8 @@ let arg_order_64 i =
   | 5 -> Intel_SpecialReg R9
   | x -> failwith (
           (string_of_int x)
-           ^ " is too many arguments. Need to insert with assembly instead" )
+           ^ " is too many arguments. Need to insert with assembly instead."
+           ^ "Failure at " ^ __LOC__)
 
 let set_arg i arg =
   let module EU = ELF_utils in
@@ -490,7 +554,8 @@ let add_call_seq_arg
       Label _value
     | "print-arg" ->
       if EU.elf_32 () then
-        failwith "for PRINTARGS 32-bits, should not reach here"
+        failwith ("for PRINTARGS 32-bits, should not reach here. Failure at "
+                  ^ __LOC__)
       else
         Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
   in
@@ -579,8 +644,7 @@ let add_call_seq
             None ) ]
       @ caller_saved_after )
 
-let print_args (args : (string * string) list)
-  : instr list =
+let print_args (args : (string * string) list) : instr list =
   let module EU = ELF_utils in
   let rec call_with_arg
       (args : (string * string) list)
@@ -672,9 +736,9 @@ let parse_instr_from_code
       ignore (Sys.command ("gcc -no-pie -c ./plugins/instr_c/lib.c"));
     match stack with
     | [] ->
-      (* MAYBE: bruteforce print each argument as int, char*, and int* *)
       failwith
-        "number of arguments and their types need to be specified in stack"
+        ("number of arguments and their types need to be specified in stack. "
+         ^ "Failure at " ^ __LOC__)
     | args ->
       (* print args as specified *)
       print_args args
@@ -697,19 +761,24 @@ let parse_instr_from_code
 
 let apply
     ~(instrs : instr list)
+    ~(fbl : (string, bblock list) Hashtbl.t)
+    ~(bbl : bblock list)
     ~(funcs : func list)
     ~(fname_callsites : (string, int list) Hashtbl.t)
   : instr list =
   match !do_instrumentation with
   | true ->
     begin
-      (* populate points *)
-      parse_instrumentation ~funcs ~fname_callsites;
-      let rec add_instrumentation (instrs : instr list)
-          (points : point list) (acc : instr list) : instr list =
-        match instrs, points with
+      (* populate points_f1 and points_f2 *)
+      parse_instrumentation ~funcs ~fname_callsites ~instrs ~fbl ~bbl;
+      let rec add_instrumentation_f1
+          (instrs : instr list)
+          (points_f1 : point_f1 list)
+          (acc : instr list)
+        : instr list =
+        match instrs, points_f1 with
         | ([], _) -> List.rev acc
-        | (ih :: it, []) -> add_instrumentation it [] (ih :: acc)
+        | (ih :: it, []) -> add_instrumentation_f1 it [] (ih :: acc)
         | (ih :: it, ph :: pt) ->
           begin
             let ( p_addr, p_action, p_dir, p_stack,
@@ -733,7 +802,7 @@ let apply
                   | Some BEFORE | None -> ih :: add_seq
                   | Some AFTER -> add_seq @ [ih]
                 in
-                add_instrumentation it pt (acc' @ acc)
+                add_instrumentation_f1 it pt (acc' @ acc)
               | Some INSERTCALL ->
                 let add_seq =
                   parse_instr_from_code
@@ -749,9 +818,9 @@ let apply
                   | Some BEFORE | None -> ih :: add_seq
                   | Some AFTER -> add_seq @ [ih]
                 in
-                add_instrumentation it pt (acc' @ acc)
+                add_instrumentation_f1 it pt (acc' @ acc)
               | Some DELETE ->
-                add_instrumentation it pt acc
+                add_instrumentation_f1 it pt acc
               | Some REPLACE ->
                 let add_seq =
                   parse_instr_from_code
@@ -762,7 +831,7 @@ let apply
                     ~stack:[]
                     ~use_existing_arg:false
                 in
-               add_instrumentation it pt (add_seq @ acc)
+               add_instrumentation_f1 it pt (add_seq @ acc)
               | Some PRINTARGS ->
                 let add_seq =
                   parse_instr_from_code
@@ -778,18 +847,46 @@ let apply
                   | Some BEFORE | None -> ih :: add_seq
                   | Some AFTER ->
                     failwith
-                      "for PRINTARGS, can only insert before a call, not after"
+                      ("for PRINTARGS, can only insert before a call, not after."
+                       ^ " Failure at " ^ __LOC__)
                 in
-                add_instrumentation it pt (acc' @ acc)
+                add_instrumentation_f1 it pt (acc' @ acc)
               | _ ->
-                add_instrumentation it pt (ih :: acc)
+                add_instrumentation_f1 it pt (ih :: acc)
             end else if ih_addr > p_addr then
-              add_instrumentation instrs pt acc
+              add_instrumentation_f1 instrs pt acc
             else
-              add_instrumentation it points (ih :: acc)
+              add_instrumentation_f1 it points_f1 (ih :: acc)
           end
       in
-      add_instrumentation instrs !points []
+      let rec add_instrumentation_f2
+          (instrs : instr list)
+          (points_f2 : point_f2 list)
+        : instr list =
+        match points_f2 with
+        | [] -> instrs
+        | ph :: [] -> begin
+          let (user, module_path) = ph in
+          ignore (Sys.command ("dune build " ^ module_path));
+          load_plugin module_path;
+          let module M = (val get_plugin () : PLUGIN) in
+          let il = M.instrument instrs fbl bbl in
+          il
+        end
+        | ph :: pt -> begin
+          let (user, module_path) = ph in
+          ignore (Sys.command ("dune build " ^ module_path));
+          load_plugin module_path;
+          let module M = (val get_plugin () : PLUGIN) in
+          let il = M.instrument instrs fbl bbl in
+          add_instrumentation_f2 il pt
+        end
+      in
+      let il = add_instrumentation_f1 instrs !points_f1 [] in
+      let il = add_instrumentation_f2 il !points_f2 in
+      (* remove modifications made to dune just for the instrumentation *)
+      let _ = ignore (Sys.command ("git checkout dune")) in
+      il
     end
   | false -> instrs
 

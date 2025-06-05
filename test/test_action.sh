@@ -54,5 +54,5 @@ if [[ "$has_failed" == "true" ]]; then
   exit 1  
 fi
 
-echo "testing success"
+echo "testing success."
 rm "$tmpfile"

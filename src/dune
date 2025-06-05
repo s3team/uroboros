@@ -1,7 +1,163 @@
 (executable
  (name init)
+ (modules init)
  (public_name init)
- (libraries ppx_deriving batteries parmap)
+ (libraries ppx_deriving batteries parmap dynlink type pp_print ail_utils common_parser lex_new visit func_slicer parser arm_parser ail_parser ail)
  (preprocess (pps ppx_deriving.show))
  (ocamlopt_flags (:standard -inline 20 -nodynlink))
  (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name type)
+ (modules type)
+ (libraries ppx_deriving batteries parmap)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name pp_print)
+ (modules pp_print)
+ (libraries ppx_deriving batteries parmap type)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name ail_utils)
+ (modules ail_utils)
+ (libraries ppx_deriving batteries parmap pp_print)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name cg)
+ (modules cg)
+ (libraries ppx_deriving batteries parmap pp_print visit)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name cfg)
+ (modules cfg)
+ (libraries ppx_deriving batteries parmap pp_print visit)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name disassemble_validator)
+ (modules disassemble_validator)
+ (libraries ppx_deriving batteries parmap pp_print visit semantic_analysis reassemble_symbol_get)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name disassemble_process)
+ (modules disassemble_process)
+ (libraries ppx_deriving batteries parmap pp_print visit semantic_analysis reassemble_symbol_get disassemble_validator ail_parser)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name semantic_analysis)
+ (modules semantic_analysis)
+ (libraries ppx_deriving batteries parmap pp_print visit)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name analysis_process)
+ (modules analysis_process)
+ (libraries ppx_deriving batteries parmap pp_print ail_parser reassemble_symbol_get cfg cg disassemble_process)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name instrumentation)
+ (modules instrumentation)
+ (libraries ppx_deriving batteries parmap pp_print ail_parser reassemble_symbol_get cfg cg disassemble_process analysis_process dynlink)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39-50)))
+
+(library
+ (name ail)
+ (modules ail)
+ (libraries ppx_deriving batteries parmap pp_print ail_parser reassemble_symbol_get cfg cg disassemble_process analysis_process instrumentation)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name common_parser)
+ (modules common_parser)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name lex_new)
+ (modules lex_new)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name visit)
+ (modules visit)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser lex_new)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name func_slicer)
+ (modules func_slicer)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser lex_new visit)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name parser)
+ (modules parser)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser lex_new)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name arm_parser)
+ (modules arm_parser)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser parser)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name share_lib_helper)
+ (modules share_lib_helper)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser parser arm_parser func_slicer)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name data_process)
+ (modules data_process)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser parser arm_parser func_slicer)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name symbol_table_get)
+ (modules symbol_table_get)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser parser arm_parser func_slicer)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name reassemble_symbol_get)
+ (modules reassemble_symbol_get)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser parser arm_parser func_slicer share_lib_helper data_process symbol_table_get)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name ail_parser)
+ (modules ail_parser)
+ (libraries ppx_deriving batteries parmap pp_print ail_utils common_parser parser arm_parser func_slicer)
+ (wrapped false)
+ (flags (:standard -w -7-8-26-27-10-11-32-33-39)))
+

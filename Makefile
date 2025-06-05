@@ -1,7 +1,9 @@
-
+# Local CI or Regression Testing
 
 all:
-	( cd test && python3 test_all.py -a 2>&1 | tee ../test.all )
+	test/test_instrument.sh 2>&1 | tee test.instrument
+	rm src/points.ins
+	test/test_action.sh 2>&1 | tee test.all
 	test/test_coreutils.sh 2>&1 | tee test.coreutils
 
 clean:
