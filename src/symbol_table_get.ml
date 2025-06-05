@@ -2,10 +2,19 @@ open Ail_utils
 open Type
 open Pp_print
 
+let plt_map = Hashtbl.create 100
+let rela_plt_map = Hashtbl.create 100
+let rela_sym_map = Hashtbl.create 100
+
 let strip_symbol_prefix (s : string) : string =
   let len = String.length s in
   assert (len > 2);
   String.sub s 2 (len - 2)
+
+let strip_trailing_colon (s : string) : string =
+  if String.ends_with ~suffix:":" s then
+    String.sub s 0 (String.length s - 1)
+  else s
 
 let replace_at (c : char) : char =
   (* assembler rejects label containing @ *)
@@ -13,13 +22,57 @@ let replace_at (c : char) : char =
   | '@' -> '_'
   | _ -> c
 
-let parse () : (int, string) Hashtbl.t =
+let plt_mapping () =
+  let filelines = read_lines "plt_whole.info" in
+  let lines_key = List.filter (fun l -> contains ~str:l ~sub:"endbr") filelines
+  and lines_value =
+    List.filter
+      (fun l -> contains ~str:l ~sub:"_GLOBAL_OFFSET_TABLE_") filelines
+  in
+  List.iter2 (
+    fun kl vl ->
+      let k_lst = Str.split (Str.regexp "[ \t]+") kl in
+      let k = List.nth k_lst 0 |> strip_trailing_colon in
+      let v_lst = Str.split (Str.regexp "[ \t]+") vl in
+      let v_idx = (List.length v_lst) - 2 in
+      let v = List.nth v_lst v_idx in
+      Hashtbl.add plt_map (int_of_string ("0x"^k)) (int_of_string ("0x"^v))
+  ) lines_key lines_value
+
+let rela_plt_mapping () =
+  let filelines = read_lines "rela_plt.info" in
+  let filelines' = List.filter (
+    fun l -> contains ~str:l ~sub:"IRELATIV"
+  ) filelines in
+  List.iter (
+    fun l ->
+      let items = Str.split (Str.regexp "[ \t]+") l in
+      let k = List.nth items 0 in
+      let v = List.nth items 3 in
+      Hashtbl.add rela_plt_map (int_of_string ("0x"^k)) (int_of_string ("0x"^v))
+  ) filelines'
+
+let rela_sym_mapping () =
+  let filelines = read_lines "nm.info" in
+  let filelines' =
+    List.filter (fun l -> contains ~str:l ~sub:" i ") filelines
+  in
+  List.iter (
+    fun l ->
+      let items = Str.split (Str.regexp "[ \t]+") l in
+      let k = List.nth items 0 in
+      let v = List.nth items 2 in
+      Hashtbl.add rela_sym_map (int_of_string ("0x"^k)) (v)
+  ) filelines'
+
+let parse_nm () : (int, string) Hashtbl.t =
   let sym_addr2label = Hashtbl.create 100 in
   let seen = Hashtbl.create 100 in
   let filelines = read_lines "nm.info" in
   List.iter (
     fun l ->
       if not (contains ~str:l ~sub:" U ")
+        && not (contains ~str:l ~sub:" i ")
         && not (contains ~str:l ~sub:" w ")
         && not (contains ~str:l ~sub:" v ")
         && not (contains ~str:l ~sub:" V ")
@@ -39,12 +92,6 @@ let parse () : (int, string) Hashtbl.t =
             (Hashtbl.add sym_addr2label addr' symbol_name';
             Hashtbl.add seen symbol_name' "")
   ) filelines;
-  (*
-  Hashtbl.iter (
-    fun k v ->
-      print_endline ("@ "^dec_hex k^" "^v)
-  ) sym_addr2label;
-  *)
   sym_addr2label
 
 let is_call (i : instr) : bool =
@@ -82,8 +129,11 @@ let update_loc (i : instr) (new_loc : loc) : instr =
   | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op) -> 
     FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op)
 
-let update_fname2css (fname2css : (string, int list) Hashtbl.t)
-    (fname : string) (addr : int) : unit =
+let update_fname2css
+    (fname2css : (string, int list) Hashtbl.t)
+    (fname : string)
+    (addr : int)
+  : unit =
   match Hashtbl.find_opt fname2css fname with
   | Some css ->
     if not (List.mem addr css) then
@@ -95,8 +145,16 @@ let apply
     (il : instr list)
     (ufunc : func list)
   : instr list * func list * (string, int list) Hashtbl.t =
+  let module EU = ELF_utils in
+  (* TODO: rela_plt.info does not have the func addr column for 32-bit, so
+   *       need another method to do the mapping from plt entry to func symbol *)
+
+  if EU.elf_static () && EU.elf_64 () then
+    ( plt_mapping ();
+      rela_plt_mapping ();
+      rela_sym_mapping () );
   let fname2css = Hashtbl.create 100 in  (* function name to callsites list *)
-  let sym_addr2label = parse () in
+  let sym_addr2label = parse_nm () in
   let rec add_existing_symbols il acc =
     match il with
     | [] -> List.rev acc
@@ -121,12 +179,46 @@ let apply
               (Intel_OP (Intel_ControlOP CALL), Label sym_name, loc, prefix_op)
             in
             let new_acc = call'::acc in
-            (update_fname2css fname2css sym_name loc.loc_addr;
-            add_existing_symbols rest new_acc)
+            ( update_fname2css fname2css sym_name loc.loc_addr;
+              add_existing_symbols rest new_acc )
           | None -> 
-            (update_fname2css fname2css func_name loc.loc_addr;
-            add_existing_symbols rest (i' :: acc))
+            ( update_fname2css fname2css func_name loc.loc_addr;
+              add_existing_symbols rest (i' :: acc) )
         end
+      | DoubleInstr
+          ( Intel_OP (Intel_ControlOP CALL),
+            Symbol (CallDes {func_name; func_begin_addr; func_end_addr; is_lib}),
+            loc,
+            prefix_op ) ->
+            ( update_fname2css fname2css func_name loc.loc_addr;
+              add_existing_symbols rest (i' :: acc) )
+      | DoubleInstr
+          ( Intel_OP (Intel_ControlOP CALL),
+            Const (Point call_addr),
+            loc,
+            prefix_op ) ->
+          begin
+            match Hashtbl.find_opt plt_map call_addr with
+            | Some resolve_addr -> begin
+                match Hashtbl.find_opt rela_plt_map resolve_addr with
+                | Some func_addr -> begin
+                    match Hashtbl.find_opt rela_sym_map func_addr with
+                    | Some func_name ->
+                      let call' = DoubleInstr
+                        ( Intel_OP (Intel_ControlOP CALL),
+                          Label (func_name^"@PLT"),
+                          loc,
+                          prefix_op )
+                      in
+                      let new_acc = call'::acc in
+                      ( update_fname2css fname2css func_name loc.loc_addr;
+                        add_existing_symbols rest new_acc )
+                    | None -> add_existing_symbols rest (i' :: acc)
+                  end
+                | None -> add_existing_symbols rest (i' :: acc)
+              end
+            | None -> add_existing_symbols rest (i' :: acc)
+          end
       | _ -> add_existing_symbols rest (i' :: acc)
   in
   let il' = add_existing_symbols il [] in
