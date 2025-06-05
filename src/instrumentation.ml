@@ -174,7 +174,7 @@ let caller_saved_after : instr list =
           None )
     ]
 
-let read_lines_by_sep ~(f: string) ~(sep : char) : string list =
+let read_lines_by_sep ~(f : string) ~(sep : char) : string list =
   let ic = open_in f in
   let content = really_input_string ic (in_channel_length ic) in
   close_in ic;
@@ -234,7 +234,7 @@ let extract_location_range (loc : string) : location list =
   | _ -> failwith "invalid loc range"
 
 let create_points
-    (action: act option)
+    (action : act option)
     (dir : dir option)
     (locm : locm option)
     (stack : (string * string) list)
@@ -339,7 +339,7 @@ let create_points
       | Some CALLSITE ->
         begin match Hashtbl.find_opt fname2css s with
         | Some css ->
-          List.iter (fun addr ->
+          List.iter ( fun addr ->
             let p' =
               ( addr,
                 action,

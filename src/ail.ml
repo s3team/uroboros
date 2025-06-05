@@ -124,7 +124,7 @@ object (self)
   method pre_process =
     ignore (Sys.command("python3 pre_process.py"))
 
-  method instr_process f (arch: string) =
+  method instr_process (f : string) (arch : string) : unit =
     let open Disassemble_process in
     let open Analysis_process in
     let module D = Disam in
@@ -132,11 +132,11 @@ object (self)
     let module S = Symbol_table_get in
     let module I = Instrumentation in
     let _ = self#pre_process in
-    let (il, fl, re) = D.disassemble f funcs secs arch in
+    let il, fl, re = D.disassemble f funcs secs arch in
 
     print_endline "3: analysis";
 
-    let (fbl, bbl, cfg_t, cg, il', re, ufl) = A.analyze_one il fl re in
+    let fbl, bbl, cfg_t, cg, il', re, ufl = A.analyze_one il fl re in
 
     let il', ufl', fch = S.apply il' ufl in
 

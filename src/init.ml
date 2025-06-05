@@ -137,11 +137,11 @@ object (self)
     ignore (Sys.command("python3 filter_nop.py"));
     ignore (Sys.command("cut -f 1 instrs.info > text_mem.info"))
 
-  method user_func_process (f: string) : unit =
+  method user_func_process (f : string) : unit =
     ignore (Sys.command("cat "^f^".disassemble | grep \"<\" | grep \">:\" \
                         > userfuncs.info"))
 
-  method section_process_32 (f: string) : unit =
+  method section_process_32 (f : string) : unit =
     let module EU = ELF_utils in
     if EU.elf_static () then
         (ignore (Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | \
@@ -221,34 +221,33 @@ object (self)
     ignore (Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | \
                         awk '$2==\".plt\" {print $2,$4,$5,$6}' >> plt_sec.info"))
 
-  method externFuncProcess (f: string) : unit =
+  method externFuncProcess (f : string) : unit =
     ignore (Sys.command("readelf -r "^f^" | awk \'/JUMP_SLOT/ {print $1,$5} \' > \
                         externfuncs.info"))
 
-  method check_disassemble (f: string) : unit =
+  method check_disassemble (f : string) : unit =
     let ret = Sys.command("grep \"(bad)\" "^f^".temp > /dev/null") in
     if ret == 0 then
       failwith "detect disassembly error"
 
-  method export_tbl_dump (f: string) : unit =
+  method export_tbl_dump (f : string) : unit =
     ignore (Sys.command("readelf -s "^f^" | grep GLOBAL > export_tbl.info"))
 
-  method plt_process (f: string) : unit =
+  method plt_process (f : string) : unit =
     ignore (Sys.command(objdump_command ^  " -j .plt -Dr "^f^" | grep \">:\" > \
                                             plts.info"))
 
-  method extern_data_process (f: string) : unit =
+  method extern_data_process (f : string) : unit =
     ignore (Sys.command("readelf -r "^f^" | awk \'/GLOB_DAT/ {print $5} \' > \
                         externdatas.info"))
 
-  method ail_process (f: string) : unit =
+  method ail_process (f : string) : unit =
     let processor = new ail in
     processor#sections;
     processor#userfuncs;
     processor#externdatas;
     processor#global_bss;
     processor#instr_process f arch
-
 end
 
 let check_strip (f : string) : bool =
@@ -298,12 +297,12 @@ let main () =
     if Sys.file_exists elf then
       let _ = clear_code in
       (* Initialize Random so it won't use the default seed *)
-      let _ = Random.self_init() in
+      let _ = Random.self_init () in
       let init = new ailInit in
-      (init#init arch bit_mode;
-      init#disassemble elf arch;
-      init#process elf arch bit_mode;
-      init#ail_process(elf))
+      ( init#init arch bit_mode;
+        init#disassemble elf arch;
+        init#process elf arch bit_mode;
+        init#ail_process(elf) )
     else
       print_string ("binary file "^elf^" doesn't exist\n")
 

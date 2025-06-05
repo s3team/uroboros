@@ -188,6 +188,9 @@ def process(f, i, arch):
         os.system(f"echo \"{str(i)}\" > count.txt")
         os.system(f"cp {f} {f}.sym")
         os.system(f"nm {f}.sym > nm.info")
+        if check_static():
+            os.system(f"objdump -d --section=.plt {f} > plt_whole.info")
+            os.system(f"readelf -r {f} > rela_plt.info")
         os.system(f"{strip_command} {f}")
 
         dump(f)

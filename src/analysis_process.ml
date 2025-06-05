@@ -19,7 +19,7 @@ module Analysis = struct
       let addr' = String.uppercase_ascii addr
       and value = String.trim (List.nth items 2)  in
       let rtype = String.trim (List.nth items 1) in
-      (addr', value, rtype)::acc
+      (addr', value, rtype) :: acc
     in
     List.fold_left help [] filelines
 
@@ -55,12 +55,12 @@ module Analysis = struct
     let cfg_t = cfg#get_cfg_table il' in
     let cg = cg#get_cg_table in
     let il = re#add_bblock_label bbl il' in
-    (fbl, bbl, cfg_t, cg, il, re, u_fl)
+    ( fbl, bbl, cfg_t, cg, il, re, u_fl )
 
   let post_analyze il re =
     ( re#unify_loc il
       |> pp_print_list
       |> re#adjust_globallabel @@ global_bss ()
-      |> pp_print_file)
+      |> pp_print_file )
 
   end
