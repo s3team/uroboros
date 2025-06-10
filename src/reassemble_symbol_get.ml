@@ -15,7 +15,7 @@ exception Reassemble_Error of string;;
 
 type ft = {fn : string; fbaddr : int; feaddr : int}
 
-class datahandler (label' : (string*int) list) =
+class datahandler (label' : (string * int) list) (align' : (string * int) list) =
   object (self)
     val mutable sec : section list = []
     val mutable data : string list = []
@@ -38,6 +38,7 @@ class datahandler (label' : (string*int) list) =
     val mutable text_labels_reloc : int list = []
 
     val mutable label : (string*int) list = label'  (* data section, address *)
+    val mutable align : (string * int) list = align'
     val mutable label_set : (int) list = []
 
     val mutable data_list: (string*string) list = []
@@ -64,6 +65,7 @@ class datahandler (label' : (string*int) list) =
 
     val mutable text_sec: (int*int) = (0,0)  (* begin addr, size*)
     val mutable locations = []
+    val mutable align_locations = Hashtbl.create 90
 
     val mutable in_jmptable = false
 
@@ -102,6 +104,7 @@ class datahandler (label' : (string*int) list) =
 
       (* locations are sec,offset where labels need to be added *)
       locations <- self#label_locate;
+      align_locations <- self#align_locate;
 
       label_set <- List.map snd label;
       label_set <- List.sort compare label_set;
@@ -932,7 +935,6 @@ class datahandler (label' : (string*int) list) =
       List.iter p#set_list data_list;
       p#get_list
 
-
     method label_locate =
       let rec help l acc =
         match l with
@@ -940,6 +942,15 @@ class datahandler (label' : (string*int) list) =
           (s,offset)::acc
         | [] -> acc in
       List.fold_left help label []
+
+    method align_locate =
+      let res = Hashtbl.create 10 in
+      let create_table a =
+        let s, l = a in
+        Hashtbl.replace res (s,l) "";
+      in
+      List.iter create_table align;
+      res
 
     method add_data_label =
       let p = object(sp)
@@ -1020,49 +1031,79 @@ class datahandler (label' : (string*int) list) =
                   ( let off = l - (self#section_addr ".data") in
                     let s' = dec_hex l
                     and (s,d) = data_array.(off) in
+                    let alignment =
+                      match Hashtbl.find_opt align_locations (n, l) with
+                      | Some _ -> ".p2align 4\n"
+                      | None -> ""
+                    in
                     (match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (data_array.(off) <- (sym_label^":\n"^s', d))
-                    | None -> (data_array.(off) <- (s', d)));
+                    | Some sym_label -> (data_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | None -> (data_array.(off) <- (alignment^s', d)));
                     help t )
                 | ".rodata" ->
                   ( let off = l - (self#section_addr ".rodata") in
                     let s' = dec_hex l
                     and (s,d) = rodata_array.(off) in
+                    let alignment =
+                      match Hashtbl.find_opt align_locations (n, l) with
+                      | Some _ -> ".p2align 4\n"
+                      | None -> ""
+                    in
                     (match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (rodata_array.(off) <- (sym_label^":\n"^s', d))
-                    | None -> (rodata_array.(off) <- (s', d)));
+                    | Some sym_label -> (rodata_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | None -> (rodata_array.(off) <- (alignment^s', d)));
                     help t )
                 | ".got" ->
                   ( let off = l - (self#section_addr ".got") in
                     let s' = dec_hex l
                     and (s,d) = got_array.(off) in
+                    let alignment =
+                      match Hashtbl.find_opt align_locations (n, l) with
+                      | Some _ -> ".p2align 4\n"
+                      | None -> ""
+                    in
                     (match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (got_array.(off) <- (sym_label^":\n"^s', d))
-                    | None -> (got_array.(off) <- (s', d)));
+                    | Some sym_label -> (got_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | None -> (got_array.(off) <- (alignment^s', d)));
                     help t )
                 | ".bss" ->
                   ( let off = l - (self#section_addr ".bss") in
                     let s' = dec_hex l
                     and (s,d) = bss_array.(off) in
+                    let alignment =
+                      match Hashtbl.find_opt align_locations (n, l) with
+                      | Some _ -> ".p2align 4\n"
+                      | None -> ""
+                    in
                     (match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (bss_array.(off) <- (sym_label^":\n"^s', d))
-                    | None -> (bss_array.(off) <- (s', d)));
+                    | Some sym_label -> (bss_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | None -> (bss_array.(off) <- (alignment^s', d)));
                     help t )
                 | ".data.rel.ro" ->
                   ( let off = l - (self#section_addr ".data.rel.ro") in
                     let s' = dec_hex l
                     and (s,d) = data_rel_ro_array.(off) in
+                    let alignment =
+                      match Hashtbl.find_opt align_locations (n, l) with
+                      | Some _ -> ".p2align 4\n"
+                      | None -> ""
+                    in
                     (match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (data_rel_ro_array.(off) <- (sym_label^":\n"^s', d))
-                    | None -> (data_rel_ro_array.(off) <- (s', d)));
+                    | Some sym_label -> (data_rel_ro_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | None -> (data_rel_ro_array.(off) <- (alignment^s', d)));
                     help t )
                 | "rodata.cst32" ->
                   ( let off = l - (self#section_addr "rodata.cst32") in
                     let s' = dec_hex l in
                     let (s,d) = rodata_cst32_array.(off) in
+                    let alignment =
+                      match Hashtbl.find_opt align_locations (n, l) with
+                      | Some _ -> ".p2align 4\n"
+                      | None -> ""
+                    in
                     (match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (rodata_cst32_array.(off) <- (sym_label^":\n"^s', d))
-                    | None -> (rodata_cst32_array.(off) <- (s', d)));
+                    | Some sym_label -> (rodata_cst32_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | None -> (rodata_cst32_array.(off) <- (alignment^s', d)));
                     help t )
                 | _ ->
                   let module EU = ELF_utils in
@@ -1073,17 +1114,27 @@ class datahandler (label' : (string*int) list) =
                         ( let off = l - (self#section_addr "__libc_IO_vtables") in
                           let s' = dec_hex l
                           and (s,d) = __libc_IO_vtables_array.(off) in
+                          let alignment =
+                            match Hashtbl.find_opt align_locations (n, l) with
+                            | Some _ -> ".p2align 4\n"
+                            | None -> ""
+                          in
                           (match Hashtbl.find_opt sym_addr2label l with
-                          | Some sym_label -> (__libc_IO_vtables_array.(off) <- (sym_label^":\n"^s', d))
-                          | None -> (__libc_IO_vtables_array.(off) <- (s', d)));
+                          | Some sym_label -> (__libc_IO_vtables_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                          | None -> (__libc_IO_vtables_array.(off) <- (alignment^s', d)));
                           help t )
                       | "__libc_freeres_ptrs" ->
                         ( let off = l - (self#section_addr "__libc_freeres_ptrs") in
                           let s' = dec_hex l
                           and (s,d) = __libc_freeres_ptrs_array.(off) in
+                          let alignment =
+                            match Hashtbl.find_opt align_locations (n, l) with
+                            | Some _ -> ".p2align 4\n"
+                            | None -> ""
+                          in
                           (match Hashtbl.find_opt sym_addr2label l with
-                          | Some sym_label -> (__libc_freeres_ptrs_array.(off) <- (sym_label^":\n"^s', d))
-                          | None -> (__libc_freeres_ptrs_array.(off) <- (s', d)));
+                          | Some sym_label -> (__libc_freeres_ptrs_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                          | None -> (__libc_freeres_ptrs_array.(off) <- (alignment^s', d)));
                           help t )
                       | ".tbss" ->
                         help t
@@ -1537,6 +1588,7 @@ class reassemble =
     inherit ailVisitor
 
     val mutable label : (string*int) list = []
+    val mutable align : (string * int) list = []
     (* collect relocation info in c2d *)
     val mutable c2d_addr: int list = []
     val mutable deslist: string list = []
@@ -1734,6 +1786,13 @@ class reassemble =
                       Hashtbl.replace data_set l' "";
                       let s_label = (self#build_symbol l) in
                       label <- (s.sec_name, l')::label;
+                      let i_op = get_op i in
+                      ( match i_op with
+                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                        align <- (s.sec_name, l') :: align
+                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                        align <- (s.sec_name, l') :: align
+                      | _ -> () );
                       let loc' = get_loc i in
                       c2d_addr <- (loc'.loc_addr)::c2d_addr;
                       Label s_label
@@ -1863,6 +1922,13 @@ class reassemble =
                       Hashtbl.replace data_set addr "";
                       let s_label = "S_"^(dec_hex addr) in
                       label <- (s.sec_name, addr)::label;
+                      let i_op = get_op i in
+                      ( match i_op with
+                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | _ -> () );
                       let loc' = get_loc i in
                       c2d_addr <- (loc'.loc_addr)::c2d_addr;
                       Ptr (BinOP_PLUS_S (r,s_label))
@@ -1905,6 +1971,13 @@ class reassemble =
                       Hashtbl.replace data_set addr "";
                       let s_label = "S_"^(dec_hex addr) in
                       label <- (s.sec_name, addr)::label;
+                      let i_op = get_op i in
+                      ( match i_op with
+                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | _ -> () );
                       let loc' = get_loc i in
                       c2d_addr <- (loc'.loc_addr)::c2d_addr;
                       Ptr (BinOP_MINUS_S (r,s_label))
@@ -1929,6 +2002,13 @@ class reassemble =
                       Hashtbl.replace data_set addr "";
                       let s_label = "S_"^(dec_hex addr) in
                       label <- (s.sec_name, addr)::label;
+                      let i_op = get_op i in
+                      ( match i_op with
+                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | _ -> () );
                       let loc' = get_loc i in
                       c2d_addr <- (loc'.loc_addr)::c2d_addr;
                       Ptr (FourOP_PLUS_S (r1,r2,off,s_label))
@@ -1954,6 +2034,13 @@ class reassemble =
                       Hashtbl.replace data_set addr "";
                       let s_label = "S_"^(dec_hex addr) in
                       label <- (s.sec_name, addr)::label;
+                      let i_op = get_op i in
+                      ( match i_op with
+                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | _ -> () );
                       let loc' = get_loc i in
                       c2d_addr <- (loc'.loc_addr)::c2d_addr;
                       Ptr (FourOP_PLUS_S (r1,r2,off,s_label))
@@ -1978,6 +2065,13 @@ class reassemble =
                       Hashtbl.replace data_set addr "";
                       let s_label = "S_"^(dec_hex addr) in
                       label <- (s.sec_name, addr)::label;
+                      let i_op = get_op i in
+                      ( match i_op with
+                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | _ -> () );
                       let loc' = get_loc i in
                       c2d_addr <- (loc'.loc_addr)::c2d_addr;
                       Ptr (JmpTable_PLUS_S (s_label, r, off))
@@ -2023,6 +2117,13 @@ class reassemble =
                       Hashtbl.replace data_set addr "";
                       let s_label = "-S_"^(dec_hex addr) in
                       label <- (s.sec_name, addr)::label;
+                      let i_op = get_op i in
+                      ( match i_op with
+                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                        align <- (s.sec_name, addr) :: align
+                      | _ -> () );
                       let loc' = get_loc i in
                       c2d_addr <- (loc'.loc_addr)::c2d_addr;
                       Ptr (JmpTable_MINUS_S (s_label, r, off))
@@ -2270,7 +2371,7 @@ class reassemble =
       self#dump_c2d_labels c2d_addr;
       let export_datas = self#export_data_dump in
       let t = List.rev_append (List.rev label) export_datas in
-      let p = new datahandler t in
+      let p = new datahandler t align in
       p#text_sec_collect;
       p#set_datas funcs;
       let templist = p#get_textlabel in
@@ -2282,7 +2383,7 @@ class reassemble =
         "S_0x"^(Printf.sprintf "%X" s) in
       let export_datas = self#export_data_dump in
       let t = List.rev_append (List.rev label) export_datas in
-      let p = new datahandler t in
+      let p = new datahandler t align in
       p#text_sec_collect;
       p#set_datas_1;
       let templist = p#get_textlabel in
