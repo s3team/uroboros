@@ -23,7 +23,8 @@ per-line in the two formats described below.
 for executables `test00.32.nopie.dynamic.sym` and `test00.64.nopie.dynamic.sym`;
 `points.test05.32.ins` and `points.test05.64.ins`
 for executables `test05.32.nopie.dynamic.sym` and `test05.64.nopie.dynamic.sym`; and
-`points.test07.64.ins` for executable `test07.64.nopie.dynamic.sym`.
+`points.test07.32.ins` and `points.test07.64.ins`
+for executables `test07.32.nopie.dynamic.sym` and `test07.64.nopie.dynamic.sym`.
 
 The first format allows a user to specify the instrumentation points using
 a natural language-like, domain-specific language.
@@ -159,7 +160,7 @@ The above will insert a call to `print_args` (defined in `fun.c`) using argument
 ```
 INSERTCALL BEFORE [0x401170] SELF [var:A] "gcc -c ./fun.c" C print_int ./fun.c;
 ```
-The above will insert a call to `print_int` (defined in `fun.c`) with argument `A` (defined in the binary) before memory address 0x401175. 
+The above will insert a call to `print_int` (defined in `fun.c`) with argument `A` (defined in the binary) before memory address 0x401170.
 
 ```
 INSERTCALL BEFORE [0x401184] SELF [var:X] "gcc -c ./fun.c" C print_string ./fun.c;

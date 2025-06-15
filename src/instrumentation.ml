@@ -26,6 +26,11 @@ let stub_loc : loc = {
   loc_visible = true
 }
 
+let remove_from_str ch s =
+  match String.index_opt s ch with
+  | Some i -> String.sub s 0 i
+  | None -> s
+
 let caller_saved_before : instr list =
   let module EU = ELF_utils in
   if EU.elf_32 () then
@@ -177,8 +182,12 @@ let caller_saved_after : instr list =
 let read_lines_by_sep ~(f : string) ~(sep : char) : string list =
   let ic = open_in f in
   let content = really_input_string ic (in_channel_length ic) in
-  close_in ic;
-  String.split_on_char sep content
+  let _ = close_in ic in
+  let content_nocomments = List.map (
+    fun s -> remove_from_str '#' s
+  ) (String.split_on_char '\n' content) in
+  let content' = String.concat "\n" content_nocomments in
+  String.split_on_char sep content'
 
 let count_char ~(s : string) ~(c : char) : int =
   String.fold_left (fun acc x -> if x = c then acc + 1 else acc) 0 s
@@ -440,7 +449,6 @@ let arg_order_64 i =
 
 let set_arg i arg =
   let module EU = ELF_utils in
-  let dest_arg_reg = arg_order_64 i in
   if EU.elf_32 () then
     DoubleInstr
       ( Intel_OP (Intel_StackOP PUSH),
@@ -448,6 +456,7 @@ let set_arg i arg =
         stub_loc,
         None )
   else
+    let dest_arg_reg = arg_order_64 i in
     TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
         Reg (Intel_Reg dest_arg_reg),
@@ -480,7 +489,10 @@ let add_call_seq_arg
     | "char*" | "char *" | "int*" | "int *" ->
       Label _value
     | "print-arg" ->
-      Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
+      if EU.elf_32 () then
+        failwith "for PRINTARGS 32-bits, should not reach here"
+      else
+        Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
   in
   let args' = List.map (
     parse_arg
@@ -569,6 +581,7 @@ let add_call_seq
 
 let print_args (args : (string * string) list)
   : instr list =
+  let module EU = ELF_utils in
   let rec call_with_arg
       (args : (string * string) list)
       (i : int)
@@ -577,19 +590,68 @@ let print_args (args : (string * string) list)
     match args with
     | [] -> List.rev acc
     | (t, v) :: rest ->
-      let call_seq =
+      if EU.elf_32 () then
         let code_ep =
           match t with
           | "int" -> "print_int_arg"
           | "char*" | "char *" -> "print_char_star_arg"
           | "int*" | "int *" -> "print_int_star_arg"
         in
-        let arg_i = string_of_int i in
-        List.rev
-          ( add_call_seq_arg
-              ~ins_loc:stub_loc ~code_ep ~args:[("print-arg", arg_i)] )
-      in
-      call_with_arg rest (i+1) (call_seq @ acc)
+        let esp_arg_i = 4 * (i + 1) in
+        let call_seq = [ DoubleInstr
+          ( Intel_OP (Intel_StackOP (PUSH)),
+            Reg (Intel_Reg (Intel_CommonReg EAX)),
+            stub_loc,
+            None );
+          TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+            Reg (Intel_Reg (Intel_CommonReg EAX)),
+            Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), esp_arg_i)),
+            stub_loc,
+            None );
+          DoubleInstr
+          ( Intel_OP (Intel_StackOP (PUSH)),
+            Reg (Intel_Reg (Intel_CommonReg EAX)),
+            stub_loc,
+            None );
+          DoubleInstr
+          ( Intel_OP (Intel_ControlOP (CALL)),
+            Symbol (
+              CallDes {
+                func_name=code_ep;
+                func_begin_addr=0;
+                func_end_addr=0;
+                is_lib=false;
+              }
+            ),
+            stub_loc,
+            None );
+          DoubleInstr
+            ( Intel_OP (Intel_StackOP (POP)),
+              Reg (Intel_Reg (Intel_CommonReg EAX)),
+              stub_loc,
+              None );
+          DoubleInstr
+            ( Intel_OP (Intel_StackOP (POP)),
+              Reg (Intel_Reg (Intel_CommonReg EAX)),
+              stub_loc,
+              None ) ]
+        in
+        call_with_arg rest (i+1) (call_seq @ acc)
+      else
+        let call_seq =
+          let code_ep =
+            match t with
+            | "int" -> "print_int_arg"
+            | "char*" | "char *" -> "print_char_star_arg"
+            | "int*" | "int *" -> "print_int_star_arg"
+          in
+          let arg_i = string_of_int i in
+          List.rev
+            ( add_call_seq_arg
+                ~ins_loc:stub_loc ~code_ep ~args:[("print-arg", arg_i)] )
+        in
+        call_with_arg rest (i+1) (call_seq @ acc)
   in
   call_with_arg args 0 []
 
@@ -601,9 +663,13 @@ let parse_instr_from_code
     ~(stack : (string * string) list)
     ~(use_existing_arg : bool)
   : instr list =
+  let module EU = ELF_utils in
   if cmd = "" && code_ep = "x" && code = "x" then begin
     (* action PRINTARGS *)
-    ignore (Sys.command ("gcc -no-pie -c ./lib.c"));
+    if EU.elf_32 () then
+      ignore (Sys.command ("gcc -no-pie -c ./plugins/instr_c/lib.c -m32"))
+    else
+      ignore (Sys.command ("gcc -no-pie -c ./plugins/instr_c/lib.c"));
     match stack with
     | [] ->
       (* MAYBE: bruteforce print each argument as int, char*, and int* *)
