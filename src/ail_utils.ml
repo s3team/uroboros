@@ -7,7 +7,7 @@ open Type
 
 type cfgi = {preds: (instr option, instr option list) Hashtbl.t;
               succs: (instr option, instr option list) Hashtbl.t;
-              il: instr list} 
+              il: instr list}
 
 
 module IntOrder : Set.OrderedType = struct
@@ -1462,21 +1462,26 @@ module Func_utils = struct
         let func2il_table = func2il il in
         let rec create_cfg f (f_il:instr list) pred_cfg succ_cfg =
           match f_il with
-          | [] -> Hashtbl.replace func2cfg_table f.func_name {preds = pred_cfg; succs = succ_cfg; il = (Hashtbl.find func2il_table f.func_name)}
+          | [] ->
+            let ordered_il = List.rev (Hashtbl.find func2il_table f.func_name) in
+            Hashtbl.replace func2cfg_table f.func_name
+              {preds = pred_cfg; succs = succ_cfg; il = ordered_il}
           | i::[] ->
             let succ_cfg = add_edge succ_cfg (Some i) None in
-            Hashtbl.replace func2cfg_table f.func_name {preds = pred_cfg; succs = succ_cfg; il = (Hashtbl.find func2il_table f.func_name)}
+            let ordered_il = List.rev (Hashtbl.find func2il_table f.func_name) in
+            Hashtbl.replace func2cfg_table f.func_name
+              {preds = pred_cfg; succs = succ_cfg; il = ordered_il}
           | i::i'::il' ->
             let i_op = get_op i in
             let _ = match i_op with
             | Intel_OP (Intel_ControlOP (Intel_Jump JMP)) -> ()
-            | Intel_OP (Intel_ControlOP RET) | Intel_OP (Intel_ControlOP RETN) 
-            | Intel_OP (Intel_ControlOP RETQ) | Intel_OP (Intel_ControlOP LEAVE) 
+            | Intel_OP (Intel_ControlOP RET) | Intel_OP (Intel_ControlOP RETN)
+            | Intel_OP (Intel_ControlOP RETQ) | Intel_OP (Intel_ControlOP LEAVE)
             | Intel_OP (Intel_ControlOP LEAVEQ) -> ()
-            | _ -> 
+            | _ ->
               let pred_cfg = add_edge pred_cfg (Some i') (Some i) in
               let succ_cfg = add_edge succ_cfg (Some i) (Some i') in ()
-            in 
+            in
             let pred_cfg =
               match get_ct_des i with
               | Some d ->
