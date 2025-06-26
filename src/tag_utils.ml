@@ -43,6 +43,7 @@ module TagUtils = struct
         new_i
     | _ -> i
 
+  (** Sym tag is handled in [Arm_reassemble_symbol_get#vinst2]. *)
   let handle_sym (ilist : instr list) =
     let rec help ilist acc =
       match ilist with
@@ -85,5 +86,5 @@ module TagUtils = struct
     help ilist []
 
   let process_tags (ilist : instr list) : instr list =
-    handle_sym ilist |> handle_deref |> handle_del
+    handle_deref ilist |> handle_del
 end

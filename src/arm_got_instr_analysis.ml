@@ -191,13 +191,17 @@ module ArmGotAbs : DfaAbs = struct
             let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
             match get_register_value dst_reg_name with
             | Some dst_reg_value ->
-                let help addr =
+                let check_and_replace_instr addr =
+                  (* check addr and replace current instruction if necessary *)
                   let module AR = Arm_reassemble_symbol_get in
                   let arm_reassemble = new AR.arm_reassemble in
                   let sec = arm_reassemble#check_sec addr in
                   match sec with
                   | Some s ->
-                      if s.sec_name = ".rodata" then
+                      if
+                        s.sec_name = ".rodata" || s.sec_name = ".bss"
+                        || s.sec_name = ".data.rel.ro"
+                      then
                         let tag = Some (Sym addr) in
                         let ldr_op =
                           Arm_OP (Arm_CommonOP (Arm_Assign LDR), None)
@@ -214,7 +218,7 @@ module ArmGotAbs : DfaAbs = struct
                 let sum = pc + dst_reg_value in
                 let mod_sum = sum - (sum mod 4) in
                 let _ = update_registers dst_reg_name mod_sum in
-                let _ = help mod_sum in
+                let _ = check_and_replace_instr mod_sum in
                 if mod_sum = !got_addr then
                   (* gen *)
                   let _ = ExpSet.remove e2 outs in

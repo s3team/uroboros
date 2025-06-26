@@ -115,6 +115,8 @@ def disassemble_arm_thumb_binary(filename, output_dir):
     with open(f"{output_path}", "w") as f:
         f.writelines(result_lines)
 
+    os.system(f"rm {filename}.temp.thumb")
+
 
 def disassemble_text_section_as_data(fn):
     """
