@@ -31,19 +31,42 @@ def get_inputs(args):
     return target_list
 
 
-def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool):
+def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool, isa: str):
     if source.exists() is False:
         logger.error(f"Source code not found at {source}")
         return
 
-    compile_args = [
-        "gcc",
-        "-m32" if arch == 32 else "-m64",
-        "-no-pie" if pie is False else "-pie",
-        "-o",
-        str(binary),
-        str(source),
-    ]
+    compiler = None
+    if isa == "intel":
+        compiler = "gcc"
+    elif isa == "arm" and arch == 32:
+        compiler = "arm-linux-gnueabihf-gcc"
+    elif isa == "arm" and arch == 64:
+        compiler = "aarch64-linux-gnu-gcc"
+    else:
+        logger.error(f"Unsupported architecture {isa} for {arch}-bit compilation")
+        return
+
+    if isa == "intel":
+        compile_args = [
+            compiler,
+            "-m32" if arch == 32 else "-m64",
+            "-no-pie" if pie is False else "-pie",
+            "-o",
+            str(binary),
+            str(source),
+        ]
+    elif isa == "arm":
+        compile_args = [
+            compiler,
+            "-no-pie" if pie is False else "-pie",
+            "-o",
+            str(binary),
+            str(source),
+        ]
+    else:
+        logger.error(f"Unsupported ISA {isa}")
+        return
 
     if static:
         compile_args.append("-static")
@@ -53,13 +76,23 @@ def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool):
 
     logger.debug(f"Compiling {source} with args: {compile_args}")
     subprocess.run(compile_args, check=True)
+
+    strip_cmd = None
+    if isa == "intel":
+        strip_cmd = "strip"
+    elif isa == "arm":
+        if arch == 32:
+            strip_cmd = "arm-linux-gnueabihf-strip"
+        elif arch == 64:
+            strip_cmd = "aarch64-linux-gnu-strip"
     subprocess.run(["cp", str(binary), str(binary)+".sym"], check=True)
-    subprocess.run(["strip", str(binary)], check=True)
+    subprocess.run([strip_cmd, str(binary)], check=True)
+
     if binary.exists() is False:
         logger.error(f"Compilation failed for {source}")
 
 
-def run_uroboros(binary: Path):
+def run_uroboros(binary: Path, isa: str):
     if binary.exists() is False:
         logger.error(f"Target file not found at {binary}")
         return
@@ -67,13 +100,17 @@ def run_uroboros(binary: Path):
         return
 
     uroboros_args = [uroboros, binary]
+    if isa == "arm":
+        uroboros_args.append("--arch")
+        uroboros_args.append("arm")
+
     logger.debug(f"Running Uroboros with args: {uroboros_args}")
     res = subprocess.run(uroboros_args, capture_output=True, cwd=uroboros_dir)
     output = res.stdout.decode("utf-8")
     output_bin = uroboros_dir / "a.out"
     if "processing succeeded" in output and output_bin.exists():
         output_bin = output_bin.replace(binary.with_name(binary.name + ".out"))
-        if test_recompiled_binary(binary, output_bin):
+        if test_recompiled_binary(binary, output_bin, isa):
             logger.info(f"Uroboros succeeded on {binary.name}")
             compare_size(binary, output_bin)
     else:
@@ -94,7 +131,7 @@ def run_uroboros(binary: Path):
             tmp.unlink()
 
 
-def test_recompiled_binary(raw: Path, recompiled: Path):
+def test_recompiled_binary(raw: Path, recompiled: Path, isa: str):
     args = []
 
     if raw.name.startswith("test04"):
@@ -104,8 +141,19 @@ def test_recompiled_binary(raw: Path, recompiled: Path):
     # for statically-linked testcases, they output correctly to console
     # though the outputs are not captured by stdout
     # this may or may not be an issue in the future
-    raw_output = subprocess.run(["script", "-q", "-c", str(raw)] + args, capture_output=True)
-    recompiled_output = subprocess.run(["script", "-q", "-c", str(recompiled)] + args, capture_output=True)
+    raw_cmd = None
+    recompiled_cmd = None
+    if isa == "intel":
+        raw_cmd = ["script", "-q", "-c", str(raw)]
+        recompiled_cmd = ["script", "-q", "-c", str(recompiled)]
+    elif isa == "arm":
+        qemu_raw_cmd = f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(raw)}"
+        qemu_recompiled_command = f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(recompiled)}"
+        raw_cmd = ["script", "-q", "-c", qemu_raw_cmd]
+        recompiled_cmd = ["script", "-q", "-c", qemu_recompiled_command]
+
+    raw_output = subprocess.run(raw_cmd + args, capture_output=True)
+    recompiled_output = subprocess.run(recompiled_cmd + args, capture_output=True)
 
     if raw_output.returncode != recompiled_output.returncode:
         logger.error(f"Return code mismatch for {raw.name}")
@@ -144,23 +192,35 @@ def compare_size(raw: Path, recompiled: Path):
 
 def uroboros_all(targets: list, args):
     arches = [args.m] if args.m is not None else [32, 64]
+    isas = [args.arch] if args.arch is not None else ["intel", "arm"]
     pies = [not args.no_pie] if args.no_pie is True else [False]  # TODO: pie support
     statics = [args.static] if args.static is True else [True, False]
-    for arch in arches:
-        for pie in pies:
-            for static in statics:
-                for source in targets:
-                    binary_dir = source.parent / source.stem
-                    if binary_dir.exists() is False:
-                        binary_dir.mkdir()
-                    binary = (
-                        binary_dir
-                        / f"{source.stem}.{arch}.{'pie' if pie else 'nopie'}.{'static' if static else 'dynamic'}"
-                    )
+    for isa in isas:
+        for arch in arches:
+            if isa == "arm" and arch == 64:
+                logger.warning("ARM 64-bit architecture is not supported")
+                continue
+
+            for pie in pies:
+                for static in statics:
+                    if isa == "arm" and static is True:
+                        logger.warning(
+                            f"Static linking is not supported for ARM architecture"
+                        )
+                        continue
+
+                    for source in targets:
+                        binary_dir = source.parent / source.stem
+                        if binary_dir.exists() is False:
+                            binary_dir.mkdir()
+                        binary = (
+                            binary_dir
+                            / f"{source.stem}.{isa}.{arch}.{'pie' if pie else 'nopie'}.{'static' if static else 'dynamic'}"
+                        )
 
                     # always compile
                     #if binary.exists() is False or args.force:
-                    compile_bin(source, binary, arch, pie, static)
+                    compile_bin(source, binary, arch, pie, static, isa)
                     if not args.compile:
                         run_uroboros(binary)
 
@@ -200,6 +260,7 @@ if __name__ == "__main__":
     test_args.add_argument(
         "-g", "--debug-symbol", action="store_true", help="Compile with debug symbols"
     )
+    test_args.add_argument("--arch", type=str, help="Architecture to compile for")
     # test_args.add_argument(
     #     "--lib",
     #     action="store_true",
