@@ -222,7 +222,7 @@ def uroboros_all(targets: list, args):
                     #if binary.exists() is False or args.force:
                     compile_bin(source, binary, arch, pie, static, isa)
                     if not args.compile:
-                        run_uroboros(binary)
+                        run_uroboros(binary, isa)
 
 
 if __name__ == "__main__":
