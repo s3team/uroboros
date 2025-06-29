@@ -106,7 +106,7 @@ module ArmGotAbs : DfaAbs = struct
     match i with
     | DoubleInstr (p, e, loc, _, _, _) -> begin
         match (p, e) with
-        | Arm_OP (Arm_StackOP POP, _), Label label ->
+        | Arm_OP (Arm_StackOP POP, _, _), Label label ->
             (* pop {r4,r7,pc}
              * Currently, we handle {...} exp as a Label.
              * See [Arm_parser.exp_symb] for details. *)
@@ -127,7 +127,7 @@ module ArmGotAbs : DfaAbs = struct
       end
     | TripleInstr (p, e1, e2, loc, prefix, _, _) -> begin
         match (p, e1, e2) with
-        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), imm)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             let pc_relative_addr = AU.get_pc_relative_addr "thumb" i in
@@ -153,7 +153,7 @@ module ArmGotAbs : DfaAbs = struct
               in
               failwith "check literal pools."
           end
-        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_CommonReg src), imm)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             (* a case that a common reg points to a literal pool *)
@@ -180,12 +180,12 @@ module ArmGotAbs : DfaAbs = struct
                 (* cannot get the value of the src register *)
                 outs
           end
-        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             _,
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             ExpSet.remove e2 outs
           end
-        | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Reg (Arm_Reg (Arm_PCReg _)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
@@ -200,7 +200,7 @@ module ArmGotAbs : DfaAbs = struct
                       if s.sec_name = ".rodata" then
                         let tag = Some (Sym addr) in
                         let ldr_op =
-                          Arm_OP (Arm_CommonOP (Arm_Assign LDR), None)
+                          Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
                         in
                         let new_instr =
                           TripleInstr
@@ -224,7 +224,7 @@ module ArmGotAbs : DfaAbs = struct
                   ExpSet.remove e2 outs
             | None -> outs
           end
-        | ( Arm_OP (Arm_CommonOP (Arm_Assign mov_op), _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign mov_op), _, _),
             Reg (Arm_Reg (Arm_CommonReg src)),
             Reg (Arm_Reg (Arm_CommonReg dst)) )
           when mov_op = MOV || mov_op = MOVS -> begin
@@ -249,7 +249,7 @@ module ArmGotAbs : DfaAbs = struct
       end
     | FourInstr (p, e1, e2, e3, loc, _, _, _) -> begin
         match (p, e1, e2, e3) with
-        | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Reg (Arm_Reg (Arm_CommonReg src1)),
             Reg (Arm_Reg (Arm_CommonReg src2)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
@@ -291,7 +291,7 @@ module ArmGotAbs : DfaAbs = struct
     match i with
     | TripleInstr (p, e1, e2, loc, prefix, _, tags) -> begin
         match (p, e1, e2) with
-        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             Ptr (BinOP_PLUS_R (Arm_CommonReg src1, Arm_CommonReg src2)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             let src1_name = p_arm_reg (Arm_CommonReg src1) in

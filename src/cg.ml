@@ -133,7 +133,7 @@ class cg =
                 end
               | _ -> false
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
               | Arm_ControlOP _ -> true

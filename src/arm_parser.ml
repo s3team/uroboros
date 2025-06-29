@@ -18,6 +18,7 @@ class arm_parse =
   let opqualifier_symb = function
     | "w" -> W | "n" -> N | "f32" -> F32 | "f64" -> F64 | "u8" -> U8 | "u16" -> U16
     | "u32" -> U32 | "s8" -> S8 | "s16" -> S16 | "s32" -> S32 | "i16" -> I16| "i8" -> I8
+    | "8" -> SIZE 8 | "16" -> SIZE 16 | "32" -> SIZE 32 | "64" -> SIZE 64
     | _ -> raise ParseError
 
   and condsuff_symb = function
@@ -97,10 +98,13 @@ class arm_parse =
             try Arm_PCReg (pcreg_symb r')
             with _ -> raise ParseError
 
-  and suffix_symb s =
-    try Arm_Condsuff (condsuff_symb s)
+  and widthsuff_symb s =
+    try Arm_Opqualifier (opqualifier_symb s)
     with _ ->
-      try Arm_Opqualifier (opqualifier_symb s)
+      let s_list = Str.split (Str.regexp_string ".") s in
+      let s1 = List.nth s_list 0 in
+      let s2 = List.nth s_list 1 in
+      try Arm_Double_Opqualifier (opqualifier_symb s1, opqualifier_symb s2)
       with _ -> raise ParseError
 
   and loc_symb s =
@@ -217,10 +221,10 @@ class arm_parse =
 
   let arithm_symb = function
     | "adc" -> ADC | "adcs" -> ADCS | "add" -> ADD | "adds" -> ADDS | "addw" -> ADDW | "adr" -> ADR | "and" -> AND | "ands" -> ANDS
-    | "andeq" -> ANDEQ
     | "clz" -> CLZ | "mla" -> MLA | "mls" -> MLS | "mul" -> MUL | "neg" -> NEG | "qadd" -> QADD | "qadd16" -> QADD16 | "qadd8" -> QADD8
     | "qasx" -> QASX | "qdadd" -> QDADD | "qdsub" -> QDSUB | "qsax" -> QSAX | "qsub" -> QSUB | "qsub16" -> QSUB16 | "qsub8" -> QSUB8
-    | "rsb" -> RSB | "rsbs" -> RSBS | "sadd16" -> SADD16 | "sadd8" -> SADD8 | "sasx" -> SASX | "sbc" -> SBC | "sbcs" -> SBCS
+    | "rsb" -> RSB | "rsbs" -> RSBS
+    | "sadd16" -> SADD16 | "sadd8" -> SADD8 | "sasx" -> SASX | "sbc" -> SBC | "sbcs" -> SBCS
     | "sdiv" -> SDIV | "shadd16" -> SHADD16 | "shadd8" -> SHADD8 | "shasx" -> SHASX | "shsax" -> SHSAX | "shsub16" -> SHSUB16
     | "shsub8" -> SHSUB8 | "smlabb" -> SMLABB | "smlabt" -> SMLABT | "smlatb" -> SMLATB | "smlatt" -> SMLATT
     | "smladx" -> SMLADX | "smlal" -> SMLAL | "smlalbb" -> SMLALBB | "smlalbt" -> SMLALBT | "smlaltb" -> SMLALTB | "smlaltt" -> SMLALTT
@@ -229,13 +233,17 @@ class arm_parse =
     | "smmul" -> SMMUL | "smmulr" -> SMMULR | "smuad" -> SMUAD | "smuadx" -> SMUADX | "smulbb" -> SMULBB | "smulbt" -> SMULBT
     | "smultb" -> SMULTB | "smultt" -> SMULTT | "smull" -> SMULL | "smulwb" -> SMULWB | "smulwt" -> SMULWT | "smusd" -> SMUSD
     | "smusdx" -> SMUSDX | "ssat" -> SSAT | "ssat16" -> SSAT16 | "ssax" -> SSAX | "ssub16" -> SSUB16 | "ssub8" -> SSUB8
-    | "sub" -> SUB | "subs" -> SUBS | "subw" -> SUBW | "sxtab" -> SXTAB | "sxtab16" -> SXTAB16 | "sxth" -> SXTH | "sxtb" -> SXTB
+    | "sub" -> SUB | "subs" -> SUBS | "subw" -> SUBW
+    | "sxtab" -> SXTAB | "sxtab16" -> SXTAB16 | "sxth" -> SXTH | "sxtb" -> SXTB
+    | "negs" -> NEGS
     | "sxtb16" -> SXTB16 | "uadd16" -> UADD16 | "uadd8" -> UADD8 | "uasx" -> UASX | "udiv" -> UDIV | "uhadd16" -> UHADD16
     | "uhadd8" -> UHADD8 | "uhasx" -> UHASX | "uhsax" -> UHSAX | "uhsub16" -> UHSUB16 | "uhsub8" -> UHSUB8 | "umaal" -> UMAAL
     | "umlal" -> UMLAL | "umull" -> UMULL | "uqadd16" -> UQADD16 | "uqadd8" -> UQADD8 | "uqasx" -> UQASX | "uqsax" -> UQSAX
     | "uqsub16" -> UQSUB16 | "uqsub8" -> UQSUB8 | "usad8" -> USAD8 | "usada8" -> USADA8 | "usat" -> USAT | "usat16" -> USAT16
     | "usax" -> USAX | "usub16" -> USUB16 | "usub8" -> USUB8 | "uxtab" -> UXTAB | "uxtab16" -> UXTAB16 | "uxtah" -> UXTAH
-    | "uxtb" -> UXTB | "uxtb16" -> UXTB16 | "uxth" -> UXTH | "vmul" -> VMUL | "vnmul" -> VNMUL | "vmla" -> VMLA | "vmls" -> VMLS
+    | "uxtb" -> UXTB | "uxtb16" -> UXTB16 | "uxth" -> UXTH
+    | "vhadd" -> VHADD | "vhsub" -> VHSUB
+    | "vmul" -> VMUL | "vnmul" -> VNMUL | "vmla" -> VMLA | "vmls" -> VMLS
     | "vnmls" -> VNMLS | "vnmla" -> VNMLA | "vadd" -> VADD | "vsub" -> VSUB | "vdiv" -> VDIV | "vabs" -> VABS | "vneg" -> VNEG
     | "vsqrt" -> VSQRT | "vrhadd" -> VRHADD | "vaddl" -> VADDL | "vraddhn" -> VRADDHN | "vmax" -> VMAX
     | "abs" -> ABS | "addg" -> ADDG | "addpt" -> ADDPT | "adrp" -> ADRP
@@ -253,16 +261,22 @@ class arm_parse =
     | "bfc" -> BFC | "bfi" -> BFI | "cpy" -> CPY | "ldm" -> LDM | "stm" -> STM | "ldmdb" -> LDMDB | "ldmea" -> LDMEA | "ldmia" -> LDMIA | "ldmfd" -> LDMFD
     | "ldr" -> LDR | "ldrb" -> LDRB | "ldrbt" -> LDRBT | "ldrd" -> LDRD | "ldrex" -> LDREX | "ldrexb" -> LDREXB | "ldrexd" -> LDREXD
     | "ldrexh" -> LDREXH | "ldrh" -> LDRH | "ldrht" -> LDRHT | "ldrsb" -> LDRSB | "ldrsbt" -> LDRSBT | "ldrsh" -> LDRSH | "ldrsht" -> LDRSHT
-    | "ldrt" -> LDRT | "mov" -> MOV | "movs" -> MOVS | "movw" -> MOVW | "movt" -> MOVT | "mrs" -> MRS | "msr" -> MSR | "mvn" -> MVN | "mvns" -> MVNS
+    | "ldrt" -> LDRT | "mov" -> MOV | "movs" -> MOVS | "movw" -> MOVW | "movt" -> MOVT | "mrs" -> MRS | "msr" -> MSR
+    | "mvn" -> MVN | "mvns" -> MVNS
     | "sel" -> SEL | "stmdb" -> STMDB | "stmfd" -> STMFD | "stmia" -> STMIA | "stmea" -> STMEA | "str" -> STR | "strb" -> STRB | "strbt" -> STRBT
     | "strd" -> STRD | "strex" -> STREX | "strexb" -> STREXB | "strexd" -> STREXD | "strexh" -> STREXH | "strh" -> STRH | "strht" -> STRHT
     | "strt" -> STRT | "vcvt" -> VCVT | "vcvtt" -> VCVTT | "vcvtr" -> VCVTR | "vcvtb" -> VCVTB | "vmov" -> VMOV | "vmsr" -> VMSR
     | "vstr" -> VSTR | "vstm" -> VSTM | "vstmdb" -> VSTMDB | "vpush" -> VPUSH | "vldr" -> VLDR | "vldm" -> VLDM | "vldmdb" -> VLDMDB
     | "vld4" -> VLD4 | "vstmia" -> VSTMIA | "vldmia" -> VLDMIA | "vmrs" -> VMRS
     | "stp" -> STP | "ldp" -> LDP
+    | "vext" -> VEXT
     | _ -> raise ParseError
   and compareop_symb = function
-    | "cmn" -> CMN | "cmp" -> CMP | "it" -> IT | "teq" -> TEQ | "tst" -> TST | "vcmpe" -> VCMPE | "vcmp" -> VCMP | "ite" -> ITE | "itt" -> ITT
+    | "cmn" -> CMN | "cmp" -> CMP | "it" -> IT
+    | "teq" -> TEQ
+    | "tst" -> TST | "vcmpe" -> VCMPE | "vcmp" -> VCMP
+    | "cmeq" -> CMEQ
+    | "ite" -> ITE | "itt" -> ITT
     | "ittt" -> ITTT | "itte" -> ITTE | "itee" -> ITEE | "itet" -> ITET | "itttt" -> ITTTT | "ittte" -> ITTTE | "ittet" -> ITTET | "ittee" -> ITTEE
     | "iteet" -> ITEET | "iteee" -> ITEEE
     | _ -> raise ParseError
@@ -274,9 +288,8 @@ class arm_parse =
     |  _ -> raise ParseError
   and control_symb = function
     | "b" -> B | "bl" -> BL | "blx" -> BLX | "bx" -> BX | "bxj" -> BXJ | "cbnz" -> CBNZ | "cbz" -> CBZ | "tbb" -> TBB | "tbh" -> TBH
-    | "bcc" -> BCC | "bcs" -> BCS | "bge" -> BGE | "bgt" -> BGT | "bhi" -> BHI | "ble" -> BLE | "bls" -> BLS | "blt" -> BLT
-    | "bmi" -> BMI | "bne" -> BNE | "bpl" -> BPL | "bvc" -> BVC | "bvs" -> BVS
-    | "beq" -> BEQ | "br" -> BR | "bxeq" -> BXEQ | "bleq" -> BLEQ
+    | "br" -> BR
+    | "bxns" -> BXNS | "blxns" -> BLXNS
     | "ret" -> RET | "retaa" -> RETAA | "retab" -> RETAB | "retaasppc" -> RETAASPPC
     | "retabsppc" -> RETABSPPC | "retaasppcr" -> RETAASPPCR | "retabsppcr" -> RETABSPPCR
     | _ -> raise ParseError in
@@ -322,6 +335,22 @@ class arm_parse =
             with _ ->
               print_string (s ^ "\n");
               raise ParseError in
+
+  let op_cond_symb = function s ->
+    try (op_symb s, None)
+    with _ ->
+      (* raise ParseError *)
+      try
+      (* get last two characters *)
+      let len = String.length s in
+      if len < 2 then raise ParseError
+      else
+        let cond_str = String.sub s (len-2) 2 in
+        let op_str = String.sub s 0 (len-2) in
+        let op = op_symb op_str in
+        let cond = condsuff_symb cond_str in
+        (op, Some cond)
+      with _ -> raise ParseError in
 
   let unptr_symb s =
     let l = String.length s in
@@ -523,11 +552,22 @@ class arm_parse =
       let str_list = Str.split (Str.regexp_string ".") in
       if (List.length (str_list s)) = 2 then
         let op_str = List.nth (str_list s) 0 in
-        let qualifier_str = List.nth (str_list s) 1 in
-        let suffix = suffix_symb qualifier_str in
-        Op (Arm_OP (op_symb op_str, Some (suffix)))
+        (* giyeol: TODO: split op_str into op and condsuff *)
+        let widthsuff_str = List.nth (str_list s) 1 in
+        let widthsuff = widthsuff_symb widthsuff_str in
+        let op, cond = op_cond_symb op_str in
+        Op (Arm_OP (op, cond, Some (widthsuff)))
+      else if (List.length (str_list s)) = 3 then
+        let op_str = List.nth (str_list s) 0 in
+        let qualifier_str =
+          (List.nth (str_list s) 1) ^ "." ^ (List.nth (str_list s) 2)
+        in
+        let op, cond = op_cond_symb op_str in
+        let suffix = widthsuff_symb qualifier_str in
+        Op (Arm_OP (op, cond, Some (suffix)))
       else
-        Op (Arm_OP (op_symb s, None))
+        let op, cond = op_cond_symb s in
+        Op (Arm_OP (op, cond, None))
     | Lexp s -> Exp (self#exp_symb s)
     | Lloc s -> Loc (loc_symb s)
     | _ -> raise ParseError
@@ -600,7 +640,7 @@ class arm_parse =
     in
     let compact_instr = compact instr in
     let pre = prefix_identify compact_instr in
-    let (compact_instr, tag) = tag_identify compact_instr in
+    (* let (compact_instr, tag) = tag_identify compact_instr in *)
     let compact_instr' = prefix_sub compact_instr in
     let lexem_list = Array.to_list (lexer compact_instr' loc arch) in
     let s : stack_type list = [] in
@@ -610,7 +650,7 @@ class arm_parse =
       | _ -> (self#push_stack l)::s
     in
   let stack = List.fold_left parse_one s lexem_list in
-  let parsed_instr = self#reduce_stack stack pre tag in
+  let parsed_instr = self#reduce_stack stack pre None in
   parsed_instr
 
 end

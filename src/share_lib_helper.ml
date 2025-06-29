@@ -133,7 +133,7 @@ class lib32_helper (instr_list : instr list) =
         | Intel_ControlOP CALL -> true
         | _ -> false
       end
-    | Arm_OP (ao, _) ->
+    | Arm_OP (ao, _, _) ->
       begin
         match ao with
         | Arm_ControlOP aco ->

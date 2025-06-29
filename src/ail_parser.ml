@@ -153,17 +153,17 @@ object (self)
     let is_going_through_literal_pool = ref false in
     let pop_detected = ref false in
     let process_instr instr = match (get_op instr) with
-      | Arm_OP (Arm_StackOP PUSH, _) ->
+      | Arm_OP (Arm_StackOP PUSH, _, _) ->
         (* initalization *)
         is_going_through_literal_pool := false;
         pop_detected := false;
-      | Arm_OP (Arm_StackOP POP, _) ->
+      | Arm_OP (Arm_StackOP POP, _, _) ->
         pop_detected := true;
-      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _) ->
+      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) ->
         (* see what the next instruction is *)
         ()
-      | Arm_OP (Arm_CommonOP (Arm_Rol LSLS), _)
-      | Arm_OP (Arm_CommonOP (Arm_Rol LSRS), _) ->
+      | Arm_OP (Arm_CommonOP (Arm_Rol LSLS), _, _)
+      | Arm_OP (Arm_CommonOP (Arm_Rol LSRS), _, _) ->
         if !pop_detected = true then
           is_going_through_literal_pool := true
         else
@@ -198,12 +198,31 @@ object (self)
                  let items = split i in
                  let len = List.length items in
                  len > 1 ) l in
+    let is_illegal_instr (instr : string) =
+      (* If there is an "illegal" instruction in the Thumb objdump result,
+       * the instruction is a literal pool in most cases.
+       * Therefore, we can skip the instruction.
+       * See [text_as_data] in [arm_reassemble_symbol_get.ml#v_exp2] *)
+      let illegal_instrs = [
+        "illegal"; "??";"cdp"; "cdp2"; "mrc2"; "ldc2l"; "stc"; "stc2l"; "ltc2l";
+        "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"]
+      in
+      let rec has_illegal_instr instr' = function
+        | [] -> false
+        | illegal_instr :: t ->
+          if contains instr' illegal_instr then true
+          else has_illegal_instr instr' t
+      in
+      has_illegal_instr instr illegal_instrs
+    in
     let help i =
       let items = split i in
       let loc = List.nth items 0 in
-      let instr = cat_tail items
-      in
-      instrs <- (p#parse_instr instr loc arch)::instrs;
+      let instr = cat_tail items in
+      if is_illegal_instr instr then
+        ()
+      else
+        instrs <- (p#parse_instr instr loc arch)::instrs;
     in
     List.iter help l';
 

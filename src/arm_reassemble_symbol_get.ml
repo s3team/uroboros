@@ -2087,7 +2087,7 @@ class arm_reassemble =
         | TripleInstr (p, e1, e2, l, pre, Some (Sym value), tags) -> begin
             (* `Point value` will be symbolized
              * when vinst2 is called by visit_type_infer_analysis *)
-            let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None) in
+            let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
             let pointer_instr =
               TripleInstr (ldr_op, Const (Point value), e2, l, pre, None, tags)
             in

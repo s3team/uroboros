@@ -102,7 +102,7 @@ class dis_validator =
               | Intel_ErrorOP _ -> true
               | _ -> false
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
               | Arm_ErrorOP _ -> true
@@ -126,7 +126,7 @@ class dis_validator =
                 end
             | _ -> false
           end
-        | Arm_OP (ao, _) ->
+        | Arm_OP (ao, _, _) ->
           begin
             match ao with
             | Arm_ControlOP _ -> true
@@ -229,7 +229,7 @@ class dis_validator =
                         end
                     | _ -> false
                   end
-                | Arm_OP (ao, _) ->
+                | Arm_OP (ao, _, _) ->
                   begin
                     match ao with
                     | Arm_ControlOP _ -> true
@@ -259,7 +259,7 @@ class dis_validator =
                   end
               | _ -> false
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
               (* TODO: ARM: before main function, push/pop can be call and return *)

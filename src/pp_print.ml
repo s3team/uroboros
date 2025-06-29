@@ -11,29 +11,39 @@ let rec last_ele = (function
 let p_op p = match p with
   | Intel_OP ip ->
     show_intel_op ip
-  | Arm_OP (ap, suffix) ->
-    (* concatenate ap and suffix *)
-    let ap_str =
-      show_arm_op ap
+  | Arm_OP (ap, condsuff, widthsuff) ->
+    (* concatenate ap, condsuff, widthsuff *)
+    let ap_str = show_arm_op ap in
+    let condsuff_str = match condsuff with
+      | None -> ""
+      | Some cs ->
+        show_arm_condsuff cs
+        |> Str.split (Str.regexp " +")
+        |> last_ele
+        |> String.lowercase_ascii
+      in
+    let widthsuff_str = match widthsuff with
+      | None -> ""
+      | Some Arm_Opqualifier ao ->
+        show_arm_opqualifier ao
+        |> Str.split (Str.regexp " +")
+        |> last_ele
+        |> String.lowercase_ascii
+      | Some Arm_Double_Opqualifier (ao1, ao2) ->
+        let ao1_str = show_arm_opqualifier ao1
+          |> Str.split (Str.regexp " +")
+          |> last_ele
+          |> String.lowercase_ascii in
+        let ao2_str = show_arm_opqualifier ao2
+          |> Str.split (Str.regexp " +")
+          |> last_ele
+          |> String.lowercase_ascii in
+        ao1_str^"."^ao2_str
     in
-    match suffix with
-    | None -> ap_str
-    | Some (Arm_Opqualifier opqualifier) ->
-      let opqualifier_str =
-        show_arm_opqualifier opqualifier
-        |> Str.split (Str.regexp " +")
-        |> last_ele
-        |> String.lowercase_ascii
-      in
-        (ap_str^"."^opqualifier_str)
-    | Some (Arm_Condsuff condsuff) ->
-      let condsuff_str =
-        show_arm_condsuff condsuff
-        |> Str.split (Str.regexp " +")
-        |> last_ele
-        |> String.lowercase_ascii
-      in
-        (ap_str^"."^condsuff_str)
+    if widthsuff_str = "" then
+      (ap_str^condsuff_str)
+    else
+      (ap_str^condsuff_str^"."^widthsuff_str)
 
 let p_reg p =
   let p_intel_reg' p =

@@ -277,7 +277,7 @@ let contains (str : string) (sub_str : string) : bool =
   with Not_found -> false
 
 (** Return (instr_without_tag, tag) *)
-let tag_identify (instr : string) =
+(* let tag_identify (instr : string) =
   let get_tag = function
     | "del" -> Del
     | tag_str -> begin
@@ -300,7 +300,7 @@ let tag_identify (instr : string) =
     in
     let tag = get_tag tag_str in
     (instr_without_tag, Some tag)
-  else (instr, None)
+  else (instr, None) *)
 
 let prefix_sub instr =
   let has_lock = prefix_lock instr in

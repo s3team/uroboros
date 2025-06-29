@@ -13,7 +13,7 @@ class func_slicer instrs funcs =
           match op with
           | Intel_OP io -> (
               match io with Intel_StackOP PUSH -> true | _ -> false)
-          | Arm_OP (ao, _) -> (
+          | Arm_OP (ao, _, _) -> (
               match ao with Arm_StackOP PUSH -> true | _ -> false)
           | _ -> false
         in
@@ -62,7 +62,7 @@ class func_slicer instrs funcs =
           match op with
           | Intel_OP io -> (
               match io with Intel_StackOP PUSH -> true | _ -> false)
-          | Arm_OP (ao, _) -> (
+          | Arm_OP (ao, _, _) -> (
               match ao with Arm_StackOP PUSH -> true | _ -> false)
           | _ -> false
         in
@@ -81,7 +81,7 @@ class func_slicer instrs funcs =
               match io with
               | Intel_CommonOP (Intel_Arithm SUB) -> true
               | _ -> false)
-          | Arm_OP (ao, _) -> (
+          | Arm_OP (ao, _, _) -> (
               match ao with Arm_CommonOP (Arm_Arithm SUB) -> true | _ -> false)
           | _ -> false
         in
@@ -135,7 +135,7 @@ class func_slicer instrs funcs =
               match io with
               | Intel_CommonOP (Intel_Assign LEA) -> true
               | _ -> false)
-          | Arm_OP (_, _) -> false
+          | Arm_OP (_, _, _) -> false
           | _ -> false
         in
         let is_fourp =
@@ -172,7 +172,7 @@ class func_slicer instrs funcs =
               match io with
               | Intel_CommonOP (Intel_Assign LEA) -> true
               | _ -> false)
-          | Arm_OP (_, _) -> false
+          | Arm_OP (_, _, _) -> false
           | _ -> false
         in
         let is_onep =
@@ -210,7 +210,7 @@ class func_slicer instrs funcs =
               match io with
               | Intel_ControlOP c -> ( match c with CALL -> true | _ -> false)
               | _ -> false)
-          | Arm_OP (ao, _) -> (
+          | Arm_OP (ao, _, _) -> (
               match ao with
               | Arm_ControlOP aco -> (
                   match aco with BL | BLX -> true | _ -> false)

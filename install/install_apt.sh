@@ -30,4 +30,9 @@ sudo apt-get install -y -q \
      libgmp-dev \
      libssl-dev \
      libselinux-dev \
-     libselinux1 
+     libselinux1 \
+     gcc-arm-none-eabi \
+     gcc-arm-linux-gnueabihf \
+     gcc-aarch64-linux-gnu \
+     gcc-multilib \
+     libc6-dev-i386

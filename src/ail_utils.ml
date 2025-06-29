@@ -630,7 +630,7 @@ module Opcode_utils = struct
             end
           | _ -> false
         end
-      | Arm_OP (ao, _) ->
+      | Arm_OP (ao, _, _) ->
         begin
           match ao with
           | Arm_ControlOP aco ->
@@ -659,13 +659,13 @@ module Opcode_utils = struct
               end
             | _ -> false
           end
-        | Arm_OP (ao, _)  ->
+        | Arm_OP (ao, cond, _)  ->
           begin
             match ao with
             | Arm_ControlOP aco ->
               begin
                 match aco with
-                | BEQ -> true
+                | B when cond <> None -> true
                 | _ -> false
               end
             | _ -> false
@@ -690,7 +690,7 @@ module Opcode_utils = struct
 
       let is_push = function
         | Intel_OP (Intel_StackOP PUSH) -> true
-        | Arm_OP (Arm_StackOP PUSH, _) -> true
+        | Arm_OP (Arm_StackOP PUSH, _, _) -> true
         | _ -> false
 
 
@@ -707,7 +707,7 @@ module Opcode_utils = struct
             | Intel_ControlOP LEAVE -> true
             | _ -> false
           end
-        | Arm_OP (ao, _) ->
+        | Arm_OP (ao, _, _) ->
           begin
             match ao with
             | Arm_StackOP _ -> true
@@ -734,7 +734,7 @@ module Opcode_utils = struct
               end
             | _ -> false
           end
-        | Arm_OP (ao, _) ->
+        | Arm_OP (ao, _, _) ->
           begin
             match ao with
             | Arm_ControlOP aco ->
@@ -772,7 +772,7 @@ module Opcode_utils = struct
               end
             | _ -> false
           end
-        | Arm_OP (aop, _) ->
+        | Arm_OP (aop, _, _) ->
           begin
             match aop with
             | Arm_ControlOP aco ->
@@ -798,7 +798,7 @@ module Opcode_utils = struct
         (* pop {r7, pc} *)
         | DoubleInstr (op, e, _, _, _, _) ->
           (match op with
-          | Arm_OP (Arm_ControlOP BX, _) -> e = Reg (Arm_Reg (Arm_LinkReg LR))
+          | Arm_OP (Arm_ControlOP BX, _, _) -> e = Reg (Arm_Reg (Arm_LinkReg LR))
           | _ -> false)
         | _ -> false
 
@@ -1027,7 +1027,7 @@ module Instr_utils = struct
               | Intel_CommonOP (Intel_Assign _) -> Some TRIPLE_READ
               | _ -> None
             end
-          | Arm_OP (ao, _) ->
+          | Arm_OP (ao, _, _) ->
             begin
               match ao with
               | Arm_CommonOP (Arm_Assign _) -> Some TRIPLE_READ
@@ -1418,7 +1418,7 @@ module Func_utils = struct
               end
             | _ -> false
           end
-        | Arm_OP (ao, _) ->
+        | Arm_OP (ao, _, _) ->
           begin
             match ao with
             | Arm_ControlOP aco ->
@@ -1496,7 +1496,7 @@ module Func_utils = struct
                   | Intel_Jump _ -> true
                   | _ -> false)
               | _ -> false)
-          | Arm_OP (ao, _) -> (
+          | Arm_OP (ao, _, _) -> (
               match ao with Arm_ControlOP _ -> true | _ -> false)
           | _ -> false
         in
@@ -1608,7 +1608,7 @@ module Func_utils = struct
             | Intel_OP (Intel_ControlOP RET) | Intel_OP (Intel_ControlOP RETN)
             | Intel_OP (Intel_ControlOP RETQ) | Intel_OP (Intel_ControlOP LEAVE)
             | Intel_OP (Intel_ControlOP LEAVEQ) -> ()
-            | Arm_OP (Arm_StackOP POP, _) ->
+            | Arm_OP (Arm_StackOP POP, _, _) ->
               (* ARM Thumb *)
               ()
             | _ ->
