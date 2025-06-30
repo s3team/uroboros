@@ -103,6 +103,11 @@ let caller_saved_before : instr list =
           None );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
+          stub_loc,
+          None );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None );
@@ -198,6 +203,11 @@ let caller_saved_after : instr list =
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RDX)),
+          stub_loc,
+          None );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
           None );
       DoubleInstr
@@ -731,9 +741,9 @@ let parse_instr_from_code
   if cmd = "" && code_ep = "x" && code = "x" then begin
     (* action PRINTARGS *)
     if EU.elf_32 () then
-      ignore (Sys.command ("gcc -no-pie -c ./plugins/instr_c/lib.c -m32"))
+      ignore (Sys.command ("gcc -no-pie -c ./plugins/c/lib.c -m32"))
     else
-      ignore (Sys.command ("gcc -no-pie -c ./plugins/instr_c/lib.c"));
+      ignore (Sys.command ("gcc -no-pie -c ./plugins/c/lib.c"));
     match stack with
     | [] ->
       failwith

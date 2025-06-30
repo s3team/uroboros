@@ -58,23 +58,6 @@ One application of Uroboros is binary code instrumentation.
 The documentation for Uroboros' instrumentation framework
 can be found in [INSTRUMENTATION.md](INSTRUMENTATION.md).
 
-## Tests
-
-To run the tests, execute the following in current directory:
-```
-$ make
-```
-If all tests passed, "testing success." is the last line
-of output files `test.instrument`, `test.all`, and `test.coreutils`.
-
-## Cleanup
-
-To clean metadata or files created by Uroboros runs,
-execute the following in current directory:
-```
-make clean
-```
-
 ## Publication
 ```
 @inproceedings {190920,
