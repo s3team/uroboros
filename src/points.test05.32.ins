@@ -1,0 +1,13 @@
+INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c ./fun.c -m32" C before_print_info ./fun.c; # insert before any call to function print_info with call to before_print_info defined in /root/fun.c
+INSERT AFTER [0x80491f6,0x80491b0] SELF [] "gcc -no-pie -c ./fun.c -m32" C log_execution_times ./fun.c; # insert before memory addresses 0x80491f6 and 0x80491b0 with call to log_execution_times defined in /root/fun.c
+INSERT BEFORE [0x80491a8] SELF [] "" asm x "movl $30, %eax"; # insert before the instruction with memory address 0x80491a8 with the assembly instruction that assigns %eax with 30
+INSERT AFTER [print_info] FUNENTRY [] "" asm x
+"xor %eax, %eax
+xor %ebx, %ebx
+xor %ecx, %ecx"; # insert after the function entry of print_info with the three xor instructions
+INSERT BEFORE [print_info] FUNEXIT [] "" asm x
+"xor %eax, %eax
+xor %ebx, %ebx
+xor %ecx, %ecx"; # insert before the function exit of print_info (i.e., before the ret instruction in print_info) with the three xor instructions
+DELETE x [0x804919a] SELF [] "" x x x; # delete the instruction at memory address 0x804919a
+REPLACE x [0x80491b5-0x80491ca] SELF [] "gcc -no-pie -c ./fun.c -m32" C log_execution_times ./fun.c; # replace instructions at addresses 0x80491b5 to 0x80491ca with the assembly code defined in /root/fun.asm

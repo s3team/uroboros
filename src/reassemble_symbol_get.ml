@@ -32,38 +32,38 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable text_mem_addrs: int list = []
     val mutable label_mem_addrs: int list = []
 
-    val mutable data_labels : (string*int) list = []
+    val mutable data_labels : (string * int) list = []
     val mutable data_labels_reloc : int list = []
     val mutable text_labels : int list = []
     val mutable text_labels_reloc : int list = []
 
-    val mutable label : (string*int) list = label'  (* data section, address *)
+    val mutable label : (string * int) list = label'  (* data section, address *)
     val mutable align : (string * int) list = align'
     val mutable label_set : (int) list = []
 
-    val mutable data_list: (string*string) list = []
-    val mutable rodata_list: (string*string) list = []
-    val mutable __libc_IO_vtables_list: (string*string) list = []
-    val mutable __libc_freeres_ptrs_list: (string*string) list = []
-    val mutable got_list: (string*string) list = []
-    val mutable bss_list: (string*string) list = []
-    val mutable tbss_list: (string*string) list = []
+    val mutable data_list: (string * string) list = []
+    val mutable rodata_list: (string * string) list = []
+    val mutable __libc_IO_vtables_list: (string * string) list = []
+    val mutable __libc_freeres_ptrs_list: (string * string) list = []
+    val mutable got_list: (string * string) list = []
+    val mutable bss_list: (string * string) list = []
+    val mutable tbss_list: (string * string) list = []
     (* .data.rel.ro section*)
-    val mutable data_rel_ro_list: (string*string) list = []
-    val mutable rodata_cst32_list: (string*string) list = []
+    val mutable data_rel_ro_list: (string * string) list = []
+    val mutable rodata_cst32_list: (string * string) list = []
 
-    val mutable data_array: (string*string) array = [||]
-    val mutable rodata_array: (string*string) array = [||]
-    val mutable __libc_IO_vtables_array: (string*string) array = [||]
-    val mutable __libc_freeres_ptrs_array: (string*string) array = [||]
-    val mutable got_array: (string*string) array = [||]
-    val mutable bss_array: (string*string) array = [||]
-    val mutable tbss_array: (string*string) array = [||]
+    val mutable data_array: (string * string) array = [||]
+    val mutable rodata_array: (string * string) array = [||]
+    val mutable __libc_IO_vtables_array: (string * string) array = [||]
+    val mutable __libc_freeres_ptrs_array: (string * string) array = [||]
+    val mutable got_array: (string * string) array = [||]
+    val mutable bss_array: (string * string) array = [||]
+    val mutable tbss_array: (string * string) array = [||]
     (* .data.rel.ro section*)
-    val mutable data_rel_ro_array: (string*string) array = [||]
-    val mutable rodata_cst32_array: (string*string) array = [||]
+    val mutable data_rel_ro_array: (string * string) array = [||]
+    val mutable rodata_cst32_array: (string * string) array = [||]
 
-    val mutable text_sec: (int*int) = (0,0)  (* begin addr, size*)
+    val mutable text_sec: (int * int) = (0,0)  (* begin addr, size *)
     val mutable locations = []
     val mutable align_locations = Hashtbl.create 90
 
@@ -80,7 +80,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
 
     val mutable assumption_two = false
     val mutable assumption_three = false
-
 
     method set_datas funcs =
       let rec pl = function
@@ -103,7 +102,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs);
 
       (* locations are sec,offset where labels need to be added *)
-      locations <- self#label_locate;
+      locations <- label;
       align_locations <- self#align_locate;
 
       label_set <- List.map snd label;
@@ -151,37 +150,13 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
 
 
     method set_assumption_flag () =
-      (* this method read assumption configuration assumption_set.info and set
-      two flags *)
+      (* this method read assumption configuration assumption_set.info
+       * and set two flags *)
       let ll = read_file "assumption_set.info" in
       List.nth ll 0 |>
-        (fun l ->
+        ( fun l ->
          assumption_two <- String.exists l "2";
-         assumption_three <- String.exists l "3"
-        )
-
-
-    method set_datas_1 =
-      self#section_collect;
-      self#data_collect;
-
-      data_list <- self#data_trans data;
-      rodata_list <- self#data_trans rodata;
-      got_list <- self#data_trans got;
-      bss_list <- self#data_trans bss;
-      locations <- self#label_locate;
-      label_set <- List.map snd label;
-      let module EU = ELF_utils in
-      if EU.elf_static () then
-        begin
-          tbss_list <- self#data_trans tbss;
-          __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
-          __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs
-        end
-      else ();
-
-      self#data_refer_solve1
-
+         assumption_three <- String.exists l "3" )
 
     method get_textlabel =
       self#dump_d2c_labels text_labels;
@@ -196,8 +171,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         text_sec <- (addr, size)
       in
       Enum.iter help filelines
-
-
 
     method check_text addr =
       let judge_mem_list addr =
@@ -233,7 +206,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       Printf.fprintf oc "%s\n" (String.concat "\n" (List.map dec_hex dl));
       close_out oc
 
-    (* this method is used for 64-bit binaries*)
+    (* this method is used for 64-bit binaries *)
     (* this method solve all the references in the .data .rodata sections *)
     method data_refer_solve_64 funcs =
       let begin_addrs = List.map (fun f -> f.func_begin_addr) funcs in
@@ -258,10 +231,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                aux function translate value_str to value, then to value_str' ;
              thus getting rid of capital zeros.
        *)
-        let aux1 vs =
-          let v = int_of_string vs in
-          (Printf.sprintf "%X" v) in
-        let aux v =
+       let aux v =
           (Printf.sprintf "%X" v) in
         match l with
         | [] -> acc
@@ -355,7 +325,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       )
                     | false ->
                       begin
-                        ignore(self#check_offset_64 v_str addr sec);
+                        ignore (self#check_offset_64 v_str addr sec);
                         in_jmptable <- false;
                         traverse ((l8,v8)::(l7,v7)::(l6,v6)::(l5,v5)::(l4,v4)::(l3,v3)::(l2,v2)::(l1,v1)::acc) t (addr+8) sec
                       end
@@ -386,7 +356,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
               end
           ) in
 
-      (* add labels in data, rodata sections to support check jmp table*)
+      (* add labels in data, rodata sections to support check jmp table *)
       self#add_data_label;
 
       data_list <- List.rev (traverse [] data_list 0x080500c4 ".data");
@@ -423,10 +393,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                aux function translate value_str to value, then to value_str' ;
              thus getting rid of capital zeros.
        *)
-        let aux1 vs =
-          let v = int_of_string vs in
-          (Printf.sprintf "%X" v) in
-        let aux v =
+       let aux v =
           (Printf.sprintf "%X" v) in
         match l with
         | [] -> acc
@@ -561,12 +528,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
           __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs")
         end
       else ()
-	(* 32-bit binary does not need this *)
+      (* 32-bit binary does not need this *)
       (* got_list <- List.rev (traverse [] got_list 0x0) *)
-
-
-
-
 
     method check_jmptable_1 addrs =
       begin
@@ -580,90 +543,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
             false
         with _ -> false
       end
-
-    method data_refer_solve1 =
-      let get_v s =
-        let items = Str.split (Str.regexp " +") s in
-        let v = List.nth items 1 in
-        String.sub v 2 ((String.length v)-2) in
-      let rec traverse acc l =
-      (*
-               There exists a bug in 64 bit ELF processing. The address
-               produced in "let vs'" line contains a 0 at the beginning.
-               It musted be removed though.
-
-               aux function translate value_str to value, then to value_str' ;
-             thus getting rid of capital zeros.
-       *)
-        let aux vs =
-          let v = int_of_string vs in
-          (Printf.sprintf "%X" v) in
-        match l with
-        | [] -> acc
-        | h::[] -> h::acc
-        | h1::h2::[] -> h2::h1::acc
-        | h1::h2::h3::[] -> h3::h2::h1::acc
-        | (l1,v1)::(h2,v2)::(l3,v3)::(l4,v4)::t ->
-          (
-            let v_str = "0x"^(get_v v4)^(get_v v3)^(get_v v2)^(get_v v1) in
-            match string_to_int32 v_str with
-            | Some v ->
-              begin
-                match (self#check_sec v) with
-                | Some s ->
-                  (
-                    begin
-                      in_jmptable <- false;
-                      traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t
-                    end
-                  )
-                | None ->
-                  (
-                    match (self#check_text v) with
-                    | true ->
-                      (
-                        if (self#check_jmptable l1 v) = false then
-                          begin
-                            in_jmptable <- false;
-                       		traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t
-                          end
-                        else
-                          begin
-                            in_jmptable <- true;
-                            let v_str' = aux v_str in
-
-                            text_labels <- v::text_labels;
-                            (traverse (("","")::("","")::("","")
-                                       ::(l1,".long S_0x"^(String.uppercase_ascii
-                                                             v_str'))::acc) t)
-                          end
-                      )
-                    | false ->
-                      begin
-                        in_jmptable <- false;
-                       	traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t
-                      end
-                  )
-              end
-            | None ->
-              begin
-                in_jmptable <- false;
-                traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t
-              end
-          ) in
-
-      self#add_data_label;
-      data_list <- List.rev (traverse [] data_list);
-      rodata_list <- List.rev (traverse [] rodata_list);
-      let module EU = ELF_utils in
-      if EU.elf_static () then
-        begin
-          __libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list);
-          __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list)
-        end
-      else ()
-
-
 
     method fn_byloc addr =
       let cmp addr b =
@@ -710,7 +589,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       in
       bs 0 (Array.length fl_sort - 1)
 
-
     method check_jmptable addrs v =
       (* our judgement of jmptable in rodata section *)
     (*
@@ -740,8 +618,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       else
 	    aux addrs
 
-
-
     method pp_print l =
       let rec help l =
         match l with
@@ -764,7 +640,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     method section_offset name addr =
       let rec help l =
         match l with
-        | h::t -> if h.sec_name = name then addr - h.sec_begin_addr
+        | h::t ->
+          if h.sec_name = name then addr - h.sec_begin_addr
           else help t
         | [] -> raise (Reassemble_Error "fail in section offset") in
       help sec
@@ -779,7 +656,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
 
     method data_collect =
       let module EU = ELF_utils in
-      ignore(Sys.command("python3 spliter.py"));
+      ignore (Sys.command("python3 spliter.py"));
       data <- self#collect "data_split.info";
       rodata <- self#collect "rodata_split.info";
       data_rel_ro <- self#collect "data_rel_ro_split.info";
@@ -935,14 +812,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       List.iter p#set_list data_list;
       p#get_list
 
-    method label_locate =
-      let rec help l acc =
-        match l with
-        | (s,l)::t -> let offset = self#section_offset s l in
-          (s,offset)::acc
-        | [] -> acc in
-      List.fold_left help label []
-
     method align_locate =
       let res = Hashtbl.create 10 in
       let create_table a =
@@ -1036,9 +905,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | Some _ -> ".p2align 4\n"
                       | None -> ""
                     in
-                    (match Hashtbl.find_opt sym_addr2label l with
+                    ( match Hashtbl.find_opt sym_addr2label l with
                     | Some sym_label -> (data_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                    | None -> (data_array.(off) <- (alignment^s', d)));
+                    | None -> (data_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".rodata" ->
                   ( let off = l - (self#section_addr ".rodata") in
@@ -1049,9 +918,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | Some _ -> ".p2align 4\n"
                       | None -> ""
                     in
-                    (match Hashtbl.find_opt sym_addr2label l with
+                    ( match Hashtbl.find_opt sym_addr2label l with
                     | Some sym_label -> (rodata_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                    | None -> (rodata_array.(off) <- (alignment^s', d)));
+                    | None -> (rodata_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".got" ->
                   ( let off = l - (self#section_addr ".got") in
@@ -1062,9 +931,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | Some _ -> ".p2align 4\n"
                       | None -> ""
                     in
-                    (match Hashtbl.find_opt sym_addr2label l with
+                    ( match Hashtbl.find_opt sym_addr2label l with
                     | Some sym_label -> (got_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                    | None -> (got_array.(off) <- (alignment^s', d)));
+                    | None -> (got_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".bss" ->
                   ( let off = l - (self#section_addr ".bss") in
@@ -1075,9 +944,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | Some _ -> ".p2align 4\n"
                       | None -> ""
                     in
-                    (match Hashtbl.find_opt sym_addr2label l with
+                    ( match Hashtbl.find_opt sym_addr2label l with
                     | Some sym_label -> (bss_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                    | None -> (bss_array.(off) <- (alignment^s', d)));
+                    | None -> (bss_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".data.rel.ro" ->
                   ( let off = l - (self#section_addr ".data.rel.ro") in
@@ -1088,9 +957,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | Some _ -> ".p2align 4\n"
                       | None -> ""
                     in
-                    (match Hashtbl.find_opt sym_addr2label l with
+                    ( match Hashtbl.find_opt sym_addr2label l with
                     | Some sym_label -> (data_rel_ro_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                    | None -> (data_rel_ro_array.(off) <- (alignment^s', d)));
+                    | None -> (data_rel_ro_array.(off) <- (alignment^s', d)) );
                     help t )
                 | "rodata.cst32" ->
                   ( let off = l - (self#section_addr "rodata.cst32") in
@@ -1101,9 +970,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | Some _ -> ".p2align 4\n"
                       | None -> ""
                     in
-                    (match Hashtbl.find_opt sym_addr2label l with
+                    ( match Hashtbl.find_opt sym_addr2label l with
                     | Some sym_label -> (rodata_cst32_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                    | None -> (rodata_cst32_array.(off) <- (alignment^s', d)));
+                    | None -> (rodata_cst32_array.(off) <- (alignment^s', d)) );
                     help t )
                 | _ ->
                   let module EU = ELF_utils in
@@ -1119,9 +988,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                             | Some _ -> ".p2align 4\n"
                             | None -> ""
                           in
-                          (match Hashtbl.find_opt sym_addr2label l with
+                          ( match Hashtbl.find_opt sym_addr2label l with
                           | Some sym_label -> (__libc_IO_vtables_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                          | None -> (__libc_IO_vtables_array.(off) <- (alignment^s', d)));
+                          | None -> (__libc_IO_vtables_array.(off) <- (alignment^s', d)) );
                           help t )
                       | "__libc_freeres_ptrs" ->
                         ( let off = l - (self#section_addr "__libc_freeres_ptrs") in
@@ -1132,9 +1001,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                             | Some _ -> ".p2align 4\n"
                             | None -> ""
                           in
-                          (match Hashtbl.find_opt sym_addr2label l with
+                          ( match Hashtbl.find_opt sym_addr2label l with
                           | Some sym_label -> (__libc_freeres_ptrs_array.(off) <- (alignment^sym_label^":\n"^s', d))
-                          | None -> (__libc_freeres_ptrs_array.(off) <- (alignment^s', d)));
+                          | None -> (__libc_freeres_ptrs_array.(off) <- (alignment^s', d)) );
                           help t )
                       | ".tbss" ->
                         help t
@@ -1145,16 +1014,20 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
             | _ -> ()
           in
           help lbs
+
         method zip ll =
           List.map (fun (h,e) -> h^e) ll
+
         method zip2 ll =
           List.map (fun (h,e) -> h^" "^(string_of_int e)^"\n") ll
+
         method insert_dummy =
           let help li =
 		        match li with
             | (l,s)::t -> ("s_dummy: \n"^l, s)::t
             | _ -> (print_string "empty rodata list\n"; li) in
           rodata_list <- help rodata_list
+
         method insert_head =
           let rec sublist b e l =
             match l with
@@ -1176,6 +1049,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
               tbss_list <- (".section .tbss\n", "")::tbss_list
             end
           else ()
+
         method write_file =
           let oc = open_out_gen [Open_append; Open_creat] 0o666 "final_data.s"
           in
@@ -1200,6 +1074,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
           if List.length data_rel_ro_list > 2 then write_file_opt data_rel_ro_list;
           if List.length rodata_cst32_list > 2 then write_file_opt rodata_cst32_list;
           close_out oc
+
         method de_redunt labels =
           let tset = Hashtbl.create 200 in
           let help item =
@@ -1219,8 +1094,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
        * process data resolve interleave reference among rodata and data sections
        * current we just leverage a heristic methods, which consider all the value
        * inside .data and .rodata sections as addr *)
-      let module S = Symbol_get in
-      let sym_addr2label = S.parse () in
+      let module S = Symbol_table_get in
+      let sym_addr2label = S.parse_nm () in
       rodata_array <- Array.of_list rodata_list;
       got_array <- Array.of_list got_list;
       data_array <- Array.of_list data_list;
@@ -1272,20 +1147,17 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
               c^(List.fold_left (fun acc item -> acc^(item))
                    "" items)
           method get_c = c
-        end  in
+        end in
         Enum.iter p#process filelines;
         p#get_c
-      end
-      else ""
+      end else ""
 
     (* let's try python3 script *)
     method collect name =
       if Sys.file_exists(name) then begin
         let lines = read_file name in
-	    List.map String.trim lines
-	  end
-      else
-        []
+        List.map String.trim lines
+      end else []
 
     (* this is a optimizated solution for large size .bss section ELF binary *)
     method collect_bss name =
@@ -1301,8 +1173,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         in
         Enum.iter p#process filelines;
         p#get_c
-      end
-      else [""]
+      end else [""]
 
   end
 
@@ -1587,7 +1458,7 @@ class reassemble =
   object(self)
     inherit ailVisitor
 
-    val mutable label : (string*int) list = []
+    val mutable label : (string * int) list = []
     val mutable align : (string * int) list = []
     (* collect relocation info in c2d *)
     val mutable c2d_addr: int list = []
@@ -1600,10 +1471,9 @@ class reassemble =
     val mutable jmpreflist: string list = []
     val mutable sec : section list = []
     val mutable instr_list: instr list = []
-    val mutable text_sec: (int*int) = (0,0)  (* begin addr, size*)
-    val mutable plt_sec: (int*int) = (0,0)  (* begin addr, size*)
+    val mutable text_sec: (int * int) = (0,0)  (* begin addr, size*)
+    val mutable plt_sec: (int * int) = (0,0)  (* begin addr, size*)
     val mutable text_mem_addrs: string list = []
-
 
     (* collect all the symbols from code section or from data sections *)
     val mutable symbol_list : int list = []
@@ -1760,45 +1630,40 @@ class reassemble =
         match (l,chk) with
         | (_,false) -> true
         | (Normal v, true) -> false
-        | _ -> true in
+        | _ -> true
+      in
       let dec_hex (s:int) : string =
-        (Printf.sprintf "0x%X" s) in
+        (Printf.sprintf "0x%X" s)
+      in
       match e with
       | Const l ->
         (
           let l' = self#parse_const l in
           match (self#check_sec l') with
-          | Some s ->
-            (
-		      if check_test_condition l chk = false then
-		        e
-		      else
-		        begin
-                  if self#has_data l' then
-                    (
-                      let s_label = (self#build_symbol l) in
-                      let loc' = get_loc i in
-                      c2d_addr <- (loc'.loc_addr)::c2d_addr;
-                      Label s_label
-                    )
-                  else
-                    (
-                      Hashtbl.replace data_set l' "";
-                      let s_label = (self#build_symbol l) in
-                      label <- (s.sec_name, l')::label;
-                      let i_op = get_op i in
-                      ( match i_op with
-                      | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
-                        align <- (s.sec_name, l') :: align
-                      | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
-                        align <- (s.sec_name, l') :: align
-                      | _ -> () );
-                      let loc' = get_loc i in
-                      c2d_addr <- (loc'.loc_addr)::c2d_addr;
-                      Label s_label
-                    )
-		        end
-            )
+          | Some s -> begin
+            if check_test_condition l chk = false then e
+            else begin
+              if self#has_data l' then begin
+                let s_label = (self#build_symbol l) in
+                let loc' = get_loc i in
+                c2d_addr <- (loc'.loc_addr) :: c2d_addr;
+                Label s_label
+              end else begin
+                Hashtbl.replace data_set l' "";
+                let s_label = (self#build_symbol l) in
+                label <- (s.sec_name, l') :: label;
+                let i_op = get_op i in
+                ( match i_op with
+                | Intel_OP (Intel_CommonOP (Intel_Logic PXOR)) ->
+                  align <- (s.sec_name, l') :: align
+                | Intel_OP (Intel_CommonOP (Intel_Assign MOVDQA)) ->
+                  align <- (s.sec_name, l') :: align
+                | _ -> () );
+                let loc' = get_loc i in
+                c2d_addr <- (loc'.loc_addr) :: c2d_addr;
+                Label s_label
+              end
+            end end
           | None ->
             (
 		      if check_test_condition l chk = false then
@@ -1871,7 +1736,7 @@ class reassemble =
               let fn = String.sub f.func_name 2 (nl-2) in
               let is_dig_loc =
                 try
-                  ignore(int_of_string(fn)); true
+                  ignore (int_of_string(fn)); true
                 with
                 | _ ->
                   begin
@@ -2309,17 +2174,16 @@ class reassemble =
       self#dump_c2c_labels deslist_reloc;
       let t = List.rev_append (List.rev init_array_list) deslist in
       let p = new instrhandler instr_list t in
-   (*
-          self#update_deslist_with_ehframe;
-          self#update_deslist_with_excp_tbl;
-          let p = new instrhandler instr_list deslist in
-*)
-
+      (*
+      self#update_deslist_with_ehframe;
+      self#update_deslist_with_excp_tbl;
+      let p = new instrhandler instr_list deslist in
+      *)
       p#set_instr_list;
       p#process;
       p#get_instr_list
 
-    (* in the data section and rodata section, jmptable could have ref into text section*)
+    (* in the data section and rodata section, jmptable could have ref into text section *)
     method adjust_jmpref instr_list =
       let p = new instrhandler instr_list jmpreflist in
       p#set_instr_list;
@@ -2378,18 +2242,6 @@ class reassemble =
       jmpreflist <- List.map (fun l -> (dec_hex l)) templist;
       p#data_output (* add labels to data sections *)
 
-    method data_dump_1 =
-      let dec_hex (s:int) : string =
-        "S_0x"^(Printf.sprintf "%X" s) in
-      let export_datas = self#export_data_dump in
-      let t = List.rev_append (List.rev label) export_datas in
-      let p = new datahandler t align in
-      p#text_sec_collect;
-      p#set_datas_1;
-      let templist = p#get_textlabel in
-      jmpreflist <- List.map (fun l -> (dec_hex l)) templist;
-      List.rev_append (List.rev templist) symbol_list
-
     method dump_funclist bs fn =
       let dec_hex (s:int) : string =
         "0x0"^(Printf.sprintf "%x" s) in
@@ -2408,22 +2260,20 @@ class reassemble =
       let sl2 = List.sort Int.compare sl2 in
       let rec intersect l1 l2 =
         match l1 with [] -> []
-                    | h1::t1 -> (
-                        match l2 with [] -> []
-                                    | h2::t2 when h1 < h2 -> intersect t1 l2
-                                    | h2::t2 when h1 > h2 -> intersect l1 t2
-                                    | h2::t2 -> (
-                                        match intersect t1 t2 with [] -> [h1]
-                                                                 | h3::t3 as l when h3 = h1 -> l
-                                                                 | h3::t3 as l -> h1::l
-                                      )
-                      ) in
+        | h1::t1 -> (
+          match l2 with [] -> []
+          | h2::t2 when h1 < h2 -> intersect t1 l2
+          | h2::t2 when h1 > h2 -> intersect l1 t2
+          | h2::t2 -> (
+            match intersect t1 t2 with [] -> [h1]
+            | h3::t3 as l when h3 = h1 -> l
+            | h3::t3 as l -> h1::l ) )
+      in
       print_int (List.length sl1);
       print_string "\n";
       print_int (List.length sl2);
       print_string "\n";
       intersect sl1 sl2
-
 
     method init_array_dump =
 	  if List.length init_array_list <> 0 then
@@ -2447,7 +2297,7 @@ class reassemble =
 	  else ()
 
     method export_data_dump =
-      ignore(Sys.command("python3 export_data.py"));
+      ignore (Sys.command("python3 export_data.py"));
       let addrs = List.map (String.trim) (read_file "export_datas.info") in
       let aux l =
         match (self#check_sec l) with
@@ -2464,9 +2314,6 @@ class reassemble =
 
     method reassemble_dump u_funcs =
       self#data_dump u_funcs
-
-    method reassemble_dump_1 =
-      self#data_dump_1
 
     method add_func_label ufuncs instrs =
       let rec help acc fl il =
@@ -2515,7 +2362,6 @@ class reassemble =
         ) bbl in
       List.rev (help [] bbl' instrs)
 
-
     method pp_print_1 l =
       let rec help l =
         match l with
@@ -2523,11 +2369,11 @@ class reassemble =
         | [] -> print_string "end\n" in
       help l
 
-
     method unify_loc1 instrs =
       let p = object
         val mutable last_label = ""
         val mutable remove_l = []
+
         method update_instrs instrs =
           remove_l <- List.rev remove_l;
           let rec help il rl acc =
@@ -2547,6 +2393,7 @@ class reassemble =
             | (il', []) -> List.rev_append acc il'
             | ([], rl') -> failwith "can't find coresponding address in unify_loc" in
           help instrs remove_l []
+
         method set_list instrs =
           let dec_hex (s:int) : string =
             "0x"^(Printf.sprintf "%X" s) in
@@ -2569,7 +2416,6 @@ class reassemble =
       end in
       p#set_list instrs;
       p#update_instrs instrs
-
 
     method unify_loc instrs =
       let p = object

@@ -84,7 +84,8 @@ and symbol =
  (* | LeaDes of (int * reg * int) *)
  (*lea    0x0(,%ebp,8),%eax  so basically this is a quite rare situation. *)
 and const =
-  | Point of int (* 0x8048440*) | Normal of int (* $0x8048440*)
+  | Point of int (* 0x8048440 *)
+  | Normal of int (* $0x8048440 *)
   | Immediate of int (* #0 and #0x0 *)
 and exp =
   | Const of const

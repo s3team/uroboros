@@ -60,11 +60,15 @@ def check_static():
     else:
         return False
 
+def get_custom_objects():
+    result = subprocess.run("ls | grep '\\.o$'", shell=True, capture_output=True, text=True)
+    return result.stdout.strip().split('\n') if result.stdout else []
 
 def reassemble(assembly_file, arch):
     compiler = ""
     compile_option = "-no-pie -lm -lrt -lpthread "
     is_32bit_binary = check_32()
+    custom_objects = get_custom_objects()
 
     if arch == "intel":
         compiler = "gcc"
@@ -81,6 +85,10 @@ def reassemble(assembly_file, arch):
 
     if check_static() == True:
         compile_option += "-static"
+
+    for obj in custom_objects:
+        print(f"custom_object: {obj}")
+        compile_option += f" {obj} "
 
     print(f"reassemble: {compiler} {assembly_file} {compile_option}")
     os.system(f"{compiler} {assembly_file} {compile_option}")
@@ -180,6 +188,9 @@ def process(f, i, arch):
         os.system(f"echo \"{str(i)}\" > count.txt")
         os.system(f"cp {f} {f}.sym")
         os.system(f"nm {f}.sym > nm.info")
+        if check_static():
+            os.system(f"objdump -d --section=.plt {f} > plt_whole.info")
+            os.system(f"readelf -r {f} > rela_plt.info")
         os.system(f"{strip_command} {f}")
 
         dump(f)
@@ -237,6 +248,11 @@ def process(f, i, arch):
                 update_final(plt_addr2entry, plt_new_entry2addr)
                 reassemble("final2.s", arch)
 
+        custom_objects = get_custom_objects()
+        for obj in custom_objects:
+            # remove .o object files from instrumentation
+            print(f"rm {obj}")
+            os.system(f"rm {obj}")
 
         if iter_num > 0:
             os.system("cp a.out " + f)

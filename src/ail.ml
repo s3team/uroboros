@@ -2,7 +2,6 @@ open Batteries
 open Type
 open Ail_parser
 open Pp_print
-(* open Reassemble *)
 open Reassemble_symbol_get
 open Cfg
 open Cg
@@ -108,44 +107,45 @@ object (self)
     close_out oc
 
   method ehframe_dump =
-    ignore(Sys.command("cat eh_frame.data >> final.s"))
+    ignore (Sys.command("cat eh_frame.data >> final.s"))
 
   method excpt_tbl_dump =
-    ignore(Sys.command("cat gcc_exception_table.data >> final.s"))
+    ignore (Sys.command("cat gcc_exception_table.data >> final.s"))
 
   method post_process f (arch : string) = 
     ignore (Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch));
-    ignore(Sys.command("python3 post_process.py "^arch));
-    ignore(Sys.command("python3 post_process_lib.py"))
+    ignore (Sys.command("python3 post_process.py "^arch));
+    ignore (Sys.command("python3 post_process_lib.py"))
     (*
     self#ehframe_dump;
     self#excpt_tbl_dump;
     *)
 
   method pre_process =
-    let  _ = Sys.command("python3 pre_process.py") in ()
+    ignore (Sys.command("python3 pre_process.py"))
 
-  method instrProcess_2 f (arch: string) =
+  method instr_process (f : string) (arch : string) : unit =
     let open Disassemble_process in
     let open Analysis_process in
     let module D = Disam in
     let module A = Analysis in
-    let module S = Symbol_get in
-    let () = self#pre_process in
-    let (il, fl, re) = D.disassemble f funcs secs arch in
+    let module S = Symbol_table_get in
+    let module I = Instrumentation in
+    let _ = self#pre_process in
+    let il, fl, re = D.disassemble f funcs secs arch in
 
     print_endline "3: analysis";
 
-    let (fbl, bbl, cfg_t, cg, il', re) = A.analyze_one il fl re in
-    let il' = S.apply il' in
-    let open Instrumentation_plugin in
-    let module IP = Instrumentation_Plugin in
-    let instrumented_il = IP.instrument il' fbl bbl in
+    let fbl, bbl, cfg_t, cg, il', re, ufl = A.analyze_one il fl re in
+
+    let il', ufl', fch = S.apply il' ufl in
+
+    let instrumented_il =
+      I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch
+    in
 
     print_endline "4: post processing";
     A.post_analyze instrumented_il re;
 
     self#post_process f arch
-
-
 end
