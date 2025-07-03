@@ -39,7 +39,7 @@ class cfg =
     (* last loc for the whole instruction sequence *)
     val mutable end_loc : loc = {loc_label = ""; loc_addr = 0; loc_visible = true;}
     val mutable entry_instr : instr =
-      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), {loc_label=""; loc_addr = 0; loc_visible=true;}, None)
+      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), {loc_label=""; loc_addr = 0; loc_visible=true;}, None, Hashtbl.create 0)
     val mutable bb_list = []
     val mutable bl = []
     (* opt: opt the performance *)
@@ -68,11 +68,11 @@ class cfg =
 
     method get_loc i =
       match i with
-      | SingleInstr (_, l, _) -> l
-      | DoubleInstr (_, _, l, _) -> l
-      | TripleInstr (_, _, _, l, _) -> l
-      | FourInstr (_, _, _, _, l, _) -> l
-      | FifInstr (_, _, _, _, _, l, _) -> l
+      | SingleInstr (_, l, _, _) -> l
+      | DoubleInstr (_, _, l, _, _) -> l
+      | TripleInstr (_, _, _, l, _, _) -> l
+      | FourInstr (_, _, _, _, l, _, _) -> l
+      | FifInstr (_, _, _, _, _, l, _, _) -> l
 
     method vinst' (i: instr) =
       (* check whether is control flow transfer opcodes *)
@@ -98,7 +98,7 @@ class cfg =
           end
         | _ -> false in
       match i with
-      | DoubleInstr (p, e, l, _) when (is_ct p) ->
+      | DoubleInstr (p, e, l, _, _) when (is_ct p) ->
          self#cfg_exp e l;
          i
       | _ -> i
@@ -276,9 +276,9 @@ class cfg =
            help_exit i
          else
            i
-      | DoubleInstr (p, e, l, _) when (bb_exit p l) ->
+      | DoubleInstr (p, e, l, _, _) when (bb_exit p l) ->
            help_exit i
-      | SingleInstr (p, l, _) when (bb_exit p l) ->
+      | SingleInstr (p, l, _, _) when (bb_exit p l) ->
          help_exit i
       | _ ->
          begin
@@ -542,27 +542,27 @@ class cfg =
           | _ -> false in
       let aux (bnl : string list) acc i =
         match i with
-        | SingleInstr (p, _, _) when (is_ret p) ->
+        | SingleInstr (p, _, _, _) when (is_ret p) ->
            (indirect_ret i)::acc
-        | DoubleInstr (_, _, _, _) when (is_arm_ret i) ->
+        | DoubleInstr (_, _, _, _, _) when (is_arm_ret i) ->
            (indirect_ret i)::acc
         (* 2 seconds *)
-        | DoubleInstr (_, e, _, _) when (is_indirect e) ->
+        | DoubleInstr (_, e, _, _, _) when (is_indirect e) ->
            (indirect i)::acc
-        | DoubleInstr (p, _, _, _) when (is_call p) ->
+        | DoubleInstr (p, _, _, _, _) when (is_call p) ->
            let (d1, d2) = (dir_c bnl i) in
            d1::d2::acc
         (* is it possible that jmp strcpy *)
         (* 2 seconds *)
-        | DoubleInstr (p, e, _, _) when (is_jmp p) && (is_func e = true) ->
+        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = true) ->
            (dir_sin_c i)::acc
-        | DoubleInstr (p, e, _, _) when (is_jmp p) && (is_func e = false) ->
+        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = false) ->
            (dir_sin_j i e)::acc
         (* 10 second *)
-        | DoubleInstr (p, e, _, _) when (is_cond_jmp p) && (is_func e = false)->
+        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
            let (d1, d2) = (dir_dou_j bnl i e) in
            d1::d2::acc
-        | DoubleInstr (p, e, l, _) when (is_cond_jmp p) && (is_func e = true)->
+        | DoubleInstr (p, e, l, _, _) when (is_cond_jmp p) && (is_func e = true)->
            print_endline (p_exp e);
            print_endline @@ dec_hex @@ l.loc_addr;
            assert(false)

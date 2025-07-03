@@ -60,15 +60,26 @@ def check_static():
     else:
         return False
 
-def get_custom_objects():
+def get_custom_objects(cleanup):
     result = subprocess.run("ls | grep '\\.o$'", shell=True, capture_output=True, text=True)
-    return result.stdout.strip().split('\n') if result.stdout else []
+    result = result.stdout.strip().split('\n') if result.stdout else []
+    if cleanup or not os.path.exists("points.ins"):
+        return list(set(result))
+    with open("points.ins") as points:
+        p = points.readlines()
+        for line in p:
+            if not line.startswith("INCLUDE"):
+                continue
+            line_nocmd = line.split('"')[0]
+            libs = [l for l in line_nocmd[8:].split() if l]
+            result.extend(libs)
+    return list(set(result))
 
 def reassemble(assembly_file, arch):
     compiler = ""
     compile_option = "-no-pie -lm -lrt -lpthread "
     is_32bit_binary = check_32()
-    custom_objects = get_custom_objects()
+    custom_objects = get_custom_objects(cleanup=False)
 
     if arch == "intel":
         compiler = "gcc"
@@ -248,7 +259,7 @@ def process(f, i, arch):
                 update_final(plt_addr2entry, plt_new_entry2addr)
                 reassemble("final2.s", arch)
 
-        custom_objects = get_custom_objects()
+        custom_objects = get_custom_objects(cleanup=True)
         for obj in custom_objects:
             # remove .o object files from instrumentation
             print(f"rm {obj}")

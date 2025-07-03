@@ -769,11 +769,11 @@ let eiz_symb = function s ->
 
     method reduce_stack stack pre =
       match stack with
-      | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre)
-      | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre)
-      | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre)
-      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre)
-      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre)
+      | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre, Hashtbl.create 0)
+      | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre, Hashtbl.create 0)
       | _ -> raise ParseError
 
     method print_f (fl : func list) =
@@ -802,7 +802,8 @@ let eiz_symb = function s ->
         | h::t -> if h.func_name = name then h else help t name
         | [] ->
           let func' : func =
-            {func_name=name; func_begin_addr=0; func_end_addr = 0; is_lib=lib;} in
+            {func_name=name; func_begin_addr=0; func_end_addr = 0; is_lib=lib;}
+          in
           func_list <- func'::func_list;
           func' in
       help func_list name

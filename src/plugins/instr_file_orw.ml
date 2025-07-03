@@ -8,7 +8,9 @@
     - fwrite
 *)
 
-module Instrumentation_Plugin = struct
+open Instrumentation
+
+module PLUGIN = struct
 
   open Ail_utils
 
@@ -70,6 +72,7 @@ module Instrumentation_Plugin = struct
         print_string "Plugin Failed: This plugin is for 32-bit binary, not for 64-bit.\n";
         il
       end
-
-
 end
+
+let () =
+  plugin := Some (module PLUGIN)

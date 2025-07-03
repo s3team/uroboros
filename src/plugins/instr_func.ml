@@ -7,8 +7,9 @@
     - the entry of target functions
     - the exit of target functions
 *)
+open Instrumentation
 
-module Instrumentation_Plugin = struct
+module PLUGIN = struct
   open Ail_utils
   open Type
   open Batteries
@@ -148,3 +149,6 @@ module Instrumentation_Plugin = struct
         print_string "Plugin Failed.\n";
         il
 end
+
+let () =
+  plugin := Some (module PLUGIN)

@@ -4,13 +4,14 @@
    at the beginning of each basic block. 
  *)
 
-module Instrumentation_Plugin = struct
+open Instrumentation
+
+module PLUGIN = struct
 
     open Ail_utils
 
     (* il update list  *)
     let il_update = ref []
-
 
     let set_update i =
       let open Instr_utils in
@@ -39,7 +40,6 @@ counts basic blocks number by inplementing this :
 
  *)
 
-
    let template_BB_counting acc b il bmap =
      let open Type in
      let open Batteries in
@@ -67,7 +67,6 @@ counts basic blocks number by inplementing this :
      |> set_update_fold i3 iloc
      |> set_update_fold i0 iloc
      |> sub_update_fold i' iloc i
-
 
    let template_BB_counting_opt acc b il bmap =
      let build_stub b =
@@ -102,11 +101,8 @@ counts basic blocks number by inplementing this :
      |> set_update_fold i1 iloc
      |> sub_update_fold i' iloc i
 
-
-
     let gen_BB_counting acc b il bmap =
       template_BB_counting_opt acc b il bmap
-
 
    let insert_instrument_instrs il =
       let module IU = Instr_utils in
@@ -114,11 +110,9 @@ counts basic blocks number by inplementing this :
       |> IU.sort_il_update
       |> IU.update_instrs_infront il
 
-
    let instrument_bb bmap bl il acc =
       List.fold_left (fun acc b ->
                       gen_BB_counting acc b il bmap) acc bl
-
 
    let instrument il fb_bbl bbl =
      let open Batteries in
@@ -132,7 +126,6 @@ counts basic blocks number by inplementing this :
      print_int (Hashtbl.length fb_bbl);
      print_string "\n"; *)
      let l = Hashtbl.fold aux fb_bbl [] in
-
      let bbl_sort = BU.bbl_sort bbl in
      let bmap = BU.bb_map bbl_sort il in
 
@@ -154,5 +147,7 @@ counts basic blocks number by inplementing this :
         print_string "Plugin Failed: This plugin is for 32-bit binary, not for 64-bit.\n";
         il
       end
-
 end
+
+let () =
+  plugin := Some (module PLUGIN)

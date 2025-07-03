@@ -496,11 +496,11 @@ class arm_parse =
 
   method reduce_stack stack pre =
     match stack with
-    | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre)
-    | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre)
-    | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre)
-    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre)
-    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre)
+    | (Loc l)::(Op p)::[] -> SingleInstr (p, l, pre, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Op p)::[] -> DoubleInstr(p, exp1, l, pre, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Exp exp2)::(Op p)::[] -> TripleInstr(p, exp1, exp2, l, pre, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Op p)::[] -> FourInstr(p, exp1, exp2, exp3, l, pre, Hashtbl.create 0)
+    | (Loc l)::(Exp exp1)::(Exp exp2)::(Exp exp3)::(Exp exp4)::(Op p)::[] -> FifInstr(p, exp1, exp2, exp3, exp4, l, pre, Hashtbl.create 0)
     | _ -> raise ParseError
 
   method print_f (fl : func list) =

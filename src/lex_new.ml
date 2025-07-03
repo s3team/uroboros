@@ -228,14 +228,10 @@ let prefix_identify instr =
   let has_addr32 = prefix_addr32 instr in
   let has_bnd = prefix_bnd instr in
   let open Type in
-  if has_lock then
-    Some LOCK
-  else if has_addr32 then
-    Some ADDR32
-  else if has_bnd then
-    Some BND
-  else
-    None
+  if has_lock then Some LOCK
+  else if has_addr32 then Some ADDR32
+  else if has_bnd then Some BND
+  else None
 
 let prefix_sub instr =
   let has_lock = prefix_lock instr in

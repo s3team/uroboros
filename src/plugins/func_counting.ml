@@ -4,11 +4,11 @@
    at the beginning of each function. 
  *)
 
-module Instrumentation_Plugin = struct
+ open Instrumentation
+
+module PLUGIN = struct
 
     open Ail_utils
-
-
 
     let template_func_counting acc b il bmap =
      let open Type in
@@ -30,15 +30,12 @@ module Instrumentation_Plugin = struct
      |> set_update_fold i0 iloc
      |> sub_update_fold i' iloc i
 
-
     let gen_func_counting acc b il bmap =
       template_func_counting acc b il bmap
-
 
    let instrument_func bl il acc bmap =
       List.nth bl 0
       |> (fun b -> gen_func_counting acc b il bmap)
-
 
    let instrument il fb_bbl bbl =
      let open Batteries in
@@ -76,13 +73,7 @@ module Instrumentation_Plugin = struct
       print_string "Plugin Failed: This plugin is for 32-bit binary, not for 64-bit.\n";
       il
      end
-
-	(*
-     let module P = Parallel in
-     il_update :=  List.flatten @@
-     P.pfold ~ncores: 12 ~concat: (@)  help l [];
-
-      *)
-
-
 end
+
+let () =
+  plugin := Some (module PLUGIN)

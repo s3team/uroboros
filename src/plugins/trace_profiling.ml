@@ -9,7 +9,9 @@
    of a basic block. Only works for 32-bit binary.
  *)
 
-module Instrumentation_Plugin = struct
+open Instrumentation
+
+module PLUGIN = struct
 
     open Ail_utils
 
@@ -17,7 +19,6 @@ module Instrumentation_Plugin = struct
       let open Type in
       let n = b.bblock_name in
       n ^ "_stub"
-
 
    (* this is an io function  *)
    (* not complete yet *)
@@ -64,7 +65,6 @@ module Instrumentation_Plugin = struct
      |> set_update_fold i1 iloc
      |> sub_update_fold i' iloc i *)
 
-
     (* this is a no-io function  *)
    let template_trace  acc b il bmap =
      let open Type in
@@ -97,15 +97,12 @@ module Instrumentation_Plugin = struct
      |> set_update_fold i1 iloc
      |> sub_update_fold i' iloc i
 
-
     let gen_trace acc b il bmap =
       template_trace acc b il bmap
-
 
    let instrument_bb bmap bl il acc =
       List.fold_left (fun acc b ->
                       gen_trace acc b il bmap) acc bl
-
 
    let instrument il fb_bbl bbl =
      let open Batteries in 
@@ -143,14 +140,7 @@ module Instrumentation_Plugin = struct
         print_string "Plugin Failed: This plugin is for 32-bit binary, not for 64-bit.\n";
         il
       end
-
-	(*
-     let module P = Parallel in
-     List.flatten @@
-     P.pfold ~ncores: 12 ~concat: (@)  help l [];
-     |> IU.insert_instrument_instrs il
-
-	*)
-
-
 end
+
+let () =
+  plugin := Some (module PLUGIN)

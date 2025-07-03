@@ -4,8 +4,9 @@
 
    This is not a plugin, but some ongoing work based on trace profiling.
  *)
+ open Instrumentation
 
-module Trimmer_Pre = struct
+module PLUGIN = struct
 
     open Type
 
@@ -20,11 +21,9 @@ module Trimmer_Pre = struct
     let addr_trace t =
       t |> List.rev_map int_of_string |> List.rev
 
-
     let obtain_sorted_uniq_join_trace () =
       let open Ail_utils in
       read_file "bb_join_sort_uniq_trace.txt"
-
 
     let addr_trace_joined t =
       let split = Str.split (Str.regexp " +") in
@@ -33,7 +32,6 @@ module Trimmer_Pre = struct
               let [x;y]= split s in
               (int_of_string x, int_of_string y)
              ) |> List.rev
-
 
     let addr_trace_sort_uniq t =
       let open Ail_utils in
@@ -65,8 +63,6 @@ module Trimmer_Pre = struct
             | _ -> failwith "undefined"
         )
 
-
-
     (* obtain a marked list of basic blocks ; the trace contains a sequence of
     bb address *)
     let bb_mark_by_addr bbl t =
@@ -82,7 +78,6 @@ module Trimmer_Pre = struct
       in
       aux bbl [] t
 
-
     type bb_addr_typ = BEGIN | END
 
     let marked_addr_range bbl =
@@ -91,7 +86,6 @@ module Trimmer_Pre = struct
                 (b.bblock_end_loc.loc_addr, END)]
                )
       |> List.rev |> List.flatten
-
             (* )
       |> (fun a -> List.nth a 1 |> fst |> print_int ; a)
              *)
@@ -103,9 +97,6 @@ module Trimmer_Pre = struct
                 )
                 bbl []
        *)
-
-
-
 end
 
 
@@ -113,7 +104,6 @@ end
 module BB_marker = struct
 
     open Trimmer_Pre
-
 
     let instr_mark bbl instrs t =
       let open Ail_utils in
@@ -148,7 +138,6 @@ module BB_marker = struct
       in
       bb_mark_by_addr bbl t |> marked_addr_range |>
       aux instrs false []
-
 end
 
 (*   *)
@@ -170,7 +159,6 @@ module CF_changer = struct
       let open Ail_utils in
       let l = get_loc i in
       set_loc i {l with loc_visible = false}
-
 
     let check_label i =
         let open Ail_utils in
@@ -197,7 +185,6 @@ module CF_changer = struct
            |> (fun e -> bbn_byloc e at)
            |> (fun r -> r = false)
          end
-
 
     (* judge two
       mark the control transfers when this transfer is not in the trace
@@ -252,7 +239,6 @@ module CF_changer = struct
              end
         end
 
-
     let change_cf_on_judge instrs judge =
       let open Ail_utils in
       let open Cfg_utils in
@@ -274,14 +260,12 @@ module CF_changer = struct
       in
       map_jmp visitor instrs
 
-
     let change_cf_judge_one instrs t  : instr list =
       let module TP = Trimmer_Pre in
       change_cf_on_judge instrs (des_not_in_trace t)
 
     let change_cf_judge_two bbl t instrs =
       change_cf_on_judge instrs (transfer_not_in_trace bbl t)
-
 end
 
 module Trimmer = struct
@@ -316,7 +300,6 @@ module Trimmer = struct
 
      6. Can we do more? Is it a straight-line code already?
    *)
-
 
   let procedure_one bbl t instrs =
     let module BM = BB_marker in
@@ -353,7 +336,7 @@ module Trimmer = struct
     let t5 = TR.elapsed t4 in
     let r = procedure_three (TP.build_tranfers_from_trace t) bbl r in
     let _ = TR.elapsed t5 in
-        r
+    r
 
   let trim bbl instrs =
     let open Ail_utils in
@@ -371,8 +354,8 @@ module Trimmer = struct
     let t1 = TR.elapsed t1 in
     let r = procedure_three t_join bbl r in
     let _ = TR.elapsed t1 in
-
     r
-
-
 end
+
+let () =
+  plugin := Some (module PLUGIN)

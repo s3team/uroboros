@@ -2034,15 +2034,15 @@ class reassemble =
           end
         | Arm_OP _ -> false in
       match i with
-      | SingleInstr (p, l, pre) -> i
-      | DoubleInstr (p, e, l, pre) -> DoubleInstr (p, (self#v_exp2 e i f false), l, pre)
-      | TripleInstr (p, e1, e2, l, pre) when is_test p
-        ->  TripleInstr (p, (self#v_exp2 e1 i f true), (self#v_exp2 e2 i f true), l, pre)
-      | TripleInstr (p, e1, e2, l, pre)
+      | SingleInstr (p, l, pre, tags) -> i
+      | DoubleInstr (p, e, l, pre, tags) -> DoubleInstr (p, (self#v_exp2 e i f false), l, pre, tags)
+      | TripleInstr (p, e1, e2, l, pre, tags) when is_test p
+        ->  TripleInstr (p, (self#v_exp2 e1 i f true), (self#v_exp2 e2 i f true), l, pre, tags)
+      | TripleInstr (p, e1, e2, l, pre, tags)
         -> TripleInstr (p, (self#v_exp2 e1 i f false)
-                       , (self#v_exp2 e2 i f false), l, pre)
-      | FourInstr (p, e1, e2, e3, l, pre) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre)
-      | FifInstr (p, e1, e2,e3,e4, l, pre) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre)
+                       , (self#v_exp2 e2 i f false), l, pre, tags)
+      | FourInstr (p, e1, e2, e3, l, pre, tags) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre, tags)
+      | FifInstr (p, e1, e2,e3,e4, l, pre, tags) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre, tags)
 
 
     method visit_heuristic_analysis (instrs: instr list) =
