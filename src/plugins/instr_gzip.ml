@@ -8,7 +8,9 @@
     - the exit of rware_entry and encrypt_file
 *)
 
-module Instrumentation_Plugin = struct
+open Instrumentation
+
+module PLUGIN = struct
   open Ail_utils
   open Type
   open Batteries
@@ -131,3 +133,6 @@ module Instrumentation_Plugin = struct
         print_string "Plugin Failed.\n";
         il
 end
+
+let () =
+  plugin := Some (module PLUGIN)

@@ -56,6 +56,19 @@ Cycle: 4
 analogWrite called. pin=0 val=0.015625
 EOF
 
+read -r -d '' expected_rware_64 <<'EOF'
+called 1 times
+called 2 times
+called 3 times
+called 4 times
+called 5 times
+called 6 times
+called 7 times
+EOF
+
+read -r -d '' expected_genecdh_64 <<'EOF'
+called 1 times
+EOF
 
 has_failed="false"
 
@@ -244,6 +257,62 @@ rm "$tmpfile"
 rm capture.c
 popd
 
+##################
+# rware (64-bit) #
+##################
+echo ">>> rware"
+
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make
+popd
+pushd $(pwd)/src
+cp ${rware_dir}/points.getrandom.64.ins points.ins
+tmpfile=$(mktemp)
+python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
+$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+
+if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
+  echo "##### expected output for rware.64 not matching #####"
+  echo "~ actual:"
+  cat "$tmpfile"
+  has_failed="true"
+fi
+rm "$tmpfile"
+rm -rf ${rware_dir}/hello
+cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
+popd
+pushd ${rware_dir}
+make clean
+popd
+
+echo ">>> genecdh"
+
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make
+popd
+pushd $(pwd)/src
+cp ${rware_dir}/points.getrandom.64.ins points.ins
+tmpfile=$(mktemp)
+python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
+$(pwd)/a.out genkey &> "$tmpfile"
+
+if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
+  echo "##### expected output for genecdh.64 not matching #####"
+  echo "~ actual:"
+  cat "$tmpfile"
+  has_failed="true"
+fi
+rm "$tmpfile"
+popd
+pushd ${rware_dir}
+make clean
+popd
+
+###########
+# closing #
+###########
 if [[ "$has_failed" == "true" ]]; then
   exit 1
 fi

@@ -139,7 +139,7 @@ class func_slicer instrs funcs =
         | h::t ->
            begin
              match h with
-             | DoubleInstr (p, e, l, _) when (is_begin p e) ->
+             | DoubleInstr (p, e, l, _, _) when (is_begin p e) ->
                 if eaddr = (-1) then (* first function *)
                   (
                     baddr <- l.loc_addr;
@@ -403,7 +403,7 @@ class func_slicer instrs funcs =
       let rec help h =
         match h with
         (* multiple lea ... can be used to align together *)
-        | TripleInstr(p, e1, e2, l, _) when (is_nop1 p e2) ->
+        | TripleInstr(p, e1, e2, l, _, _) when (is_nop1 p e2) ->
            begin
              last_nop <- false;
              last_ret <- false;
@@ -412,7 +412,7 @@ class func_slicer instrs funcs =
              last_special <- true
            end
         (* multiple lea    0x0(%edi),%edi can be used to align together *)
-        | TripleInstr(p, e1, e2, l, _) when (is_nop2 p e2 e1) ->
+        | TripleInstr(p, e1, e2, l, _, _) when (is_nop2 p e2 e1) ->
            begin
              last_nop <- false;
              last_ret <- false;
@@ -424,7 +424,7 @@ class func_slicer instrs funcs =
              lea    0x0(%esi,%eiz,1),%esi
            consider the next instruction as function beginning.
          *)
-        | SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)),_,_) ->
+        | SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), _, _, _) ->
            begin
              last_nop <- true;
              last_ret <- false;
@@ -433,7 +433,7 @@ class func_slicer instrs funcs =
              last_special <- false
            end
         | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign XCHG)), Reg (Intel_Reg (Intel_CommonReg AX)),
-                       Reg (Intel_Reg (Intel_CommonReg AX)), _, _)
+                       Reg (Intel_Reg (Intel_CommonReg AX)), _, _, _)
           ->
            begin
              last_nop <- false;
@@ -442,7 +442,7 @@ class func_slicer instrs funcs =
              last_jmp <- false;
              last_special <- false;
            end
-        | SingleInstr (Intel_OP (Intel_ControlOP RET), _, _) ->
+        | SingleInstr (Intel_OP (Intel_ControlOP RET), _, _, _) ->
            begin
              last_nop <- false;
              last_special <- false;
@@ -450,7 +450,7 @@ class func_slicer instrs funcs =
              last_jmp <- false;
              last_ret <- true
            end
-        | DoubleInstr(Intel_OP (Intel_ControlOP (Intel_Jump JMP)), _, l, _) when last_nop ->
+        | DoubleInstr(Intel_OP (Intel_ControlOP (Intel_Jump JMP)), _, l, _, _) when last_nop ->
            begin
              last_nop <- false;
              last_xchg <- false;
@@ -459,7 +459,7 @@ class func_slicer instrs funcs =
              last_jmp <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | DoubleInstr (Intel_OP (Intel_ControlOP (Intel_Jump JMP)), _,_,_) ->
+        | DoubleInstr (Intel_OP (Intel_ControlOP (Intel_Jump JMP)), _, _, _, _) ->
            begin
              last_nop <- false;
              last_special <- false;
@@ -469,7 +469,7 @@ class func_slicer instrs funcs =
            end
        (* | DoubleInstr (CommonOP (Assign REPZ), Label "ret", l, _) when *)
         (* last_nop || last_special || last_ret -> *)
-        | DoubleInstr (Intel_OP (Intel_CommonOP (Intel_Assign REPZ)), Label "ret", l, _) when last_nop || last_special ->
+        | DoubleInstr (Intel_OP (Intel_CommonOP (Intel_Assign REPZ)), Label "ret", l, _, _) when last_nop || last_special ->
            begin
              last_nop <- false;
              last_xchg <- false;
@@ -480,7 +480,7 @@ class func_slicer instrs funcs =
            end
         (* xor %eax,%eax *)
         | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Logic XOR)), Reg (Intel_Reg (Intel_CommonReg EAX)),
-                       Reg (Intel_Reg (Intel_CommonReg EAX)), l, _) when last_special ->
+                       Reg (Intel_Reg (Intel_CommonReg EAX)), l, _, _) when last_special ->
            begin
              last_nop <- false;
              last_xchg <- false;
@@ -492,7 +492,7 @@ class func_slicer instrs funcs =
         | h when last_special = true ->
            begin
              let c = match h with
-               | DoubleInstr (p, _,_,_) ->
+               | DoubleInstr (p, _, _, _, _) ->
                   begin
                     match p with
                     | Intel_OP io ->
@@ -512,7 +512,7 @@ class func_slicer instrs funcs =
                   is_begin3 (Intel_OP (Intel_CommonOP (Intel_Assign MOV))) e2 e1
                | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVZBL)), e1,e2,_,_) ->
                   is_begin3 (Intel_OP (Intel_CommonOP (Intel_Assign MOVZBL))) e2 e1*)
-               | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Arithm SUB)), e1,e2,_,_) ->
+               | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Arithm SUB)), e1, e2, _, _, _) ->
                   is_s_begin2 (Intel_OP (Intel_CommonOP (Intel_Arithm SUB))) e2 e1 h
                | _ -> false in
              if c = false then
@@ -543,7 +543,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end*)
-        | SingleInstr (Intel_OP (Intel_CommonOP (Intel_Assign (FLDZ))), l,_) when last_special ->
+        | SingleInstr (Intel_OP (Intel_CommonOP (Intel_Assign (FLDZ))), l, _, _) when last_special ->
            begin
              last_nop <- false;
              last_xchg <- false;
@@ -552,7 +552,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | (DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg ESI)), l, _)
+        | (DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg ESI)), l, _, _)
           ) when last_nop || last_xchg || last_special || last_ret  || last_jmp ->
            begin
              last_nop <- false;
@@ -562,7 +562,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | (DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg EDI)), l, _)
+        | (DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg EDI)), l, _, _)
           ) when last_nop || last_ret || last_xchg || last_special ->
            begin
              last_nop <- false;
@@ -572,7 +572,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg EBX)), l, _) when last_ret || last_ret || last_nop || last_special ->
+        | DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg EBX)), l, _, _) when last_ret || last_ret || last_nop || last_special ->
            begin
              last_nop <- false;
              last_xchg <- false;
@@ -590,7 +590,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end*)
-        | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOV)), Reg (Intel_Reg (Intel_CommonReg EAX)), Const (Normal 1), l,_) when last_special ->
+        | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOV)), Reg (Intel_Reg (Intel_CommonReg EAX)), Const (Normal 1), l, _, _) when last_special ->
            begin
              last_nop <- false;
              last_ret <- false;
@@ -620,7 +620,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
           end*)
-        | DoubleInstr (p, e, l, _) when (is_c_begin p e) ->
+        | DoubleInstr (p, e, l, _, _) when (is_c_begin p e) ->
            begin
              last_nop <- false;
              last_ret <- false;

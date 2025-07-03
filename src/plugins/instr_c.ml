@@ -33,19 +33,22 @@ module PLUGIN = struct
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg EDX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg ECX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_ControlOP (CALL)),
@@ -58,25 +61,29 @@ module PLUGIN = struct
               }
             ),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_CommonReg ECX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_CommonReg EDX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
         ]
       else
@@ -86,43 +93,50 @@ module PLUGIN = struct
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg RAX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg RDX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg RCX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_SpecialReg R8)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_SpecialReg R9)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_SpecialReg R10)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_SpecialReg R11)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_ControlOP (CALL)),
@@ -135,49 +149,57 @@ module PLUGIN = struct
               }
             ),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_SpecialReg R11)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_SpecialReg R10)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_SpecialReg R9)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_SpecialReg R8)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_CommonReg RCX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_CommonReg RDX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
           DoubleInstr (
             Intel_OP (Intel_StackOP (POP)),
             Reg (Intel_Reg (Intel_CommonReg RAX)),
             iloc,
-            None
+            None,
+            Hashtbl.create 0
           );
         ]
       in

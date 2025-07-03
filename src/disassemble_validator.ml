@@ -93,7 +93,7 @@ class dis_validator =
 
     method invalid_opcode (i : instr) : bool =
       match i with
-      | SingleInstr (p, _, _) ->
+      | SingleInstr (p, _, _, _) ->
         begin
           match p with
           | Intel_OP io ->
@@ -162,7 +162,7 @@ class dis_validator =
       let is_inside addr =
 	      bbn_byloc addr text_mem_arr in
       match i with
-      | DoubleInstr (p, e1, _, _) ->
+      | DoubleInstr (p, e1, _, _, _) ->
         if is_cp p == true then
           match is_des e1 with
           | Some d -> is_outside d || is_inside d

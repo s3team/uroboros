@@ -3,13 +3,17 @@
 all:
 	test/test_all.py -a -c
 	test/test_instrument.sh 2>&1 | tee test.instrument
-	rm src/points.ins
+	rm src/points.ins src/fun.o
 	test/test_action.sh 2>&1 | tee test.all
 	test/test_coreutils.sh 2>&1 | tee test.coreutils
 
 clean:
-	rm src/fl_calls
-	rm src/fl
+	rm src/fl_calls || true
+	rm src/fl || true
+	rm src/points.ins || true
+	find . -type f -name "*.help" -delete
+	find . -type f -name "*.res" -delete
+	find . -type f -name "*.out" -delete
 	( cd src && ls | grep '\.info$$' | xargs -r rm -f )
 	( cd src && ls | grep '\.disassemble$$' | xargs -r rm -f )
 	( cd src && ls | grep '\.temp$$' | xargs -r rm -f )

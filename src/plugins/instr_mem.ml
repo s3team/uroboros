@@ -7,7 +7,9 @@
     - memory writes
 *)
 
-module Instrumentation_Plugin = struct
+open Instrumentation
+
+module PLUGIN = struct
 
   open Ail_utils
 
@@ -18,7 +20,6 @@ module Instrumentation_Plugin = struct
       let open Type in
       let open Batteries in
       let module BU = BB_utils in
-
       let iloc = get_loc i in
       let iloc' = {iloc with loc_label = ""} in
       let addr' = iloc.loc_addr in
@@ -28,17 +29,14 @@ module Instrumentation_Plugin = struct
       set_update_fold i1 iloc acc
     end
 
-
   let instrument_mem i t =
     begin
       let open Type in
       let module IT = Instr_template in
       let module IU = Instr_utils in
-
       il_update := (insert_nop i []) @ !il_update;
       IU.eliminate_label i
     end
-
 
   let instrument il fb_bbl bbl =
     print_endline "Enabling NOP padding before memory read and write";
@@ -59,6 +57,7 @@ module Instrumentation_Plugin = struct
         print_string "Plugin Failed.\n";
         il
       end
-
-
 end
+
+let () =
+  plugin := Some (module PLUGIN)

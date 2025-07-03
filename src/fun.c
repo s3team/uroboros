@@ -16,6 +16,12 @@ void print_args (const char *format, int x) {
   printf("^passed: %s %d^\n", format, x);  
 }
 
+int print_string2 (char* x) {
+  printf("passed string: %s\n", x);
+  int len = strlen(x);
+  return len;
+}
+
 void print_string (char* x) {
   printf("passed string: %s\n", x);
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BINDIR=$(pwd)/coreutils-32bit/src
+BINDIR=$(pwd)/test/coreutils-32bit/src
 SRCDIR=$(pwd)/src
 
 # Define a list of programs to skip (e.g., dcgen, program2, program3)
@@ -62,6 +62,13 @@ done
 
 popd
 
+pushd $BINDIR
+
+rm *.res
+rm *.out
+rm *.help
+
+popd
 
 BINDIR=$(pwd)/coreutils-64bit/src
 SRCDIR=$(pwd)/src
@@ -115,6 +122,14 @@ for i in $(ls *.out); do
     
     # Pause the script for user input (optional)
 done
+
+popd
+
+pushd $BINDIR
+
+rm *.res
+rm *.out
+rm *.help
 
 popd
 

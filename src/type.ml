@@ -96,11 +96,11 @@ and exp =
   | Label of label
 and prefix = LOCK | ADDR32 | BND
 and instr =
-  | SingleInstr of op * loc * prefix option
-  | DoubleInstr of op * exp * loc * prefix option
-  | TripleInstr of op * exp * exp * loc * prefix option
-  | FourInstr of op * exp * exp * exp * loc * prefix option
-  | FifInstr of op * exp * exp * exp * exp * loc * prefix option
+  | SingleInstr of op * loc * prefix option * (string, string) Hashtbl.t
+  | DoubleInstr of op * exp * loc * prefix option * (string, string) Hashtbl.t
+  | TripleInstr of op * exp * exp * loc * prefix option * (string, string) Hashtbl.t
+  | FourInstr of op * exp * exp * exp * loc * prefix option * (string, string) Hashtbl.t
+  | FifInstr of op * exp * exp * exp * exp * loc * prefix option * (string, string) Hashtbl.t
 (* as far as I know, imul $0xe10,%ebp,%eax *)
 
 and bblock =

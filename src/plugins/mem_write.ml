@@ -3,12 +3,13 @@
    It traces memory write operations. 
  *)
 
-module Instrumentation_Plugin = struct
+open Instrumentation
+
+module PLUGIN = struct
 
     open Ail_utils
 
     let il_update = ref []
-
 
     let process i t =
       let open Type in
@@ -23,7 +24,6 @@ module Instrumentation_Plugin = struct
             |> IT.gen_logging_instrs i) @ !il_update;
          IU.eliminate_label i
       | _ -> i
-
 
     let instrument il fb_bbl bbl =
       let open Type in
@@ -49,8 +49,7 @@ module Instrumentation_Plugin = struct
           print_string "Plugin Failed: This plugin is for 32-bit binary, not for 64-bit.\n";
           il
         end
-
-      
-
-
 end
+
+let () =
+  plugin := Some (module PLUGIN)

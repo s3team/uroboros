@@ -118,16 +118,16 @@ let is_call (i : instr) : bool =
 
 let update_loc (i : instr) (new_loc : loc) : instr =
   match i with
-  | SingleInstr (op, loc, prefix_op) -> 
-    SingleInstr (op, new_loc, prefix_op)
-  | DoubleInstr (op, exp, loc, prefix_op) -> 
-    DoubleInstr (op, exp, new_loc, prefix_op)
-  | TripleInstr (op, exp1, exp2, loc, prefix_op) -> 
-    TripleInstr (op, exp1, exp2, new_loc, prefix_op)
-  | FourInstr (op, exp1, exp2, exp3, loc, prefix_op) -> 
-    FourInstr (op, exp1, exp2, exp3, new_loc, prefix_op)
-  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op) -> 
-    FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op)
+  | SingleInstr (op, loc, prefix_op, tags) ->
+    SingleInstr (op, new_loc, prefix_op, tags)
+  | DoubleInstr (op, exp, loc, prefix_op, tags) ->
+    DoubleInstr (op, exp, new_loc, prefix_op, tags)
+  | TripleInstr (op, exp1, exp2, loc, prefix_op, tags) ->
+    TripleInstr (op, exp1, exp2, new_loc, prefix_op, tags)
+  | FourInstr (op, exp1, exp2, exp3, loc, prefix_op, tags) ->
+    FourInstr (op, exp1, exp2, exp3, new_loc, prefix_op, tags)
+  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op, tags) ->
+    FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op, tags)
 
 let update_fname2css
     (fname2css : (string, int list) Hashtbl.t)
@@ -170,13 +170,13 @@ let apply
       in
       match i' with
       | DoubleInstr 
-          (Intel_OP (Intel_ControlOP CALL), Label func_name, loc, prefix_op) ->
+          (Intel_OP (Intel_ControlOP CALL), Label func_name, loc, prefix_op, tags) ->
         begin
           let func_name' = strip_symbol_prefix func_name |> int_of_string in
           match Hashtbl.find_opt sym_addr2label func_name' with
           | Some sym_name ->
             let call' = DoubleInstr 
-              (Intel_OP (Intel_ControlOP CALL), Label sym_name, loc, prefix_op)
+              (Intel_OP (Intel_ControlOP CALL), Label sym_name, loc, prefix_op, tags)
             in
             let new_acc = call'::acc in
             ( update_fname2css fname2css sym_name loc.loc_addr;
@@ -189,14 +189,16 @@ let apply
           ( Intel_OP (Intel_ControlOP CALL),
             Symbol (CallDes {func_name; func_begin_addr; func_end_addr; is_lib}),
             loc,
-            prefix_op ) ->
+            prefix_op,
+            tags ) ->
             ( update_fname2css fname2css func_name loc.loc_addr;
               add_existing_symbols rest (i' :: acc) )
       | DoubleInstr
           ( Intel_OP (Intel_ControlOP CALL),
             Const (Point call_addr),
             loc,
-            prefix_op ) ->
+            prefix_op,
+            tags ) ->
           begin
             match Hashtbl.find_opt plt_map call_addr with
             | Some resolve_addr -> begin
@@ -208,7 +210,8 @@ let apply
                         ( Intel_OP (Intel_ControlOP CALL),
                           Label (func_name^"@PLT"),
                           loc,
-                          prefix_op )
+                          prefix_op,
+                          tags )
                       in
                       let new_acc = call'::acc in
                       ( update_fname2css fname2css func_name loc.loc_addr;

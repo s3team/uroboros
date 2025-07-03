@@ -10,13 +10,16 @@ type location = ADDRESS of string | SYMBOL of string
 type locm = SELF | FUNENTRY | FUNEXIT | CALLSITE
 type lang = ASM | C | OCaml
 (* instrument point:
- *  format 1: address action direction stack cmd language code code-entry-point
+ *  format 1:
+      address action direction stack cmd language code code-entry-point idx
  * or
  *  format 2: user module *)
 type point_f1 =
   int * act option * dir option * (string * string) list
-  * string * lang option * string * string
+  * string * lang option * string * string * int
 type point_f2 = string * string
+
+type c_ret_type = VOID | NOT_VOID
 
 module type PLUGIN = sig
   val instrument:
@@ -34,7 +37,7 @@ let get_plugin () : (module PLUGIN)  =
   | None ->
     failwith ("Need to pass plugin path, failure at " ^ __LOC__)
 
-let load_plugin f =
+let load_plugin (f : string) : unit =
   let module_name = Filename.basename f in
   let module_path = "_build/default/plugins/" ^ module_name in
   if Sys.file_exists module_path then
@@ -54,40 +57,84 @@ let stub_loc : loc = {
   loc_visible = true
 }
 
-let file_append (filename : string) (content : string) : unit =
+let file_append
+    (filename : string)
+    (content : string)
+  : unit =
   let oc = open_out_gen [Open_append; Open_creat; Open_text] 0o644 filename in
   output_string oc content;
   close_out oc
 
-let remove_comment (ch : char) (s : string) : string =
+let remove_comment_from_point
+    (ch : char)
+    (s : string)
+  : string =
   match String.index_opt s ch with
   | Some i -> String.sub s 0 i
   | None -> s
 
-let caller_saved_before : instr list =
+let create_comment
+    (comment : string)
+  : (string, string) Hashtbl.t =
+  let tags = Hashtbl.create 1 in
+  let _ = Hashtbl.add tags "comment" comment in
+  tags
+
+let add_comment
+    (instr : instr)
+    (comment : string)
+  : instr =
+  match instr with
+  | SingleInstr (op, loc, prefix, tags) ->
+    SingleInstr (op, loc, prefix, create_comment comment)
+  | DoubleInstr (op, exp, loc, prefix, tags) ->
+    DoubleInstr (op, exp, loc, prefix, create_comment comment)
+  | TripleInstr (op, exp1, exp2, loc, prefix, tags) ->
+    TripleInstr (op, exp1, exp2, loc, prefix, create_comment comment)
+  | FourInstr (op, exp1, exp2, exp3, loc, prefix, tags) ->
+    FourInstr (op, exp1, exp2, exp3, loc, prefix, create_comment comment)
+  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, tags) ->
+    FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, create_comment comment)
+
+let p_dir_str
+    (dir : dir option)
+  : string =
+  match dir with
+  | Some BEFORE -> "before"
+  | Some AFTER -> "after"
+  | None -> ""
+
+(** preserve return value of inserted callee *)
+let caller_saved_before_ret
+    (instr_type : string)
+  : instr list =
   let module EU = ELF_utils in
   if EU.elf_32 () then
     [
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
-          Reg (Intel_Reg (Intel_CommonReg EAX)),
+          Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
-          None )
+          None,
+          (create_comment instr_type) )
     ]
   else
     [
@@ -95,55 +142,162 @@ let caller_saved_before : instr list =
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
-          None );
-      DoubleInstr
-        ( Intel_OP (Intel_StackOP (PUSH)),
-          Reg (Intel_Reg (Intel_CommonReg RAX)),
-          stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
     ]
 
-let caller_saved_after : instr list =
+let caller_saved_before
+    (instr_type : string)
+  : instr list =
+  let module EU = ELF_utils in
+  if EU.elf_32 () then
+    [
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg EAX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg EBX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg EDX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg ECX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) )
+    ]
+  else
+    [
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RSI)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RAX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RDX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RCX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RDI)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_SpecialReg R8)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_SpecialReg R9)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_SpecialReg R10)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_SpecialReg R11)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+    ]
+
+let caller_saved_after_ret
+    (instr_type : string)
+  : instr list =
   let module EU = ELF_utils in
   if EU.elf_32 () then
     [
@@ -151,22 +305,26 @@ let caller_saved_after : instr list =
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
-          Reg (Intel_Reg (Intel_CommonReg EAX)),
+          Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
-          None )
+          None,
+          (create_comment instr_type) )
     ]
   else
     [
@@ -174,68 +332,192 @@ let caller_saved_after : instr list =
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
-          Reg (Intel_Reg (Intel_CommonReg RAX)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
-          None );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
-          None )
+          None,
+          (create_comment instr_type) )
     ]
 
-let read_points ~(f : string) : string list =
+let caller_saved_after
+    (instr_type : string)
+  : instr list =
+  let module EU = ELF_utils in
+  if EU.elf_32 () then
+    [
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg ECX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg EDX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg EBX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg EAX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) )
+    ]
+  else
+    [
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_SpecialReg R11)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_SpecialReg R10)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_SpecialReg R9)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_SpecialReg R8)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RDI)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RCX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RDX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RAX)),
+          stub_loc,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RSI)),
+          stub_loc,
+          None,
+          (create_comment instr_type) )
+    ]
+
+let caller_saved_before_regs
+    (instr_type : string)
+  : c_ret_type -> instr list = function
+  | VOID -> caller_saved_before instr_type
+  | NOT_VOID -> caller_saved_before_ret instr_type
+
+let caller_saved_after_regs
+    (instr_type : string)
+  : c_ret_type -> instr list = function
+  | VOID -> caller_saved_after instr_type
+  | NOT_VOID -> caller_saved_after_ret instr_type
+
+let read_points
+    ~(f : string)
+  : string list =
   let ic = open_in f in
   let content = really_input_string ic (in_channel_length ic) in
   let _ = close_in ic in
   let content_nocomments = List.map (
-    fun s -> remove_comment '#' s
+    fun s -> remove_comment_from_point '#' s
   ) (String.split_on_char '\n' content) in
   let content' = String.concat "\n" content_nocomments in
   String.split_on_char ';' content'
 
-let count_char ~(s : string) ~(c : char) : int =
+let count_char
+    ~(s : string)
+    ~(c : char)
+  : int =
   String.fold_left (fun acc x -> if x = c then acc + 1 else acc) 0 s
 
-let strip_bracket (s : string) : string =
+let strip_bracket
+    (s : string)
+  : string =
   let len = String.length s in
   String.sub s 1 (len - 2)
 
@@ -265,18 +547,25 @@ let get_lang : string -> lang option = function
   | "OCaml" | "ocaml" -> Some OCaml
   | _ -> None
 
-let get_location (l : string) : location =
+let get_location
+    (l : string)
+  : location =
   if String.starts_with ~prefix:"0x" l then ADDRESS l
   else SYMBOL l
 
-let create_range ~(_start : int) ~(_end : int) : location list =
-  let rec cr s i acc =
+let create_range
+    ~(_start : int)
+    ~(_end : int)
+  : location list =
+  let rec cr (s : int) (i : int) (acc : location list) =
     if i >= 0 then cr (s+1) (i-1) (ADDRESS (dec_hex s) :: acc)
     else acc
   in
   cr _start (_end-_start) []
 
-let extract_location_range (loc : string) : location list =
+let extract_location_range
+    (loc : string)
+  : location list =
   let locs = String.split_on_char '-' loc in
   match locs with
   | [_start ; _end]  ->
@@ -296,6 +585,7 @@ let create_points_f1
     (code : string)
     (ufl : func list)
     (fname2css : (string, int list) Hashtbl.t)
+    (idx : int)
     (loc : string) 
   : unit =
   let locations : location list =
@@ -321,7 +611,8 @@ let create_points_f1
                 cmd,
                 lang,
                 code_ep,
-                code )
+                code,
+                idx + 1 )
             in
             points_f1 := p' :: !points_f1
           else
@@ -333,7 +624,8 @@ let create_points_f1
                 "",
                 None,
                 "",
-                "" )
+                "",
+                idx + 1 )
             in
             points_f1 := p' :: !points_f1
         end
@@ -346,7 +638,8 @@ let create_points_f1
             cmd,
             lang,
             code_ep,
-            code )
+            code,
+            idx + 1 )
         in
         points_f1 := p' :: !points_f1
       end
@@ -363,7 +656,8 @@ let create_points_f1
               cmd,
               lang,
               code_ep,
-              code )
+              code,
+              idx + 1 )
           in
           points_f1 := p' :: !points_f1
         | None -> ()
@@ -383,7 +677,8 @@ let create_points_f1
               cmd,
               lang,
               code_ep,
-              code )
+              code,
+              idx + 1 )
           in
           points_f1 := p' :: !points_f1
         | None -> ()
@@ -400,7 +695,8 @@ let create_points_f1
                 cmd,
                 lang,
                 code_ep,
-                code )
+                code,
+                idx + 1 )
             in
             points_f1 := p' :: !points_f1
           ) css
@@ -417,6 +713,7 @@ let process_instrument_point
     (fbl : (string, bblock list) Hashtbl.t)
     (bbl : bblock list)
     (line : string)
+    (idx : int)
   : unit =
   if not (String.starts_with ~prefix:"user" line) then
     (* create a point for format 1 *)
@@ -455,7 +752,7 @@ let process_instrument_point
       in
       List.iter (
         create_points_f1
-          action dir locm stack'' cmd lang code_ep code' ufl fname2css
+          action dir locm stack'' cmd lang code_ep code' ufl fname2css idx
       ) locations
     | _ -> failwith ("invalid instrument format at " ^ __LOC__)
   else
@@ -500,11 +797,12 @@ let parse_instrumentation
     |> List.filter (fun s -> not (String.trim s = ""))
     |> List.map (fun s -> String.trim s)
   in
-  List.iter (
-    process_instrument_point funcs fname_callsites instrs fbl bbl
+  List.iteri (
+    fun i l ->
+      process_instrument_point funcs fname_callsites instrs fbl bbl l i
   ) filelines;
   points_f1 := List.sort (
-    fun (addr1, _, _, _, _, _, _, _) (addr2, _, _, _, _, _, _, _) ->
+    fun (addr1, _, _, _, _, _, _, _, _) (addr2, _, _, _, _, _, _, _, _) ->
       compare addr1 addr2
   ) !points_f1
 
@@ -521,14 +819,19 @@ let arg_order_64 i =
            ^ " is too many arguments. Need to insert with assembly instead."
            ^ "Failure at " ^ __LOC__)
 
-let set_arg i arg =
+let set_arg
+    (instr_type : string)
+    (i : int) 
+    (arg : exp)
+  : instr =
   let module EU = ELF_utils in
   if EU.elf_32 () then
     DoubleInstr
       ( Intel_OP (Intel_StackOP PUSH),
         arg,
         stub_loc,
-        None )
+        None,
+        (create_comment instr_type) )
   else
     let dest_arg_reg = arg_order_64 i in
     TripleInstr
@@ -536,22 +839,28 @@ let set_arg i arg =
         Reg (Intel_Reg dest_arg_reg),
         arg,
         stub_loc,
-        None )
+        None,
+        (create_comment instr_type) )
 
 (** update stack since for 32-bit arguments are passed on the stack *)
-let clean_arg_32 arg =
+(*
+let clean_arg_32 (instr_type : string) (arg : exp) : instr =
   TripleInstr
     ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
       Reg (Intel_Reg (Intel_StackReg ESP)),
       Const (Normal 4),
       stub_loc,
-      None )
+      None,
+      (create_comment instr_type) )
+*)
 
 (** insert call with arguments *)
 let add_call_seq_arg
+    ~(instr_type : string)
     ~(ins_loc : loc)
     ~(code_ep : string)
     ~(args : (string * string) list)
+    ~(ret_type : c_ret_type)
   : instr list =
   let module EU = ELF_utils in
   let parse_arg arg =
@@ -575,9 +884,9 @@ let add_call_seq_arg
   in
   if EU.elf_32 () then
     List.rev
-      ( caller_saved_before
+      ( (caller_saved_before_regs instr_type ret_type)
       @ List.mapi (
-        set_arg
+        set_arg instr_type
       ) args'
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
@@ -590,14 +899,21 @@ let add_call_seq_arg
               }
             ),
             ins_loc,
-            None ) ]
-    @ List.map ( clean_arg_32 ) args  (* arguments on stack for 32-bits only *)
-    @ caller_saved_after )
+            None,
+            (create_comment instr_type) ) ]
+    @ [ TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
+          Reg (Intel_Reg (Intel_StackReg ESP)),
+          Const (Normal (4 * List.length args)),
+          stub_loc,
+          None,
+          (create_comment instr_type) ) ] (* arguments on stack for 32-bits only *)
+    @ (caller_saved_after_regs instr_type ret_type) )
   else
     List.rev
-      ( caller_saved_before
+      ( (caller_saved_before_regs instr_type ret_type)
       @ List.mapi (
-        set_arg
+        set_arg instr_type
       ) args'
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
@@ -610,14 +926,17 @@ let add_call_seq_arg
               }
             ),
             ins_loc,
-            None ) ]
-    @ caller_saved_after )
+            None,
+            (create_comment instr_type) ) ]
+    @ (caller_saved_after_regs instr_type ret_type) )
 
 (** insert call without arguments *)
 let add_call_seq
+    ~(instr_type : string)
     ~(ins_loc : loc)
     ~(code_ep : string)
     ~(use_existing_arg : bool)
+    ~(ret_type : c_ret_type)
   : instr list =
   let module EU = ELF_utils in
   (** 32-bit x86 calling convention pushes arguments on the stack,
@@ -636,27 +955,33 @@ let add_call_seq
             }
           ),
           ins_loc,
-          None ) ] )
+          None,
+          (create_comment instr_type) ) ] )
   else
     List.rev
-      ( caller_saved_before
-      @ [ DoubleInstr
-          ( Intel_OP (Intel_ControlOP (CALL)),
-            Symbol (
-              CallDes {
-                func_name=code_ep;
-                func_begin_addr=0;
-                func_end_addr=0;
-                is_lib=false;
-              }
-            ),
-            ins_loc,
-            None ) ]
-      @ caller_saved_after )
+    ( (caller_saved_before_regs instr_type ret_type)
+    @ [ DoubleInstr
+        ( Intel_OP (Intel_ControlOP (CALL)),
+          Symbol (
+            CallDes {
+              func_name=code_ep;
+              func_begin_addr=0;
+              func_end_addr=0;
+              is_lib=false;
+            }
+          ),
+          ins_loc,
+          None,
+          (create_comment instr_type) ) ]
+    @ (caller_saved_after_regs instr_type ret_type) )
 
-let print_args (args : (string * string) list) : instr list =
+let print_args
+    ~(instr_type : string)
+    ~(args : (string * string) list)
+  : instr list =
   let module EU = ELF_utils in
   let rec call_with_arg
+      (instr_type : string)
       (args : (string * string) list)
       (i : int)
       (acc : instr list)
@@ -676,18 +1001,21 @@ let print_args (args : (string * string) list) : instr list =
           ( Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             stub_loc,
-            None );
+            None,
+            (create_comment instr_type) );
           TripleInstr
           ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), esp_arg_i)),
             stub_loc,
-            None );
+            None,
+            (create_comment instr_type) );
           DoubleInstr
           ( Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             stub_loc,
-            None );
+            None,
+            (create_comment instr_type) );
           DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -699,19 +1027,22 @@ let print_args (args : (string * string) list) : instr list =
               }
             ),
             stub_loc,
-            None );
+            None,
+            (create_comment instr_type) );
           DoubleInstr
             ( Intel_OP (Intel_StackOP (POP)),
               Reg (Intel_Reg (Intel_CommonReg EAX)),
               stub_loc,
-              None );
+              None,
+              (create_comment instr_type) );
           DoubleInstr
             ( Intel_OP (Intel_StackOP (POP)),
               Reg (Intel_Reg (Intel_CommonReg EAX)),
               stub_loc,
-              None ) ]
+              None,
+              (create_comment instr_type) ) ]
         in
-        call_with_arg rest (i+1) (call_seq @ acc)
+        call_with_arg instr_type rest (i+1) (call_seq @ acc)
       else
         let call_seq =
           let code_ep =
@@ -723,13 +1054,41 @@ let print_args (args : (string * string) list) : instr list =
           let arg_i = string_of_int i in
           List.rev
             ( add_call_seq_arg
-                ~ins_loc:stub_loc ~code_ep ~args:[("print-arg", arg_i)] )
+                ~instr_type
+                ~ins_loc:stub_loc
+                ~code_ep
+                ~args:[("print-arg", arg_i)]
+                ~ret_type:VOID )
         in
-        call_with_arg rest (i+1) (call_seq @ acc)
+        call_with_arg instr_type rest (i+1) (call_seq @ acc)
   in
-  call_with_arg args 0 []
+  call_with_arg instr_type args 0 []
+
+let get_ret_type
+    (code : string)
+    (code_ep : string)
+  : c_ret_type =
+  let lines = read_lines code in
+  let rec find_code_ep 
+      (code_ep : string)
+    : string list -> c_ret_type = function
+    | [] -> failwith "code entry point not found"
+    | line :: rest -> begin
+      let line_trimmed = String.trim line in
+      if contains ~str:line_trimmed ~sub:code_ep then
+        match String.split_on_char ' ' line_trimmed with
+        | ret_type :: line_rest ->
+          begin match ret_type with
+          | "void" -> VOID
+          | _ -> NOT_VOID
+          end
+      else find_code_ep code_ep rest
+    end
+  in
+  find_code_ep code_ep lines
 
 let parse_instr_from_code
+    ~(instr_type : string)
     ~(cmd : string)
     ~(ins_loc : loc)
     ~(code_ep : string)
@@ -750,23 +1109,41 @@ let parse_instr_from_code
         ("number of arguments and their types need to be specified in stack. "
          ^ "Failure at " ^ __LOC__)
     | args ->
-      (* print args as specified *)
-      print_args args
+      print_args ~instr_type ~args
   end else if String.ends_with ~suffix:".c" code then begin
     ignore (Sys.command (cmd));
+    let ret_type : c_ret_type = get_ret_type code code_ep in
     match stack with
-    | [] -> add_call_seq ~ins_loc ~code_ep ~use_existing_arg
-    | _ -> add_call_seq_arg ~ins_loc ~code_ep ~args:stack
+    | [] -> add_call_seq
+              ~instr_type
+              ~ins_loc
+              ~code_ep
+              ~use_existing_arg
+              ~ret_type
+    | _ -> add_call_seq_arg
+            ~instr_type
+            ~ins_loc
+            ~code_ep
+            ~args:stack
+            ~ret_type
   end else if String.ends_with ~suffix:".asm" code then begin
     let ail_parser = new ailParser in
     let asm = read_lines code in
     let _ = ail_parser#process_asms asm "intel" in
-    ail_parser#get_instrs
+    let asm = ail_parser#get_instrs in
+    List.map (
+      fun i ->
+        add_comment i instr_type
+    ) asm
   end else begin
     let ail_parser = new ailParser in
     let asm = String.split_on_char '\n' code in
     let _ = ail_parser#process_asms asm "intel" in
-    ail_parser#get_instrs
+    let asm = ail_parser#get_instrs in
+    List.map (
+      fun i ->
+        add_comment i instr_type
+    ) asm
   end
 
 let apply
@@ -792,14 +1169,15 @@ let apply
         | (ih :: it, ph :: pt) ->
           begin
             let ( p_addr, p_action, p_dir, p_stack,
-                  p_cmd, p_lang, p_code_ep, p_code ) = ph in
+                  p_cmd, p_lang, p_code_ep, p_code, p_idx ) = ph in
             let ih_loc : loc = get_loc ih in
             let ih_addr : int = ih_loc.loc_addr in
             if ih_addr = p_addr then begin
               match p_action with
               | Some INSERT ->
-                let add_seq =
+                let add_seq : instr list =
                   parse_instr_from_code
+                    ~instr_type:("    instrumentation point " ^ (string_of_int p_idx))
                     ~cmd:p_cmd
                     ~ins_loc:ih_loc
                     ~code_ep:p_code_ep
@@ -814,8 +1192,9 @@ let apply
                 in
                 add_instrumentation_f1 it pt (acc' @ acc)
               | Some INSERTCALL ->
-                let add_seq =
+                let add_seq : instr list =
                   parse_instr_from_code
+                    ~instr_type:("    instrumentation point " ^ (string_of_int p_idx))
                     ~cmd:p_cmd
                     ~ins_loc:ih_loc
                     ~code_ep:p_code_ep
@@ -832,8 +1211,9 @@ let apply
               | Some DELETE ->
                 add_instrumentation_f1 it pt acc
               | Some REPLACE ->
-                let add_seq =
+                let add_seq : instr list =
                   parse_instr_from_code
+                    ~instr_type:("    instrumentation point " ^ (string_of_int p_idx))
                     ~cmd:p_cmd
                     ~ins_loc:ih_loc
                     ~code_ep:p_code_ep
@@ -843,8 +1223,9 @@ let apply
                 in
                add_instrumentation_f1 it pt (add_seq @ acc)
               | Some PRINTARGS ->
-                let add_seq =
+                let add_seq : instr list =
                   parse_instr_from_code
+                    ~instr_type:("    instrumentation point " ^ (string_of_int p_idx))
                     ~cmd:""
                     ~ins_loc:ih_loc
                     ~code_ep:p_code_ep

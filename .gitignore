@@ -2,7 +2,7 @@
 *.cmi
 *.o
 *.native
-a.out
+*.out
 _build/
 *.info
 *.s

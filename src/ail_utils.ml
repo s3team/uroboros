@@ -105,19 +105,24 @@ let compare_loc l1 l2 =
 
 let get_loc i =
   match i with
-  | SingleInstr (_, l, _) -> l
-  | DoubleInstr (_, _, l, _) -> l
-  | TripleInstr (_, _, _, l, _) -> l
-  | FourInstr (_, _, _, _, l, _) -> l
-  | FifInstr (_, _, _, _, _, l, _) -> l
+  | SingleInstr (_, l, _, _) -> l
+  | DoubleInstr (_, _, l, _, _) -> l
+  | TripleInstr (_, _, _, l, _, _) -> l
+  | FourInstr (_, _, _, _, l, _, _) -> l
+  | FifInstr (_, _, _, _, _, l, _, _) -> l
 
 let set_loc i l =
   match i with
-  | SingleInstr (p, _, pre) -> SingleInstr (p, l, pre)
-  | DoubleInstr (p, e, _, pre) -> DoubleInstr (p, e, l, pre)
-  | TripleInstr (p, e1, e2, _, pre) -> TripleInstr (p, e1, e2, l, pre)
-  | FourInstr (p, e1, e2, e3, _, pre) -> FourInstr (p, e1, e2, e3, l, pre)
-  | FifInstr (p, e1, e2, e3, e4, _, pre) -> FifInstr (p, e1, e2, e3, e4, l, pre)
+  | SingleInstr (p, _, pre, tags) ->
+    SingleInstr (p, l, pre, tags)
+  | DoubleInstr (p, e, _, pre, tags) ->
+    DoubleInstr (p, e, l, pre, tags)
+  | TripleInstr (p, e1, e2, _, pre, tags) ->
+    TripleInstr (p, e1, e2, l, pre, tags)
+  | FourInstr (p, e1, e2, e3, _, pre, tags) ->
+    FourInstr (p, e1, e2, e3, l, pre, tags)
+  | FifInstr (p, e1, e2, e3, e4, _, pre, tags) ->
+    FifInstr (p, e1, e2, e3, e4, l, pre, tags)
 
 let get_addr i =
   let l = get_loc i in
@@ -133,26 +138,24 @@ let update_label i l =
 
 let get_op i =
   match i with
-  | SingleInstr (p, _, _) -> p
-  | DoubleInstr (p, _, _, _) -> p
-  | TripleInstr (p, _, _, _, _) -> p
-  | FourInstr (p, _, _, _, _, _) -> p
-  | FifInstr (p, _, _, _, _, _, _) -> p
+  | SingleInstr (p, _, _, _) -> p
+  | DoubleInstr (p, _, _, _, _) -> p
+  | TripleInstr (p, _, _, _, _, _) -> p
+  | FourInstr (p, _, _, _, _, _, _) -> p
+  | FifInstr (p, _, _, _, _, _, _, _) -> p
 
 let get_cf_des i =
   match i with
-  | DoubleInstr (_, e, _, _) -> Some e
+  | DoubleInstr (_, e, _, _, _) -> Some e
   | _ -> None
-
 
 let get_exp_1 i =
   match i with
-  | SingleInstr (_, _, _) -> failwith "undefined expression"
-  | DoubleInstr (_, e, _, _) -> e
-  | TripleInstr (_, e, _, _, _) -> e
-  | FourInstr (_, e, _, _, _, _) -> e
-  | FifInstr (_, e, _, _, _, _, _) -> e
-
+  | SingleInstr (_, _, _, _) -> failwith "undefined expression"
+  | DoubleInstr (_, e, _, _, _) -> e
+  | TripleInstr (_, e, _, _, _, _) -> e
+  | FourInstr (_, e, _, _, _, _, _) -> e
+  | FifInstr (_, e, _, _, _, _, _, _) -> e
 
 let read_file (filename : string) : string list =
   let lines = ref [] in
@@ -164,7 +167,6 @@ let read_file (filename : string) : string list =
   with End_of_file ->
     close_in chan;
     List.rev !lines;;
-
 
 let dec_hex (s:int) : string =
   (Printf.sprintf "0x%X" s)
@@ -543,19 +545,24 @@ module Addr_utils = struct
 
     let get_loc i =
       match i with
-      | SingleInstr (_, l, _) -> l
-      | DoubleInstr (_, _, l, _) -> l
-      | TripleInstr (_, _, _, l, _) -> l
-      | FourInstr (_, _, _, _, l, _) -> l
-      | FifInstr (_, _, _, _, _, l, _) -> l
+      | SingleInstr (_, l, _, _) -> l
+      | DoubleInstr (_, _, l, _, _) -> l
+      | TripleInstr (_, _, _, l, _, _) -> l
+      | FourInstr (_, _, _, _, l, _, _) -> l
+      | FifInstr (_, _, _, _, _, l, _, _) -> l
 
     let set_loc i l =
       match i with
-      | SingleInstr (p, _, pre) -> SingleInstr (p, l, pre)
-      | DoubleInstr (p, e, _, pre) -> DoubleInstr (p, e, l, pre)
-      | TripleInstr (p, e1, e2, _, pre) -> TripleInstr (p, e1, e2, l, pre)
-      | FourInstr (p, e1, e2, e3, _, pre) -> FourInstr (p, e1, e2, e3, l, pre)
-      | FifInstr (p, e1, e2, e3, e4, _, pre) -> FifInstr(p, e1, e2, e3, e4, l, pre)
+      | SingleInstr (p, _, pre, tags) ->
+        SingleInstr (p, l, pre, tags)
+      | DoubleInstr (p, e, _, pre, tags) ->
+        DoubleInstr (p, e, l, pre, tags)
+      | TripleInstr (p, e1, e2, _, pre, tags) ->
+        TripleInstr (p, e1, e2, l, pre, tags)
+      | FourInstr (p, e1, e2, e3, _, pre, tags) ->
+        FourInstr (p, e1, e2, e3, l, pre, tags)
+      | FifInstr (p, e1, e2, e3, e4, _, pre, tags) ->
+        FifInstr(p, e1, e2, e3, e4, l, pre, tags)
 
     let get_addr i =
       let l = get_loc i in
@@ -751,7 +758,7 @@ module Opcode_utils = struct
       let is_arm_ret inst = match inst with
         (* TODO: ARM: implement the case below: *)
         (* pop {r7, pc} *)
-        | DoubleInstr (op, e, _, _) ->
+        | DoubleInstr (op, e, _, _, _) ->
           (match op with
           | Arm_OP (Arm_ControlOP BX, _) -> e = Reg (Arm_Reg (Arm_LinkReg LR))
           | _ -> false)
@@ -937,46 +944,42 @@ module Instr_utils = struct
                 )
                 bbl
 
-
     (* generate one byte no-op padding instruction *)
     let gen_nop loc =
-      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), loc, None)
+      SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)), loc, None, Hashtbl.create 0)
 
     (* generate four bytes no-op padding instruction *)
     let gen_4_lea loc =
       TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
                    Reg (Intel_Reg (Intel_CommonReg ESI)),
-                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg ESI), 0)), loc, None)
-
+                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg ESI), 0)), loc, None, Hashtbl.create 0)
 
     (* generate six bytes no-op padding instruction *)
     let gen_6_lea loc =
       TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
                    Reg (Intel_Reg (Intel_CommonReg EDI)),
-                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg EDI), 0)), loc, None)
-
-
+                   Ptr (BinOP_PLUS (Intel_Reg (Intel_CommonReg EDI), 0)), loc, None, Hashtbl.create 0)
 
     let is_mem_write_instr i =
         match i with
-        | DoubleInstr (p, _, _, _) when (is_push p) ->
+        | DoubleInstr (p, _, _, _, _) when (is_push p) ->
            Some DOUBLE_WRITE
         (* memory assignment operation *)
-        | TripleInstr (op, e1, _, _, _) when (is_assign op) && (is_mem_exp e1)->
+        | TripleInstr (op, e1, _, _, _, _) when (is_assign op) && (is_mem_exp e1)->
            Some TRIPLE_WRITE
         | _ -> None
 
     let is_mem_read_instr instr =
       match instr with
-      | SingleInstr (op, _, _) when (is_ret op) ->
+      | SingleInstr (op, _, _, _) when (is_ret op) ->
         (* ret *)
         Some SINGLE_READ
-      | DoubleInstr (_, _, _, _) when (is_arm_ret instr) ->
+      | DoubleInstr (_, _, _, _, _) when (is_arm_ret instr) ->
         Some DOUBLE_READ
-      | DoubleInstr (op, _, _, _) when (is_stack_op op) ->
+      | DoubleInstr (op, _, _, _, _) when (is_stack_op op) ->
         (* push & pop *)
         Some DOUBLE_READ
-      | TripleInstr (op, _, e2, _, _) when (is_mem_exp e2) ->
+      | TripleInstr (op, _, e2, _, _, _) when (is_mem_exp e2) ->
         begin
           match op with
           | Intel_OP io ->
@@ -1037,21 +1040,21 @@ module Instr_utils = struct
 
     let is_jmp_instr i =
         match i with
-        | SingleInstr (p, _, _) when (is_ret p) ->
+        | SingleInstr (p, _, _, _) when (is_ret p) ->
            Some RET_TYPE
-        | DoubleInstr (_, _, _, _) when (is_arm_ret i) ->
+        | DoubleInstr (_, _, _, _, _) when (is_arm_ret i) ->
           Some RET_TYPE
-        | DoubleInstr (_, e, _, _) when (is_indirect e) ->
+        | DoubleInstr (_, e, _, _, _) when (is_indirect e) ->
            Some INDIRECT
-        | DoubleInstr (p, _, _, _) when (is_call p) ->
+        | DoubleInstr (p, _, _, _, _) when (is_call p) ->
            Some DIRECT_CALL
-        | DoubleInstr (p, e, _, _) when (is_jmp p) && (is_func e = true) ->
+        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = true) ->
            Some DIRECT_JMP_INTER
-        | DoubleInstr (p, e, _, _) when (is_jmp p) && (is_func e = false) ->
+        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = false) ->
            Some DIRECT_JMP_INTRA
-        | DoubleInstr (p, e, _, _) when (is_cond_jmp p) && (is_func e = false)->
+        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
            Some COND_JMP_INTRA
-        | DoubleInstr (p, e, _, _) when (is_cond_jmp p) && (is_func e = true)->
+        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = true)->
            Some COND_JMP_INTER
         | _ -> None
 end
@@ -1095,15 +1098,15 @@ module Instr_template = struct
       let iloc' = {iloc with loc_label = ""} in
       let addr' = iloc.loc_addr in
       let ads = "sub_" ^ (dec_hex addr')  in
-      let i1 = DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc, None) in
-      let i2 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Reg (Intel_Reg (Intel_CommonReg ECX)), Label "index", iloc', None) in
-      let i3 = DoubleInstr (Intel_OP (Intel_ControlOP (Intel_Loop LOOP)), Label ads, iloc', None) in
+      let i1 = DoubleInstr (Intel_OP (Intel_StackOP PUSH), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc, None, Hashtbl.create 0) in
+      let i2 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Reg (Intel_Reg (Intel_CommonReg ECX)), Label "index", iloc', None, Hashtbl.create 0) in
+      let i3 = DoubleInstr (Intel_OP (Intel_ControlOP (Intel_Loop LOOP)), Label ads, iloc', None, Hashtbl.create 0) in
       (* let i4 = TripleInstr (CommonOP (Assign MOVL), Reg (CommonReg ECX),
                             Const (Normal 0x400000), iloc', None) in *)
       let i5 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Ptr (JmpTable_PLUS_S ("buf", Intel_Reg (Intel_CommonReg ECX), 4)),
-                            Const (Normal addr'), {iloc' with loc_label = ads ^ ":"}, None) in
-      let i6 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Label "index", Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None) in
-      let i7 = DoubleInstr (Intel_OP (Intel_StackOP POP), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None) in
+                            Const (Normal addr'), {iloc' with loc_label = ads ^ ":"}, None, Hashtbl.create 0) in
+      let i6 = TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVL)), Label "index", Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None, Hashtbl.create 0) in
+      let i7 = DoubleInstr (Intel_OP (Intel_StackOP POP), Reg (Intel_Reg (Intel_CommonReg ECX)), iloc', None, Hashtbl.create 0) in
       let open Instr_utils in
       set_update_fold i7 iloc []
       |> set_update_fold i6 iloc
@@ -1391,7 +1394,7 @@ module Func_utils = struct
       in
       let help acc i =
         match i with
-        | DoubleInstr (p, e, _, _) when (is_call p) ->
+        | DoubleInstr (p, e, _, _, _) when (is_call p) ->
            let open Pp_print in
            let es = p_exp e in
            if String.exists es fn then
@@ -1485,7 +1488,7 @@ module Func_utils = struct
         in
         let get_ct_des i =
           match i with
-          | DoubleInstr (p, e, l, _) when is_ct p -> (
+          | DoubleInstr (p, e, l, _, _) when is_ct p -> (
               match e with
               | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
               | _ -> None)
@@ -1652,21 +1655,21 @@ module Cfg_utils = struct
     let map_jmp (visitor : (instr -> jmp_type -> instr)) instrs : instr list =
       let aux i =
         match i with
-        | SingleInstr (p, _, _) when (is_ret p) ->
+        | SingleInstr (p, _, _, _) when (is_ret p) ->
            visitor i RET_TYPE
-        | DoubleInstr (_, _, _, _) when (is_arm_ret i) ->
+        | DoubleInstr (_, _, _, _, _) when (is_arm_ret i) ->
            visitor i RET_TYPE
-        | DoubleInstr (_, e, _, _) when (is_indirect e) ->
+        | DoubleInstr (_, e, _, _, _) when (is_indirect e) ->
            visitor i INDIRECT
-        | DoubleInstr (p, _, _, _) when (is_call p) ->
+        | DoubleInstr (p, _, _, _, _) when (is_call p) ->
            visitor i DIRECT_CALL
-        | DoubleInstr (p, e, _, _) when (is_jmp p) && (is_func e = true) ->
+        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = true) ->
            visitor i DIRECT_JMP_INTER
-        | DoubleInstr (p, e, _, _) when (is_jmp p) && (is_func e = false) ->
+        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = false) ->
            visitor i DIRECT_JMP_INTRA
-        | DoubleInstr (p, e, _, _) when (is_cond_jmp p) && (is_func e = false)->
+        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
            visitor i COND_JMP_INTRA
-        | DoubleInstr (p, e, _, _) when (is_cond_jmp p) && (is_func e = true)->
+        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = true)->
            visitor i COND_JMP_INTER
         | _ -> i in
       instrs |> List.rev_map aux |> List.rev
@@ -1676,10 +1679,10 @@ module Cfg_utils = struct
     let map_mem_write (visitor : (instr -> mem_write_type -> instr)) instrs : instr list =
       let aux i =
         match i with
-        | DoubleInstr (p, _, _, _) when (is_push p) ->
+        | DoubleInstr (p, _, _, _, _) when (is_push p) ->
            visitor i DOUBLE_WRITE
         (* memory assignment operation *)
-        | TripleInstr (op, e1, _, _, _) when (is_assign op) && (is_mem_exp e1)->
+        | TripleInstr (op, e1, _, _, _, _) when (is_assign op) && (is_mem_exp e1)->
            visitor i TRIPLE_WRITE
         | _ -> i in
       instrs |> List.rev_map aux |> List.rev
