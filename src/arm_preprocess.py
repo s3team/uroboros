@@ -145,29 +145,32 @@ def disassemble_text_section_as_data(fn):
     See Also:
         arm_reassemble_symbol_get.ml
     """
-    os.system(
-        f"arm-linux-gnueabihf-objdump -Dr -j .text {fn} > text_section_as_data.temp"
-    )
+    cmd = f'arm-linux-gnueabihf-objdump -s -j .text {fn}'
+    cmd += ' | grep "^ "'
+    cmd += ' | cut -d " " -f2,3,4,5,6'
+    cmd += ' > text_section_as_data.temp'
+    os.system(cmd)
     lines = []
     with open("text_section_as_data.temp", "r") as f:
         raw_lines = f.readlines()
         # start when the line has "<.text>:"
         for i, line in enumerate(raw_lines):
-            if "<.text>:" in line:
-                # skip the first line
-                lines = raw_lines[i + 1 :]
-                break
+            line = line.strip().rstrip('\n')
+            arr = line.split(" ")
+            lines.append(arr)
 
     with open("text_section_as_data.txt", "w") as f:
-        for i, line in enumerate(lines):
-            line = line.strip()
-            line = line.split("\t")
-            if len(line) < 2:
-                continue
-
-            addr = line[0]  # 10330:
-            data = line[1].strip()  # 0b00f04f
-            f.write(f"{addr}{data}\n")  # 10330:0b00f04f
+        for i, arr in enumerate(lines):
+            start_addr = arr[0]
+            start_addr = int(start_addr, 16)
+            offset = 0
+            for data in arr[1:]:
+                data = data.strip()
+                ordered_data = data[6:8] + data[4:6] + data[2:4] + data[0:2]
+                addr = start_addr + offset
+                hex_addr = hex(addr).lstrip("0x")
+                f.write(f"{hex_addr}:{ordered_data}\n")
+                offset += 4
 
     os.system("rm text_section_as_data.temp")
 
