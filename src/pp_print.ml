@@ -1,5 +1,4 @@
 open Type
-open Tag_utils
 
 let flip f x y = f y x
 let comment_sym = ref ""
