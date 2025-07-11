@@ -30,6 +30,14 @@ class arm_func_slicer instrs funcs =
         String.exists op_str "lsrs"
       in
       let get_loc_addr (l : loc) : int = l.loc_addr in
+      let is_push (op : arm_stackop) : bool = match op with
+        | PUSH | VPUSH | STMDB -> true
+        | _ -> false
+      in
+      let is_pop (op : arm_stackop) : bool = match op with
+        | POP | VPOP | LDMIA -> true
+        | _ -> false
+      in
       let rec help (inst : instr) =
         match inst with
         (* ARM Thumb *)
@@ -50,16 +58,21 @@ class arm_func_slicer instrs funcs =
             last_ret <- false;
             last_special <- false
         (* pop {r7, pc} *)
-        | DoubleInstr (Arm_OP (Arm_StackOP POP, _), Label lab, _, _, _, _)
-          when has_pc_reg lab ->
+        | DoubleInstr (Arm_OP (Arm_ControlOP BX, _, _), Reg ( Arm_Reg (Arm_LinkReg LR)), _, _, _) ->
+            last_nop <- false;
+            last_ret <- false;
+            last_special <- false;
+            last_pop <- true
+        | DoubleInstr (Arm_OP (Arm_StackOP op, _), Label lab, _, _, _, _)
+          when is_pop op && has_pc_reg lab ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- true
         (* add a function *)
         (* push {r4, lr} *)
-        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _), Label lab, _, _, _, _)
-          when has_lr_reg lab ->
+        | DoubleInstr (Arm_OP (Arm_StackOP op, _), Label lab, _, _, _, _)
+          when is_push op && has_lr_reg lab ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -67,7 +80,7 @@ class arm_func_slicer instrs funcs =
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* add a function *)
         (* last_pop but not lsls opcode *)
-        | _
+        (* | _
           when last_pop
                && (not (has_lsls_opcode inst))
                && not (has_lsrs_opcode inst) ->
@@ -76,11 +89,17 @@ class arm_func_slicer instrs funcs =
             pop {r7,pc}
             BB_21:
             lsls r6,r5,#0x2 *)
+            (* giyeol: 여기에 문제가 있음 쭉 data일수도 있어서 함수로 분류하지 않아야 할 수도 있음 *)
+            (* 따라서 func_begins를 다른 조건을 통해서 명시해주는 것이 필요함 *)
+            (* 하지만 그렇다고 push instruction일 때만 함수 시작으로 인식하면
+             * init function들이 인식되지 않는 문제가 발생할 수 있음.
+             * init function들의 특정 패턴 + push가 있을 때만 함수 시작으로 분류하면 될 듯
+             *)
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- false;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins *)
         (* add a function *)
         | TripleInstr (_, _, _, _, _, _, _) when last_nop ->
             last_nop <- false;

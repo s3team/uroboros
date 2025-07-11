@@ -150,14 +150,22 @@ object (self)
     | _ -> failwith "unsupported architecture"
 
   method remove_literal_pools (instr_list : instr list) =
+    let is_pop arm_stackop = match arm_stackop with
+      | POP | VPOP | LDMIA -> true
+      | _ -> false
+    in
+    let is_push arm_stackop = match arm_stackop with
+      | PUSH | VPUSH | STMDB -> true
+      | _ -> false
+    in
     let is_going_through_literal_pool = ref false in
     let pop_detected = ref false in
     let process_instr instr = match (get_op instr) with
-      | Arm_OP (Arm_StackOP PUSH, _, _) ->
+      | Arm_OP (Arm_StackOP op, _, _) ->
         (* initalization *)
         is_going_through_literal_pool := false;
         pop_detected := false;
-      | Arm_OP (Arm_StackOP POP, _, _) ->
+      | Arm_OP (Arm_StackOP op, _, _) ->
         pop_detected := true;
       | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) ->
         (* see what the next instruction is *)

@@ -326,6 +326,8 @@ and arm_controlop =
   | RET | RETAA | RETAB | RETAASPPC | RETABSPPC | RETAASPPCR | RETABSPPCR
 and arm_stackop =
   | PUSH | POP | VPUSH | VPOP
+  | STMDB (* when used with sp! *)
+  | LDMIA (* when used with sp! *)
 and arm_systemop =
   | BKPT | CLREX | CPS | CPSIE | CPSID | DBG | DMB
   | DSB | ISB | PLD | PLI | RFE | SEV | SMC | SRS

@@ -593,6 +593,7 @@ module DFA (A : DfaAbs) = struct
     (* iterate until fixpoint *)
     while not (Queue.is_empty worklist) do
       let i : instr = Queue.pop worklist in
+      (* let _ = Printf.printf "queue instr: %s\n" (pp_print_instr' i) in *)
       let preds : instr option list =
         try Hashtbl.find preds (Some i) with Not_found -> []
       in

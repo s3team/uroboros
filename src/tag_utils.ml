@@ -1,5 +1,6 @@
 open Type
 open Printf
+open Pp_print
 
 module TagUtils = struct
   let get_tag (i : instr) : tag option =
@@ -79,7 +80,10 @@ module TagUtils = struct
       | [] -> List.rev acc
       | i :: t -> begin
           match get_tag i with
-          | Some Del -> help t acc (* Skip instructions with Del tag *)
+          | Some Del -> begin
+            let _ = Printf.printf "Del: %s\n" (pp_print_instr' i) in
+            help t acc (* Skip instructions with Del tag *)
+          end
           | _ -> help t (i :: acc)
         end
     in

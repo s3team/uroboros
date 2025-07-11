@@ -178,6 +178,19 @@ module Disam = struct
         else Hashtbl.create 1
       in
 
+      (* giyeol: print instructions in ail_parser#get_instrs *)
+      List.iter (fun i ->
+        let s = pp_print_instr' i in
+        Printf.printf "cfg: %s\n" s
+      ) ail_parser#get_instrs;
+      print_endline (List.length ail_parser#get_instrs |> string_of_int);
+
+      (* giyeol: print functions in ail_parser#get_funcs *)
+      (* List.iter (fun f ->
+        let s = f.func_name in
+        Printf.printf "func: %s\n" s
+      ) ail_parser#get_funcs; *)
+
       let rewriting_result = got_rewrite il_init in
 
       il :=

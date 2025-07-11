@@ -285,6 +285,7 @@ class arm_parse =
     | _ -> raise ParseError
   and stackop_symb = function
     | "push" -> PUSH | "pop" -> POP | "vpush" -> VPUSH | "vpop" -> VPOP
+    | "stmdb" -> STMDB | "ldmia" -> LDMIA
     |  _ -> raise ParseError
   and control_symb = function
     | "b" -> B | "bl" -> BL | "blx" -> BLX | "bx" -> BX | "bxj" -> BXJ | "cbnz" -> CBNZ | "cbz" -> CBZ | "tbb" -> TBB | "tbh" -> TBH
@@ -332,9 +333,7 @@ class arm_parse =
           try Arm_ControlOP (controlop_symb s)
           with _ ->
             try Arm_SystemOP (systemop_symb s)
-            with _ ->
-              print_string (s ^ "\n");
-              raise ParseError in
+            with _ -> raise ParseError in
 
   let op_cond_symb = function s ->
     try (op_symb s, None)
@@ -445,7 +444,6 @@ class arm_parse =
     else  (* jmp deadbeef <func@plt> *)
       CallDes (self#calldes_symb s)
 
-
   method calldes_symb (s: string) : func =
     let split = Str.split (Str.regexp " +") in
     let s1 = List.nth (split s) 1 in
@@ -499,16 +497,10 @@ class arm_parse =
         (int_of_string addr', reg_symb r, int_of_string off')
     else raise ParseError
 
-  method stardes_symb s =
-    let s' = String.sub s 1 (String.length s - 1) in
-    self#exp_symb s'
-
   method symbol_symb s =
     let s' = String.trim s in
     if String.contains s '#' then
       raise ParseError
-    else if s'.[0] = '*' then
-      StarDes (self#stardes_symb s')
     else if !call_des = true then
       (
         CallDes (self#calldes_symb s')

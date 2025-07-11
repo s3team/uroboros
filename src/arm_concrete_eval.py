@@ -106,6 +106,14 @@ class ArmConcreteEval(object):
         src_reg_value = self.reg_value_dict[src_reg]
         data_addr = src_reg_value + src_offset
         data_addr = data_addr - (data_addr % 4)
+
+        # giyeol:
+        # inst.print()
+        # print("src_reg_value:", hex(src_reg_value))
+        # print("data addr:", hex(data_addr))
+        # print("sl value:", hex(self.reg_value_dict["sl"]))
+        # print("")
+
         loaded_data = int(self.__data_dict[data_addr], 16)
         self.reg_value_dict[inst.dst_exp] = loaded_data
 
@@ -114,7 +122,6 @@ class ArmConcreteEval(object):
         Evaluate the instruction and update the register values.
         """
         self.reg_value_dict["pc"] = self.__get_pc_value(inst.addr)
-        # inst.print()
         if inst.opcode == "add":
             self.__eval_add(inst)
         elif inst.opcode == "ldr":

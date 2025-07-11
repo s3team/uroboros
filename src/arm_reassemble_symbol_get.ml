@@ -1406,13 +1406,19 @@ class instrhandler instr_list des' =
     (* let lld2 = List.sort Int.compare lld1 in
        List.map (Printf.sprintf "S_0x%X") lld2 *)
 
+    (** Check if symbols in locs can be found in des *)
     method process =
       let dec_hex (s : int) : string = Printf.sprintf "S_0x%X" s in
       let do_update s n = if String.exists s n then s else s ^ "\n" ^ n in
-      let rec help acc llist dlist =
+      let rec help acc (llist : loc list) (dlist : int list) =
         match (llist, dlist) with
         | llist', [] -> List.rev_append llist' acc
         | lh :: lt, dh :: dt ->
+            (* let _ = Printf.printf "loc addr: %s\n" (dec_hex lh.loc_addr) in
+            let _ = Printf.printf "des addr: 0x%x\n" dh in
+            let _ = Printf.printf "llist len: %d\n" (List.length lt) in
+            let _ = Printf.printf "des len: %d\n" (List.length dt) in
+            let _ = Printf.printf "\n" in *)
             let lhd = lh.loc_addr in
             if dh = lhd then
               let lhs = dec_hex lh.loc_addr in
@@ -1426,10 +1432,15 @@ class instrhandler instr_list des' =
         | a, b ->
             print_string "reassemble process\n";
             print_string (dec_hex (List.nth b 0) ^ "\n");
-            print_string (string_of_int (List.length a) ^ "\n");
-            print_string (string_of_int (List.length b) ^ "\n");
-            failwith "undefined des list"
+            print_string ("remaining loc list len: " ^ string_of_int (List.length a) ^ "\n");
+            List.iter (Printf.printf "\tloc addr: %s\n") (List.map (fun l -> dec_hex l.loc_addr) a);
+            print_string ("remaining des list len:" ^ string_of_int (List.length b) ^ "\n");
+            List.iter (Printf.printf "\tdes addr: %s\n") (List.map dec_hex b);
+            acc
+            (* failwith "undefined des list" *)
       in
+      (* giyeol: print all des *)
+      (* let _ = List.iter (Printf.printf "des: %s\n") des in *)
       let des' = self#clean_sort des in
       locs <- List.rev (help [] locs des')
 
@@ -1570,7 +1581,9 @@ class arm_reassemble =
   and pic_hash = Hashtbl.create 3
   and text_set = Hashtbl.create 30
   and text_as_data_set = Hashtbl.create 200
-  and got_as_data_set = Hashtbl.create 30 in
+  and got_as_data_set = Hashtbl.create 30
+  and literal_pool_candidates: (int, instr) Hashtbl.t = Hashtbl.create 100
+  in
 
   object (self)
     inherit common_reassemble
@@ -1768,7 +1781,20 @@ class arm_reassemble =
         | _ -> None
       with _ -> None
 
+    method add_del_to_literal_pool_candidates (il : instr list) =
+      let module TU = TagUtils in
+      List.map (fun i ->
+        let loc = get_loc i in
+        let addr = loc.loc_addr in
+        if Hashtbl.mem literal_pool_candidates addr then
+          TU.replace_tag i (Some Del)
+        else
+          i
+        ) il
+
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
+      (* giyeol:  *)
+      (* let _ = Printf.printf "v_exp2: %s\n" (pp_print_instr' i) in *)
       let check_test_condition l chk =
         match (l, chk) with
         | _, false -> true
@@ -1778,6 +1804,7 @@ class arm_reassemble =
       let dec_hex (s : int) : string = Printf.sprintf "0x%X" s in
       match e with
       | Const l -> begin
+        (* let _ = Printf.printf "\tConst\n" in *)
           let l' = self#parse_const l in
           match self#check_sec l' with
           | Some s ->
@@ -1831,6 +1858,7 @@ class arm_reassemble =
                 else e
         end
       | Symbol s -> begin
+        (* let _ = Printf.printf "\tSymbol\n" in *)
           match s with
           | JumpDes l ->
               if self#check_text l then
@@ -1874,6 +1902,8 @@ class arm_reassemble =
           | _ -> e
         end
       | Ptr s -> begin
+        (* giyeol:  *)
+        (* let _ = Printf.printf "\tPtr\n" in *)
           match s with
           | BinOP_PLUS (Arm_Reg (Arm_PCReg r), inst_addr) ->
               let module AU = ArmUtils in
@@ -1886,6 +1916,7 @@ class arm_reassemble =
                 Label s_label
               end
               else if self#has_text_as_data pc_relative_addr then begin
+                Hashtbl.replace literal_pool_candidates pc_relative_addr i;
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
                 label <- (".text", pc_relative_addr) :: label;
                 (* for data in text section *)
@@ -1894,6 +1925,8 @@ class arm_reassemble =
                 Label s_label
               end
               else
+                (* giyeol:  *)
+                (* let _ = Printf.printf "addr: 0x%x\n" pc_relative_addr in *)
                 raise
                   (Reassemble_Error
                      "pc relative addr not in data section and text section")
@@ -2061,7 +2094,10 @@ class arm_reassemble =
             end
           | _ -> e
         end
-      | _ -> e
+      | _ ->
+        (* giyeol: *)
+        (* let _ = Printf.printf "\tOther Exp\n" in *)
+        e
 
     method vinst2 (f : instr -> bool) (i : instr) : instr =
       let tag' = get_tag i in
@@ -2087,7 +2123,7 @@ class arm_reassemble =
         | TripleInstr (p, e1, e2, l, pre, Some (Sym value), tags) -> begin
             (* `Point value` will be symbolized
              * when vinst2 is called by visit_type_infer_analysis *)
-            let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
+            let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None) in
             let pointer_instr =
               TripleInstr (ldr_op, Const (Point value), e2, l, pre, None, tags)
             in
@@ -2184,7 +2220,7 @@ class arm_reassemble =
           deslist
       in
       symbol_list <- List.rev_append (List.rev tl1) symbol_list;
-      tl
+      self#add_del_to_literal_pool_candidates tl;
 
     method visit_type_infer_analysis (bbl : bblock list) (instrs : instr list) =
       (*let's do type inference analysis on suspicious concerete value*)
@@ -2289,6 +2325,7 @@ class arm_reassemble =
 *)
 
       p#set_instr_list;
+      let _ = Printf.printf "adjust_loclabel\n" in
       p#process;
       p#get_instr_list
 
@@ -2296,6 +2333,7 @@ class arm_reassemble =
     method adjust_jmpref instr_list =
       let p = new instrhandler instr_list jmpreflist in
       p#set_instr_list;
+      let _ = Printf.printf "adjust_jmpref\n" in
       p#process;
       p#get_instr_list
 

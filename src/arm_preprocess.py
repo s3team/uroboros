@@ -70,6 +70,12 @@ def disassemble_arm_thumb_binary(filename, output_dir):
         f"arm-linux-gnueabihf-objdump -Dr -j .text -M force-thumb {filename} > {filename}.temp.thumb"
     )
     result_lines = []
+
+    def pattern_found(prev_prev_line, prev_line, line):
+        return ("movs" in prev_prev_line
+                and ("movs" in prev_line or "lsls" in prev_line)
+                and "movs" in line)
+
     with open(f"{filename}.temp.thumb") as f:
         is_going_through_call_weak_fn = False
         is_call_weak_fn_already_passed = False
@@ -78,9 +84,7 @@ def disassemble_arm_thumb_binary(filename, output_dir):
             if (
                 not is_call_weak_fn_already_passed
                 and i > 2
-                and "movs" in lines[i - 3]
-                and "movs" in lines[i - 2]
-                and "movs" in lines[i - 1]
+                and pattern_found(lines[i - 3], lines[i - 2], lines[i - 1])
             ):
                 # Find the start of call_weak_fn pattern in thumb mode:
                 # movs	r1, r0
@@ -95,9 +99,7 @@ def disassemble_arm_thumb_binary(filename, output_dir):
 
             if (
                 is_going_through_call_weak_fn
-                and "movs" in lines[i - 2]
-                and "movs" in lines[i - 1]
-                and "movs" in lines[i]
+                and pattern_found(lines[i - 2], lines[i - 1], lines[i])
             ):
                 # End of call_weak_fn
                 is_going_through_call_weak_fn = False
