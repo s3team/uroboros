@@ -243,6 +243,7 @@ class arm_parse =
     | "usax" -> USAX | "usub16" -> USUB16 | "usub8" -> USUB8 | "uxtab" -> UXTAB | "uxtab16" -> UXTAB16 | "uxtah" -> UXTAH
     | "uxtb" -> UXTB | "uxtb16" -> UXTB16 | "uxth" -> UXTH
     | "vhadd" -> VHADD | "vhsub" -> VHSUB
+    | "vaddhn" -> VADDHN
     | "vmul" -> VMUL | "vnmul" -> VNMUL | "vmla" -> VMLA | "vmls" -> VMLS
     | "vnmls" -> VNMLS | "vnmla" -> VNMLA | "vadd" -> VADD | "vsub" -> VSUB | "vdiv" -> VDIV | "vabs" -> VABS | "vneg" -> VNEG
     | "vsqrt" -> VSQRT | "vrhadd" -> VRHADD | "vaddl" -> VADDL | "vraddhn" -> VRADDHN | "vmax" -> VMAX
@@ -256,9 +257,12 @@ class arm_parse =
   and rolop_symb = function
     | "asr" -> ASR | "asrs" -> ASRS | "lsl" -> LSL | "lsls" -> LSLS | "lsr" -> LSR | "lsrs" -> LSRS | "ror" -> ROR
     | "rors" -> RORS | "rrx" -> RRX | "rrxs" -> RRXS
+    | "vqrshl" -> VQRSHL
     | _ -> raise ParseError
   and assignop_symb = function
-    | "bfc" -> BFC | "bfi" -> BFI | "cpy" -> CPY | "ldm" -> LDM | "stm" -> STM | "ldmdb" -> LDMDB | "ldmea" -> LDMEA | "ldmia" -> LDMIA | "ldmfd" -> LDMFD
+    | "bfc" -> BFC | "bfi" -> BFI | "cpy" -> CPY | "ldm" -> LDM
+    | "stm" -> STM | "stmda" -> STMDA | "stmed" -> STMED
+    | "ldmdb" -> LDMDB | "ldmea" -> LDMEA | "ldmia" -> LDMIA | "ldmfd" -> LDMFD
     | "ldr" -> LDR | "ldrb" -> LDRB | "ldrbt" -> LDRBT | "ldrd" -> LDRD | "ldrex" -> LDREX | "ldrexb" -> LDREXB | "ldrexd" -> LDREXD
     | "ldrexh" -> LDREXH | "ldrh" -> LDRH | "ldrht" -> LDRHT | "ldrsb" -> LDRSB | "ldrsbt" -> LDRSBT | "ldrsh" -> LDRSH | "ldrsht" -> LDRSHT
     | "ldrt" -> LDRT | "mov" -> MOV | "movs" -> MOVS | "movw" -> MOVW | "movt" -> MOVT | "mrs" -> MRS | "msr" -> MSR
@@ -620,6 +624,8 @@ class arm_parse =
     call_des := false
 
   method parse_instr instr loc (arch : string) =
+    (* giyeol: *)
+    let _ = Printf.printf "Parsing instruction: %s\n" instr in
     self#init_process;
     let compact (instr : string) =
       let instr' = Str.global_replace (Str.regexp ", ") "," instr in

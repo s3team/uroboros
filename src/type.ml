@@ -356,6 +356,7 @@ and arm_arithmop =
   | USAX | USUB16 | USUB8 | UXTAB | UXTAB16 | UXTAH
   | UXTB | UXTB16 | UXTH
   | VHADD | VHSUB
+  | VADDHN
   | VMUL | VNMUL | VMLA | VMLS
   | VNMLS | VNMLA | VADD | VSUB | VDIV | VABS | VNEG
   | VSQRT | VRHADD | VADDL | VRADDHN | VMAX
@@ -367,8 +368,11 @@ and arm_logicop =
   | UBFX
 and arm_rolop =
   | ASR | ASRS | LSL | LSLS | LSR | LSRS | ROR | RORS | RRX | RRXS
+  | VQRSHL
 and arm_assignop =
-  | BFC | BFI | CPY | LDM | STM | LDMDB | LDMEA | LDMIA | LDMFD
+  | BFC | BFI | CPY | LDM
+  | STM | STMDA | STMED
+  | LDMDB | LDMEA | LDMIA | LDMFD
   | LDR | LDRB | LDRBT | LDRD | LDREX | LDREXB | LDREXD
   | LDREXH | LDRH | LDRHT | LDRSB | LDRSBT | LDRSH | LDRSHT
   | LDRT | MOV | MOVS | MOVW | MOVT | MRS | MSR
@@ -683,6 +687,7 @@ let show_intel_reg = function
             | USAX -> "usax" | USUB16 -> "usub16" | USUB8 -> "usub8" | UXTAB -> "uxtab" | UXTAB16 -> "uxtab16" | UXTAH -> "uxtah"
             | UXTB -> "uxtb" | UXTB16 -> "uxtb16" | UXTH -> "uxth"
             | VHADD -> "vhadd" | VHSUB -> "vhsub"
+            | VADDHN -> "vaddhn"
             | VMUL -> "vmul" | VNMUL -> "vnmul" | VMLA -> "vmla" | VMLS -> "vmls"
             | VNMLS -> "vnmls" | VNMLA -> "vnmla" | VADD -> "vadd" | VSUB -> "vsub" | VDIV -> "vdiv" | VABS -> "vabs" | VNEG -> "vneg"
             | VSQRT -> "vsqrt" | VRHADD -> "vrhadd" | VADDL -> "vaddl" | VRADDHN -> "vraddhn" | VMAX -> "vmax"
@@ -699,11 +704,14 @@ let show_intel_reg = function
           begin
             match acommon_rol with
             | ASR -> "asr" | ASRS -> "asrs" | LSL -> "lsl" | LSLS -> "lsls" | LSR -> "lsr" | LSRS -> "lsrs" | ROR -> "ror" | RORS -> "rors" | RRX -> "rrx" | RRXS -> "rrxs"
+            | VQRSHL -> "vqrshl"
           end
         | Arm_Assign acommon_assign ->
           begin
             match acommon_assign with
-            | BFC -> "bfc" | BFI -> "bfi" | CPY -> "cpy" | LDM -> "ldm" | STM -> "stm" | LDMDB -> "ldmdb" | LDMEA -> "ldmea" | LDMIA -> "ldmia" | LDMFD -> "ldmfd"
+            | BFC -> "bfc" | BFI -> "bfi" | CPY -> "cpy" | LDM -> "ldm"
+            | STM -> "stm" | STMDA -> "stmda" | STMED -> "stmed"
+            | LDMDB -> "ldmdb" | LDMEA -> "ldmea" | LDMIA -> "ldmia" | LDMFD -> "ldmfd"
             | LDR -> "ldr" | LDRB -> "ldrb" | LDRBT -> "ldrbt" | LDRD -> "ldrd" | LDREX -> "ldrex" | LDREXB -> "ldrexb" | LDREXD -> "ldrexd"
             | LDREXH -> "ldrexh" | LDRH -> "ldrh" | LDRHT -> "ldrht" | LDRSB -> "ldrsb" | LDRSBT -> "ldrsbt" | LDRSH -> "ldrsh" | LDRSHT -> "ldrsht"
             | LDRT -> "ldrt" | MOV -> "mov" | MOVS -> "movs" | MOVW -> "movw" | MOVT -> "movt" | MRS -> "mrs" | MSR -> "msr"
