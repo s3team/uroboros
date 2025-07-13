@@ -89,10 +89,13 @@ def reassemble(assembly_file, arch):
             compile_option += "-m32 "
         else:
             compile_option += "-m64 -lcrypto -lselinux -lgmp "
+    elif arch == "thumb":
+        compiler = "arm-linux-gnueabihf-gcc"
+        compile_option += "-mthumb "
     elif arch == "arm":
-        # arm-linux-gnueabihf-gcc does not require additional options
         if is_32bit_binary:
             compiler = "arm-linux-gnueabihf-gcc"
+            compile_option += "-marm "
         else:
             compiler = "aarch64-linux-gnu-gcc"
 
@@ -145,11 +148,7 @@ def update_final(plt_addr2entry, plt_new_entry2addr):
 
 
 def check_thumb_mode(arch: str, entry_point: int) -> bool:
-    # if entry point is odd, then it is thumb mode
-    if arch == "arm" and entry_point % 2 == 1:
-        return True
-    else:
-        return False
+    return arch == "thumb"
 
 
 def get_entry_point_address(fn) -> str:
@@ -171,14 +170,17 @@ def dump(fn):
 
     if arch == "intel":
         os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")
-    elif arch == "arm":
+    elif arch == "thumb" or arch == "arm":
         if is_32bit_binary:
             if is_thumb:
                 arm_preprocess.disassemble_arm_thumb_binary(fn, None)
             else:
-                raise Exception("Only ARM Thumb mode is supported.")
+                os.system(f"arm-linux-gnueabihf-objdump -Dr -j .text {fn} > {fn}.temp")
         else:
             os.system(f"aarch64-linux-gnu-objdump -Dr -j .text {fn} > {fn}.temp")
+    else:
+        print("dump: Invalid architecture")
+        raise Exception("Invalid architecture")
 
 
 def process(f, i, arch):
@@ -186,6 +188,8 @@ def process(f, i, arch):
     strip_command = ""
     if arch == "intel":
         strip_command = "strip"
+    elif arch == "thumb":
+        strip_command = "arm-linux-gnueabihf-strip"
     elif arch == "arm":
         if is_32bit_binary:
             strip_command = "arm-linux-gnueabihf-strip"
@@ -248,7 +252,7 @@ def process(f, i, arch):
         os.system(f"python3 compile_process.py {arch}")
         os.system("python3 label_adjust.py")
 
-        if arch == "arm":
+        if arch == "thumb" or arch == "arm":
             os.system("python3 arm_postprocess.py final.s")
 
         reassemble("final.s", arch)

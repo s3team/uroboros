@@ -125,7 +125,7 @@ object (self)
 
   method create_func_slicer instrs funcs arch = match arch with
     | "intel" -> (new Func_slicer.func_slicer instrs funcs :> common_func_slicer)
-    | "arm" -> (new Arm_func_slicer.arm_func_slicer instrs funcs :> common_func_slicer)
+    | "thumb" | "arm" -> (new Arm_func_slicer.arm_func_slicer instrs funcs :> common_func_slicer)
     | _ -> failwith "unsupported architecture"
 
   method func_slicing =
@@ -146,7 +146,7 @@ object (self)
 
   method create_parser arch = match arch with
     | "intel" -> (new Parser.parse :> common_parser)
-    | "arm" -> (new Arm_parser.arm_parse :> common_parser)
+    | "thumb" | "arm" -> (new Arm_parser.arm_parse :> common_parser)
     | _ -> failwith "unsupported architecture"
 
   method remove_literal_pools (instr_list : instr list) =

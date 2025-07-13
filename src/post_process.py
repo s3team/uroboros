@@ -103,7 +103,7 @@ for i in range(ll):
     elif "jmpq " in l and "*" not in l:
         l = l.replace('jmpq ', 'jmp ')
     elif "call " in l and "__libc_start_main" in l and is_32 == True:
-        if arch == "arm":
+        if arch == "thumb" or arch == "arm":
             """
             In case of ARM, main symbol is not pushed into stack.
             ```
@@ -128,7 +128,7 @@ for i in range(ll):
             lines[i-1] = lines[i-1].replace(main_symbol, "main")
             main_symbol = main_symbol[1:].strip()
     elif is_32 == False and "call " in l and "__libc_start_main" in l:
-        if arch == "arm":
+        if arch == "thumb" or arch == "arm":
             pass
         else:
             main_symbol = lines[i-1].split()[-1].split(',')[0]
@@ -185,7 +185,7 @@ else:
     def help(l):
         if main_symbol1 != "" and l.startswith(main_symbol1):
             main_directive = ".globl main\nmain:\n"
-            if arch == "arm":
+            if arch == "thumb" or arch == "arm":
                 main_directive += ".type main, %function\n"
             l = main_directive + l
             if os.path.exists("plt_handler.txt") and is_static():

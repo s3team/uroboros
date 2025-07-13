@@ -159,7 +159,7 @@ let fifth_instr (op : string) (el : string list) (l : string) =
 let do_exp (e : string) (op : string) (l : string) (arch : string) =
   let cl =
     if arch = "intel" then comma_in_parentheses e
-    else if arch = "arm" then
+    else if arch = "thumb" || arch = "arm" then
       if String.contains e '[' then comma_in_brackets e
       else comma_in_braces e
     else failwith "do_exp: unsupported architecture" in

@@ -37,10 +37,13 @@ def reassemble():
             compile_option = "-m32"
         else:
             compile_option = "-m64"
+    elif arch == "thumb":
+        compiler = "arm-linux-gnueabihf-gcc"
+        compile_option = "-mthumb "
     elif arch == "arm":
-        # arm-linux-gnueabihf-gcc does not require additional options
         if is_32bit_binary:
             compiler = "arm-linux-gnueabihf-gcc"
+            compile_option = "-marm "
         else:
             compiler = "aarch64-linux-gnu-gcc"
 

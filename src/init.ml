@@ -30,6 +30,8 @@ object (self)
   method set_objdump_command : unit =
     if arch = "intel" then
       objdump_command <- "objdump"
+    else if arch = "thumb" then
+      objdump_command <- "arm-linux-gnueabihf-objdump -M force-thumb"
     else if arch = "arm" then
       if bit_mode = "32" then
           objdump_command <- "arm-linux-gnueabihf-objdump"
@@ -41,13 +43,13 @@ object (self)
   method disassemble (f : string) (arch : string) : unit =
     let disassemble_arm_thumb_binary (f : string) =
       let ret = ref 0 in
-      ret := Sys.command("python3 arm_preprocess.py " ^ f);
+      ret := Sys.command("python3 arm_preprocess.py " ^ f ^ " " ^ arch);
     in
 
     let ret = ref 0 in
 	  print_endline "1: linearly disassemble";
 
-    if arch = "arm" && bit_mode = "32" then
+    if arch = "thumb" && bit_mode = "32" then
       disassemble_arm_thumb_binary f
     else
       ret := Sys.command(objdump_command ^ " -Dr -j .text "^f^" > "^f^".temp");
@@ -135,6 +137,7 @@ object (self)
     ignore (Sys.command("python3 useless_func_del.py "^f));
     let fields =
       if arch = "intel" then "1,3"
+      else if arch = "thumb" then "1,3,4"
       else if arch = "arm" then "1,3,4"
       else failwith "unsupported architecture for fields" in
     ignore (Sys.command("cat "^f^".disassemble | grep \"^ \" | cut -f"^fields^" \
@@ -283,7 +286,9 @@ let clear_code : unit =
   ()
 
 let check_arch (arch : string) : bool =
-  if String.exists arch "intel" || String.exists arch "arm" then
+  if (String.exists arch "intel"
+      || String.exists arch "arm"
+      || String.exists arch "thumb") then
     true
   else
     false

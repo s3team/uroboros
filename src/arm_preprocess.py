@@ -223,7 +223,8 @@ def add_tag(line: str, tag: str) -> str:
 
 if __name__ == "__main__":
     filename = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else None
+    arch = sys.argv[2]
+    output_dir = sys.argv[3] if len(sys.argv) > 3 else None
     disassemble_arm_thumb_binary(filename, output_dir)
     disassemble_text_section_as_data(filename)
     disassemble_got_section_as_data(filename)

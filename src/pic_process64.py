@@ -15,7 +15,7 @@ arch = sys.argv[3]
 
 if is_32 == "true":
     pass
-if arch == "arm":
+if arch == "thumb" or arch == "arm":
     pass
 else:
     lines = []

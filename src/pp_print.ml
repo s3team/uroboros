@@ -430,7 +430,7 @@ let pp_print_list instr_list =
 
 let pp_print_file (arch : string) (instr_list : string list) =
   let oc = open_out_gen [Open_append; Open_creat] 0o666 "final.s" in
-  if arch = "arm" then
+  if arch = "thumb" then
     let _ = Printf.fprintf oc ".syntax unified\n" in
     let _ = Printf.fprintf oc ".thumb\n" in
     Printf.fprintf oc ".section .text\n";

@@ -49,11 +49,8 @@ def check_main_symbol():
     return "not stripped" in lines[0]
 
 def check_thumb_mode(arch: str, entry_point: int) -> bool:
-    # if entry point is odd, then it is thumb mode
-    if arch == "arm" and entry_point % 2 == 1:
-        return True
-    else:
-        return False
+    return arch == "thumb"
+
 
 def get_entry_point_address() -> str:
     output = subprocess.getoutput("readelf -h " + fn)
@@ -110,9 +107,10 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
 def find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
     if arch == "intel":
         return find_intel_start_section(lines, entry_point_str)
-    elif arch == "arm":
+    elif arch == "thumb" or arch == "arm":
         return find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode)
     else:
+        print("find_start_section: Unknown architecture")
         raise Exception("Unknown architecture")
 
 
@@ -191,9 +189,10 @@ def get_intel_main_symbol(start_section):
 def get_main_symbol(start_section, is_32bit_binary):
     if arch == "intel":
         return get_intel_main_symbol(start_section)
-    elif arch == "arm":
+    elif arch == "thumb" or arch == "arm":
         return get_arm_main_symbol(start_section, is_32bit_binary)
     else:
+        print("get_main_symbol: Unknown architecture")
         raise Exception("Unknown architecture")
 
 

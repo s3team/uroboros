@@ -21,6 +21,8 @@ objdump_command = ""
 
 if arch == "intel":
     objdump_command = "objdump"
+elif arch == "thumb":
+    objdump_command = "arm-linux-gnueabihf-objdump -M force-thumb "
 elif arch == "arm":
     if is_32bit_binary:
         objdump_command = "arm-linux-gnueabihf-objdump"

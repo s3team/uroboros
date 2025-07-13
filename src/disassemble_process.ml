@@ -37,7 +37,7 @@ module Disam = struct
 
   let create_re (arch : string) = match arch with
     | "intel" -> (new reassemble :> common_reassemble)
-    | "arm" -> (new arm_reassemble :> common_reassemble)
+    | "thumb" | "arm" -> (new arm_reassemble :> common_reassemble)
     | _ -> failwith "unsupported architecture for reassemble"
 
   let adjust_esp (il : instr list) : instr list =
@@ -167,7 +167,7 @@ module Disam = struct
                 | _ -> ()
           ) func2cfg in
           GA.result
-        else if EU.elf_32 () && arch = "arm" then
+        else if EU.elf_32 () && (arch = "thumb" || arch = "arm") then
         let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
         let _ = Hashtbl.iter (
           fun f cfg ->
