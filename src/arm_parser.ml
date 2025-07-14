@@ -400,7 +400,7 @@ class arm_parse =
             BinOP_PLUS_R (r1, r2)
           with _ -> (
             try
-              let r, i = binptr_m_symb s in
+              let r, i = binptr_p_wb_symb s in
               (* ARM-specific write-back syntax *)
               BinOP_PLUS_WB (r, i)
             with _ -> (
