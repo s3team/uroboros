@@ -52,6 +52,24 @@ def remove_unused_literal_pools(filename):
         f.writelines(new_content)
 
 
+def remove_caret(filename):
+    """
+    Remove the caret (^) from the assembly file.
+    The caret is used to indicate inline shifts in ARM assembly.
+    """
+
+    new_content = []
+    with open(filename, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            # Remove the caret from the line
+            new_line = line.replace("^", " ")
+            new_content.append(new_line)
+
+    with open(filename, "w") as f:
+        f.writelines(new_content)
+
+
 def main(argv):
     if len(argv) != 2:
         print("Usage: python arm_postprocess.py <path_to_assembly_file>")
@@ -60,6 +78,7 @@ def main(argv):
     assembly_path = argv[1]
     adjust_alignment(assembly_path)
     remove_unused_literal_pools(assembly_path)
+    remove_caret(assembly_path)
 
 
 if __name__ == "__main__":

@@ -515,7 +515,7 @@ class arm_parse =
 
   method is_inline_shift (s : string) =
     let s' = String.trim s in
-    let s_list = Str.split (Str.regexp " ") s' in
+    let s_list = Str.split (Str.regexp "\\^") s' in
     let opcode = List.hd s_list in
     try
       let _ = rolop_symb opcode in
@@ -548,7 +548,6 @@ class arm_parse =
       let str_list = Str.split (Str.regexp_string ".") in
       if (List.length (str_list s)) = 2 then
         let op_str = List.nth (str_list s) 0 in
-        (* giyeol: TODO: split op_str into op and condsuff *)
         let widthsuff_str = List.nth (str_list s) 1 in
         let widthsuff = widthsuff_symb widthsuff_str in
         let op, cond = op_cond_symb op_str in
@@ -624,15 +623,12 @@ class arm_parse =
     call_des := false
 
   method parse_instr instr loc (arch : string) =
-    (* giyeol: *)
-    let _ = Printf.printf "Parsing instruction: %s\n" instr in
     self#init_process;
     let compact (instr : string) =
+      (* See [arm_postprocess.py#remove_caret] *)
       let instr' = Str.global_replace (Str.regexp ", ") "," instr in
-      if contains instr' "lsl " then
-        let instr' =
-          Str.global_replace (Str.regexp "lsl ") "lsl" instr
-        in
+      if contains instr' " " then
+        let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
         instr'
       else instr'
     in
