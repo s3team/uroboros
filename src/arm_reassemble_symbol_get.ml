@@ -1587,6 +1587,7 @@ class arm_reassemble =
 
   object (self)
     inherit common_reassemble
+    val mutable arch : string = "arm"
     val mutable label : (string * int) list = []
 
     (* collect relocation info in c2d *)
@@ -1611,6 +1612,9 @@ class arm_reassemble =
 
     (* collect all the symbols from code section or from data sections *)
     val mutable symbol_list : int list = []
+
+    method set_arch (arch_name : string) =
+      arch <- arch_name;
 
     method section_collect =
       let filelines = File.lines_of "sections.info"
@@ -1787,6 +1791,7 @@ class arm_reassemble =
         let loc = get_loc i in
         let addr = loc.loc_addr in
         if Hashtbl.mem literal_pool_candidates addr then
+          let _ = Printf.printf "literal pool cand: %s\n" (pp_print_instr' i) in
           TU.replace_tag i (Some Del)
         else
           i
@@ -1907,7 +1912,7 @@ class arm_reassemble =
           match s with
           | BinOP_PLUS (Arm_Reg (Arm_PCReg r), inst_addr) ->
               let module AU = ArmUtils in
-              let pc_relative_addr = AU.get_pc_relative_addr "thumb" i in
+              let pc_relative_addr = AU.get_pc_relative_addr arch i in
               if self#has_data pc_relative_addr then begin
                 (* Haven't seen this case yet *)
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
@@ -1916,6 +1921,7 @@ class arm_reassemble =
                 Label s_label
               end
               else if self#has_text_as_data pc_relative_addr then begin
+                let _ = Printf.printf "literal pool candidate: %s: 0x%x\n" (pp_print_instr' i ) pc_relative_addr in
                 Hashtbl.replace literal_pool_candidates pc_relative_addr i;
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
                 label <- (".text", pc_relative_addr) :: label;
@@ -2099,7 +2105,7 @@ class arm_reassemble =
         (* let _ = Printf.printf "\tOther Exp\n" in *)
         e
 
-    method vinst2 (f : instr -> bool) (i : instr) : instr =
+    method vinst2 (f : instr -> bool) (i : instr): instr =
       let tag' = get_tag i in
       if tag' = Some Del then i
       else

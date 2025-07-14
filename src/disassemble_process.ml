@@ -37,7 +37,11 @@ module Disam = struct
 
   let create_re (arch : string) = match arch with
     | "intel" -> (new reassemble :> common_reassemble)
-    | "thumb" | "arm" -> (new arm_reassemble :> common_reassemble)
+    | "thumb" | "arm" -> begin
+        let re = (new arm_reassemble :> common_reassemble) in
+        let _ = re#set_arch arch in
+        re
+      end
     | _ -> failwith "unsupported architecture for reassemble"
 
   let adjust_esp (il : instr list) : instr list =

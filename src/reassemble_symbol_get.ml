@@ -1591,6 +1591,7 @@ class reassemble =
   object(self)
     inherit common_reassemble
 
+    val mutable arch : string = "intel"
     val mutable label : (string * int) list = []
     val mutable align : (string * int) list = []
     (* collect relocation info in c2d *)
@@ -1613,6 +1614,9 @@ class reassemble =
 
     (* collect all the symbols from code section or from data sections *)
     val mutable symbol_list : int list = []
+
+    method set_arch (arch_name : string) =
+      arch <- arch_name
 
     method rodata_collect =
       rodata_list <- List.rev (collect "rodata_split.info")

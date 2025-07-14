@@ -9,6 +9,7 @@ class virtual common_reassemble =
   object (self)
     inherit ailVisitor
 
+    method virtual set_arch : string -> unit
     method virtual visit_heuristic_analysis : instr list -> instr list
     method virtual adjust_loclabel : instr list -> instr list
     method virtual adjust_jmpref : instr list -> instr list
