@@ -175,7 +175,7 @@ def dump(fn):
             if is_thumb:
                 arm_preprocess.disassemble_arm_thumb_binary(fn, None)
             else:
-                os.system(f"arm-linux-gnueabihf-objdump -Dr -j .text {fn} > {fn}.temp")
+                arm_preprocess.disassemble_arm32_binary(fn, None)
         else:
             os.system(f"aarch64-linux-gnu-objdump -Dr -j .text {fn} > {fn}.temp")
     else:

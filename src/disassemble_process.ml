@@ -183,10 +183,10 @@ module Disam = struct
       in
 
       (* giyeol: print instructions in ail_parser#get_instrs *)
-      List.iter (fun i ->
+      (* List.iter (fun i ->
         let s = pp_print_instr' i in
         Printf.printf "cfg: %s\n" s
-      ) ail_parser#get_instrs;
+      ) ail_parser#get_instrs; *)
       print_endline (List.length ail_parser#get_instrs |> string_of_int);
 
       (* giyeol: print functions in ail_parser#get_funcs *)

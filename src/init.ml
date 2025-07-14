@@ -41,7 +41,7 @@ object (self)
       failwith "unsupported architecture"
 
   method disassemble (f : string) (arch : string) : unit =
-    let disassemble_arm_thumb_binary (f : string) =
+    let disassemble_arm_binary (f : string) =
       let ret = ref 0 in
       ret := Sys.command("python3 arm_preprocess.py " ^ f ^ " " ^ arch);
     in
@@ -49,8 +49,8 @@ object (self)
     let ret = ref 0 in
 	  print_endline "1: linearly disassemble";
 
-    if arch = "thumb" && bit_mode = "32" then
-      disassemble_arm_thumb_binary f
+    if arch = "thumb" || arch = "arm" then
+      disassemble_arm_binary f
     else
       ret := Sys.command(objdump_command ^ " -Dr -j .text "^f^" > "^f^".temp");
 
