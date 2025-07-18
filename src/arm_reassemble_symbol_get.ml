@@ -1422,7 +1422,6 @@ class instrhandler instr_list des' =
     (* let lld2 = List.sort Int.compare lld1 in
        List.map (Printf.sprintf "S_0x%X") lld2 *)
 
-    (** Check if symbols in locs can be found in des *)
     method process =
       let dec_hex (s : int) : string = Printf.sprintf "S_0x%X" s in
       let do_update s n = if String.exists s n then s else s ^ "\n" ^ n in
@@ -1430,19 +1429,29 @@ class instrhandler instr_list des' =
         match (llist, dlist) with
         | llist', [] -> List.rev_append llist' acc
         | lh :: lt, dh :: dt ->
+            (* giyeol: *)
             (* let _ = Printf.printf "loc addr: %s\n" (dec_hex lh.loc_addr) in
             let _ = Printf.printf "des addr: 0x%x\n" dh in
             let _ = Printf.printf "llist len: %d\n" (List.length lt) in
             let _ = Printf.printf "des len: %d\n" (List.length dt) in
             let _ = Printf.printf "\n" in *)
+            (* let _ = Printf.printf "lh(%x) dh(%x)\n" lh.loc_addr dh in *)
             let lhd = lh.loc_addr in
             if dh = lhd then
               let lhs = dec_hex lh.loc_addr in
               let label' = do_update lh.loc_label (lhs ^ ":\n") in
               let lh' = { lh with loc_label = label' } in
+              (* giyeol: *)
+              (* let _ =
+                Printf.printf "\tif dh = lhd: loc(%x) des(%x)\n" lh.loc_addr dh
+              in *)
               help (lh' :: acc) lt dt
             else if dh < lhd then
               (* this is not a label indeed*)
+              (* let _ =
+                Printf.printf "\telse if dh < lhd: loc(%x) des(%x)\n"
+                  lh.loc_addr dh
+              in *)
               help (lh :: acc) lt dt
             else
               help (lh :: acc) lt dlist
@@ -1459,9 +1468,10 @@ class instrhandler instr_list des' =
             List.iter (Printf.printf "\tdes addr: %s\n") (List.map dec_hex b);
             failwith "undefined des list"
       in
-      (* giyeol: print all des *)
-      (* let _ = List.iter (Printf.printf "des: %s\n") des in *)
+      (* let _ = List.iter (fun l -> Printf.printf "des: %s\n" l) des in *)
       let des' = self#clean_sort des in
+      (* let _ = List.iter (fun l -> Printf.printf "des': 0x%x\n"  l) des' in *)
+      (* giyeol: TODO: here is the problem!! *)
       locs <- List.rev (help [] locs des')
     (** Check if symbols in locs can be found in des *)
 
@@ -1837,8 +1847,6 @@ class arm_reassemble =
         [ail_parser.ml#remove_literal_pools]. *)
 
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
-      (* giyeol:  *)
-      (* let _ = Printf.printf "v_exp2: %s\n" (pp_print_instr' i) in *)
       let check_test_condition l chk =
         match (l, chk) with
         | _, false -> true
@@ -1848,19 +1856,25 @@ class arm_reassemble =
       let dec_hex (s : int) : string = Printf.sprintf "0x%X" s in
       match e with
       | Const l -> begin
-        (* let _ = Printf.printf "\tConst\n" in *)
           let l' = self#parse_const l in
           match self#check_sec l' with
           | Some s ->
               if check_test_condition l chk = false then e
               else if self#has_data l' then begin
+                (* let _ =
+                  Printf.printf "giyeol: build symbol with data: %s\n"
+                    (pp_print_instr' i)
+                in *)
                 let s_label = self#build_symbol l in
                 let loc' = get_loc i in
                 c2d_addr <- loc'.loc_addr :: c2d_addr;
                 Label s_label
               end
               else begin
+                (* giyeol:  *)
+                (* let _ = Printf.printf "v_exp2: Const, Some, not has_data: %s\n" (pp_print_instr' i) in *)
                 Hashtbl.replace data_set l' "";
+                (* let _ = print_endline "giyeol: build symbol with data_set" in *)
                 let s_label = self#build_symbol l in
                 label <- (s.sec_name, l') :: label;
                 let loc' = get_loc i in
@@ -1874,6 +1888,7 @@ class arm_reassemble =
                   let rb = f i in
                   ();
 
+                  (* let _ = print_endline "giyeol: build symbol with text" in *)
                   let s_label = self#build_symbol l in
                   let loc' = get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
@@ -1887,6 +1902,7 @@ class arm_reassemble =
                   e
                   (* else begin
                   Hashtbl.replace text_set l' "";
+                  let _ = print_endline "giyeol: build symbol with text_set" in
                   let s_label = self#build_symbol l in
                   deslist <- s_label :: deslist;
                   let loc' = get_loc i in
@@ -1902,28 +1918,38 @@ class arm_reassemble =
                 in
                 if EU.elf_static () = false then
                   if self#check_plt l' then
+                    (* let _ = print_endline "giyeol: build symbol with plt" in *)
                     let ns = self#build_plt_symbol l in
                     Label ns
                   else e
                 else e
         end
       | Symbol s -> begin
-        (* let _ = Printf.printf "\tSymbol\n" in *)
           match s with
           | JumpDes l ->
+              (* let _ =
+                (* giyeol: *)
+                Printf.printf "v_exp2: JumpDes %s\n" (pp_print_instr' i)
+              in *)
               if self#check_text l then
                 if self#has_text l then
                   let s_label = "S_" ^ dec_hex l in
+                  (* let _ = print_endline "giyeol: jumpdes true" in *)
                   Label s_label
                 else begin
                   Hashtbl.replace text_set l "";
                   let s_label = "S_" ^ dec_hex l in
+                  (* let _ = print_endline "giyeol: jumpdes false" in *)
                   deslist <- s_label :: deslist;
                   Label s_label
                 end
               else e (* is it possible? *)
           | StarDes sd -> Symbol (StarDes (self#v_exp2 sd i f false))
           | CallDes f ->
+              (* let _ =
+                (* giyeol: *)
+                Printf.printf "v_exp2: CallDes %s\n" (pp_print_instr' i)
+              in *)
               let nl = String.length f.func_name in
               let fn = String.sub f.func_name 2 (nl - 2) in
               let is_dig_loc =
@@ -1952,8 +1978,6 @@ class arm_reassemble =
           | _ -> e
         end
       | Ptr s -> begin
-        (* giyeol:  *)
-        (* let _ = Printf.printf "\tPtr\n" in *)
           match s with
           | BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)
             when offset mod 2 = 0
@@ -1968,7 +1992,6 @@ class arm_reassemble =
                 Label s_label
               end
               else if self#has_text_as_data pc_relative_addr then begin
-                let _ = Printf.printf "literal pool candidate: %s: 0x%x\n" (pp_print_instr' i ) pc_relative_addr in
                 Hashtbl.replace literal_pool_candidates pc_relative_addr i;
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
                 let _ = Printf.printf "text_as_data symbol: %s\n" s_label in
@@ -1981,8 +2004,6 @@ class arm_reassemble =
                 Label s_label
               end
               else
-                (* giyeol:  *)
-                (* let _ = Printf.printf "addr: 0x%x\n" pc_relative_addr in *)
                 raise
                   (Reassemble_Error
                      "pc relative addr not in data section and text section")
@@ -2150,10 +2171,7 @@ class arm_reassemble =
             end
           | _ -> e
         end
-      | _ ->
-        (* giyeol: *)
-        (* let _ = Printf.printf "\tOther Exp\n" in *)
-        e
+      | _ -> e
 
     method vinst2 (arch : string) (f : instr -> bool) (i : instr) : instr =
       let tag' = get_tag i in
@@ -2420,6 +2438,12 @@ class arm_reassemble =
       self#update_deslist_with_initarray;
       self#dump_c2c_labels deslist_reloc;
       let t = List.rev_append (List.rev init_array_list) deslist in
+      (* giyeol: *)
+      (* List.iter (fun l -> Printf.printf "adjust_loclabel t: %s\n" l) t; *)
+      (* List.iter
+        (fun i ->
+          Printf.printf "adjust_loclabel instr_list: %s\n" (pp_print_instr' i))
+        instr_list; *)
       let p = new instrhandler instr_list t in
       (*
           self#update_deslist_with_ehframe;
@@ -2428,7 +2452,6 @@ class arm_reassemble =
 *)
 
       p#set_instr_list;
-      let _ = Printf.printf "adjust_loclabel\n" in
       p#process;
       p#get_instr_list
 
@@ -2436,7 +2459,6 @@ class arm_reassemble =
     method adjust_jmpref instr_list =
       let p = new instrhandler instr_list jmpreflist in
       p#set_instr_list;
-      let _ = Printf.printf "adjust_jmpref\n" in
       p#process;
       p#get_instr_list
 

@@ -448,14 +448,14 @@ class arm_parse =
 
   method ptraddr_symb s =
     try UnOP (Arm_Reg (unptr_symb s))
-    with _ -> (
+    with _ ->
       (* ARM-specific write-back syntax *)
       try UnOP_WB (unptr_wb_symb s)
       with _ ->
         try
           let r, i = binptr_p_symb s in
           BinOP_PLUS (Arm_Reg r, i)
-        with _ -> (
+        with _ ->
           try
             let r1, r2 = binptr_p_r_symb s in
             BinOP_PLUS_R (r1, r2)
@@ -505,6 +505,8 @@ class arm_parse =
     (f, int_of_string offset')
 
   method jumpdes_symb s =
+    (* giyeol: *)
+    (* let _ = Printf.printf "jumpdes_symb: %s\n" s in *)
     if String.contains s '+' then
       let split = Str.split (Str.regexp " +") in
       let s1 = List.nth (split s) 0 in
@@ -606,6 +608,8 @@ class arm_parse =
           with _ ->
             try Symbol (self#symbol_symb s)
             with _ ->
+              (* giyeol: *)
+              (* let _ = Printf.printf "exp_symb: Label\n" in *)
               try Label (s)   (* we just consider these as labels *)
               with _ ->
                 raise ParseError

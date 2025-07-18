@@ -577,6 +577,13 @@ class cfg =
       Hashtbl.fold (
           fun f bl cfg_f ->
           (
+            (* print instrs in basic block *)
+            (* let _ = List.iter (
+                fun b ->
+                  (* giyeol:  *)
+                  Printf.printf "bb loc start: %x\n" b.bblock_begin_loc.loc_addr;
+                  Printf.printf "bb loc end: %x\n" b.bblock_end_loc.loc_addr
+              ) bl in *)
             let bnl : string list = List.map (fun b -> b.bblock_name) bl in
             let cfg_l =
               ( List.map (fun b -> b.bblock_end_loc) bl

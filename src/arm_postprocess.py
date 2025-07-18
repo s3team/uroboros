@@ -212,7 +212,7 @@ def remove_invalid_d2c_labels(filename):
         f.writelines(new_content)
 
 
-def remove_unused_literal_pools(filename):
+def remove_unused_literal_pools_in_data(filename):
     """
     Remove unused data in the second text section.
     The data is used to symbolize literal pools from the original binary.
@@ -225,7 +225,7 @@ def remove_unused_literal_pools(filename):
         symbol_detected = 0
         lines = f.readlines()
         for line in lines:
-            if ".section .text" in line:
+            if ".section" in line and ".text" in line:
                 text_section_count += 1
 
             if text_section_count == 2:
@@ -234,13 +234,15 @@ def remove_unused_literal_pools(filename):
             if not is_going_through_second_text_section:
                 new_content.append(line)
             else:
-                if "S_0x" in line:
+                if ".section" in line and ".text" in line:
+                    new_content.append(line)
+                elif "S_0x" in line:
                     symbol_detected += 4
                     new_content.append(line)
                 elif symbol_detected > 0:
                     symbol_detected -= 1
                     new_content.append(line)
-                elif ".section .rodata" in line:
+                elif ".section" in line and ".rodata" in line:
                     is_going_through_second_text_section = False
                     text_section_count += 1
                     new_content.append(line)
