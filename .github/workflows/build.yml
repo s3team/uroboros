@@ -1,9 +1,10 @@
-name: test-actions
+name: build
 run-name: ${{ github.actor }} is running tests
 on:
   push:
     branches:
       - dev
+      - main
 jobs:
   execute-tests-ubuntu22:
     runs-on: ubuntu-22.04

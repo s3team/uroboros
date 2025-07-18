@@ -1,4 +1,14 @@
-# Uroboros: Infrastructure for Reassembleable Disassembling and Transformation
+# Uroboros
+[![build](https://github.com/s3team/uroboros/actions/workflows/build.yml/badge.svg)](https://github.com/s3team/uroboros/actions/workflows/build.yml)
+[![GitHub last commit](https://img.shields.io/github/last-commit/s3team/uroboros)](https://github.com/s3team/uroboros/commits/main/)
+[![GitHub issues](https://img.shields.io/github/issues-raw/s3team/uroboros)](https://github.com/s3team/uroboros/issues)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/s3team/uroboros/issues)
+
+Uroboros is an infrastructure for reassembleable disassembling and transformation.
+Uroboros can disassemble and reassemble an executable multiple times.
+Before reassembly, Uroboros can also perform code transformation, modifying the intended
+behavior of the executable.
+An example code transformation is [instrumentation](INSTRUMENTATION.md).
 
 ## Installation
 
