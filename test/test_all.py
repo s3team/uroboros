@@ -226,7 +226,10 @@ if __name__ == "__main__":
     # Set directories
     root_dir = Path(args.dir).resolve()
     if os.getenv("GITHUB_ACTIONS") == "true":
-        root_dir = root_dir / "AIL"
+        if os.path.exists(root_dir / "AIL"):
+            root_dir = root_dir / "AIL"
+        else:
+            root_dir = root_dir / "uroboros"
     else:
         root_dir = Path.cwd()
     test_dir = root_dir / "test"
