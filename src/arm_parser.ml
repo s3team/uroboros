@@ -224,6 +224,7 @@ class arm_parse =
     | "clz" -> CLZ | "mla" -> MLA | "mls" -> MLS | "mul" -> MUL | "neg" -> NEG | "qadd" -> QADD | "qadd16" -> QADD16 | "qadd8" -> QADD8
     | "qasx" -> QASX | "qdadd" -> QDADD | "qdsub" -> QDSUB | "qsax" -> QSAX | "qsub" -> QSUB | "qsub16" -> QSUB16 | "qsub8" -> QSUB8
     | "rsb" -> RSB | "rsbs" -> RSBS
+    | "rsc" -> RSC | "rscs" -> RSCS
     | "sadd16" -> SADD16 | "sadd8" -> SADD8 | "sasx" -> SASX | "sbc" -> SBC | "sbcs" -> SBCS
     | "sdiv" -> SDIV | "shadd16" -> SHADD16 | "shadd8" -> SHADD8 | "shasx" -> SHASX | "shsax" -> SHSAX | "shsub16" -> SHSUB16
     | "shsub8" -> SHSUB8 | "smlabb" -> SMLABB | "smlabt" -> SMLABT | "smlatb" -> SMLATB | "smlatt" -> SMLATT
@@ -234,7 +235,10 @@ class arm_parse =
     | "smultb" -> SMULTB | "smultt" -> SMULTT | "smull" -> SMULL | "smulwb" -> SMULWB | "smulwt" -> SMULWT | "smusd" -> SMUSD
     | "smusdx" -> SMUSDX | "ssat" -> SSAT | "ssat16" -> SSAT16 | "ssax" -> SSAX | "ssub16" -> SSUB16 | "ssub8" -> SSUB8
     | "sub" -> SUB | "subs" -> SUBS | "subw" -> SUBW
-    | "sxtab" -> SXTAB | "sxtab16" -> SXTAB16 | "sxth" -> SXTH | "sxtb" -> SXTB
+    | "sxtab" -> SXTAB | "sxtab16" -> SXTAB16
+    | "sxth" -> SXTH
+    | "sxtah" -> SXTAH
+    | "sxtb" -> SXTB
     | "negs" -> NEGS
     | "sxtb16" -> SXTB16 | "uadd16" -> UADD16 | "uadd8" -> UADD8 | "uasx" -> UASX | "udiv" -> UDIV | "uhadd16" -> UHADD16
     | "uhadd8" -> UHADD8 | "uhasx" -> UHASX | "uhsax" -> UHSAX | "uhsub16" -> UHSUB16 | "uhsub8" -> UHSUB8 | "umaal" -> UMAAL
@@ -267,6 +271,8 @@ class arm_parse =
     | "ldrexh" -> LDREXH | "ldrh" -> LDRH | "ldrht" -> LDRHT | "ldrsb" -> LDRSB | "ldrsbt" -> LDRSBT | "ldrsh" -> LDRSH | "ldrsht" -> LDRSHT
     | "ldrt" -> LDRT | "mov" -> MOV | "movs" -> MOVS | "movw" -> MOVW | "movt" -> MOVT | "mrs" -> MRS | "msr" -> MSR
     | "mvn" -> MVN | "mvns" -> MVNS
+    | "stmib" -> STMIB
+    | "ldmib" -> LDMIB
     | "sel" -> SEL | "stmdb" -> STMDB | "stmfd" -> STMFD | "stmia" -> STMIA | "stmea" -> STMEA | "str" -> STR | "strb" -> STRB | "strbt" -> STRBT
     | "strd" -> STRD | "strex" -> STREX | "strexb" -> STREXB | "strexd" -> STREXD | "strexh" -> STREXH | "strh" -> STRH | "strht" -> STRHT
     | "strt" -> STRT | "vcvt" -> VCVT | "vcvtt" -> VCVTT | "vcvtr" -> VCVTR | "vcvtb" -> VCVTB | "vmov" -> VMOV | "vmsr" -> VMSR
@@ -307,6 +313,8 @@ class arm_parse =
     | "bkpt" -> BKPT | "clrex" -> CLREX | "cps" -> CPS | "cpsie" -> CPSIE | "cpsid" -> CPSID | "dbg" -> DBG | "dmb" -> DMB
     | "dsb" -> DSB | "isb" -> ISB | "pld" -> PLD | "pli" -> PLI | "rfe" -> RFE | "sev" -> SEV | "smc" -> SMC | "srs" -> SRS
     | "svc" -> SVC | "wfe" -> WFE | "wfi" -> WFI | "yield" -> YIELD | "udf" -> UDF
+    | "mcr" -> MCR | "mcr2" -> MCR2 | "mcrr" -> MCRR | "mcrr2" -> MCRR2
+    | "mrc" -> MRC | "mrc2" -> MRC2
     | _ -> raise ParseError in
 
   let errorop_symb = function
@@ -623,6 +631,8 @@ class arm_parse =
     call_des := false
 
   method parse_instr instr loc (arch : string) =
+    (* giyeol: *)
+    (* let _ = Printf.printf "Parsing instruction: %s\n" instr in *)
     self#init_process;
     let compact (instr : string) =
       (* See [arm_postprocess.py#remove_caret] *)

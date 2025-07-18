@@ -11,6 +11,11 @@ lines = []
 with open("init_sec.info") as f:
    lines = f.readlines()
 
+# check if lines is empty
+if not lines:
+    print("init_sec.info is empty, exiting.")
+    sys.exit(0)
+
 l = lines[0]
 
 if ']' not in l:

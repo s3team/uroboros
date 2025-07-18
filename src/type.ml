@@ -332,11 +332,14 @@ and arm_systemop =
   | BKPT | CLREX | CPS | CPSIE | CPSID | DBG | DMB
   | DSB | ISB | PLD | PLI | RFE | SEV | SMC | SRS
   | SVC | WFE | WFI | YIELD | UDF
+  | MCR | MCR2 | MCRR | MCRR2
+  | MRC | MRC2
 and arm_arithmop =
   | ADC | ADCS | ADD | ADDS | ADDW | ADR | AND | ANDS
   | CLZ | MLA | MLS | MUL | NEG | QADD | QADD16 | QADD8
   | QASX | QDADD | QDSUB | QSAX | QSUB | QSUB16 | QSUB8
   | RSB | RSBS
+  | RSC | RSCS
   | SADD16 | SADD8 | SASX | SBC | SBCS
   | SDIV | SHADD16 | SHADD8 | SHASX | SHSAX | SHSUB16
   | SHSUB8 | SMLABB | SMLABT | SMLATB | SMLATT | SMLAD
@@ -377,6 +380,8 @@ and arm_assignop =
   | LDREXH | LDRH | LDRHT | LDRSB | LDRSBT | LDRSH | LDRSHT
   | LDRT | MOV | MOVS | MOVW | MOVT | MRS | MSR
   | MVN | MVNS
+  | STMIB
+  | LDMIB
   | SEL | STMDB | STMFD | STMIA | STMEA | STR | STRB | STRBT
   | STRD | STREX | STREXB | STREXD | STREXH | STRH | STRHT
   | STRT | VCVT | VCVTT | VCVTR | VCVTB | VMOV | VMSR
@@ -668,6 +673,7 @@ let show_intel_reg = function
             | CLZ -> "clz" | MLA -> "mla" | MLS -> "mls" | MUL -> "mul" | NEG -> "neg" | QADD -> "qadd" | QADD16 -> "qadd16" | QADD8 -> "qadd8"
             | QASX -> "qasx" | QDADD -> "qdadd" | QDSUB -> "qdsub" | QSAX -> "qsax" | QSUB -> "qsub" | QSUB16 -> "qsub16" | QSUB8 -> "qsub8"
             | RSB -> "rsb" | RSBS -> "rsbs"
+            | RSC -> "rsc" | RSCS -> "rscs"
             | SADD16 -> "sadd16" | SADD8 -> "sadd8" | SASX -> "sasx" | SBC -> "sbc" | SBCS -> "sbcs"
             | SDIV -> "sdiv" | SHADD16 -> "shadd16" | SHADD8 -> "shadd8" | SHASX -> "shasx" | SHSAX -> "shsax" | SHSUB16 -> "shsub16"
             | SHSUB8 -> "shsub8" | SMLABB -> "smlabb" | SMLABT -> "smlabt" | SMLATB -> "smlatb" | SMLATT -> "smlatt" | SMLAD -> "smlad"
@@ -678,9 +684,12 @@ let show_intel_reg = function
             | SMULTB -> "smultb" | SMULTT -> "smultt" | SMULL -> "smull" | SMULWB -> "smulwb" | SMULWT -> "smulwt" | SMUSD -> "smusd"
             | SMUSDX -> "smusdx" | SSAT -> "ssat" | SSAT16 -> "ssat16" | SSAX -> "ssax" | SSUB16 -> "ssub16" | SSUB8 -> "ssub8"
             | SUB -> "sub" | SUBS -> "subs" | SUBW -> "subw"
-            | SXTAB -> "sxtab" | SXTAB16 -> "sxtab16" | SXTAH -> "sxtah" | SXTB -> "sxtb"
+            | SXTAB -> "sxtab" | SXTAB16 -> "sxtab16"
+            | SXTH -> "sxth"
+            | SXTAH -> "sxtah" | SXTB -> "sxtb"
             | NEGS -> "negs"
-            | SXTB16 -> "sxtb16" | SXTH -> "sxth" | UADD16 -> "uadd16" | UADD8 -> "uadd8" | UASX -> "uasx" | UDIV -> "udiv" | UHADD16 -> "uhadd16"
+            | SXTB16 -> "sxtb16"
+            | UADD16 -> "uadd16" | UADD8 -> "uadd8" | UASX -> "uasx" | UDIV -> "udiv" | UHADD16 -> "uhadd16"
             | UHADD8 -> "uhadd8" | UHASX -> "uhasx" | UHSAX -> "uhsax" | UHSUB16 -> "uhsub16" | UHSUB8 -> "uhsub8" | UMAAL -> "umaal"
             | UMLAL -> "umlal" | UMULL -> "umull" | UQADD16 -> "uqadd16" | UQADD8 -> "uqadd8" | UQASX -> "uqasx" | UQSAX -> "uqsax"
             | UQSUB16 -> "uqsub16" | UQSUB8 -> "uqsub8" | USAD8 -> "usad8" | USADA8 -> "usada8" | USAT -> "usat" | USAT16 -> "usat16"
@@ -716,6 +725,8 @@ let show_intel_reg = function
             | LDREXH -> "ldrexh" | LDRH -> "ldrh" | LDRHT -> "ldrht" | LDRSB -> "ldrsb" | LDRSBT -> "ldrsbt" | LDRSH -> "ldrsh" | LDRSHT -> "ldrsht"
             | LDRT -> "ldrt" | MOV -> "mov" | MOVS -> "movs" | MOVW -> "movw" | MOVT -> "movt" | MRS -> "mrs" | MSR -> "msr"
             | MVN -> "mvn" | MVNS -> "mvns"
+            | STMIB -> "stmib"
+            | LDMIB -> "ldmib"
             | SEL -> "sel" | STMDB -> "stmdb" | STMFD -> "stmfd" | STMIA -> "stmia" | STMEA -> "stmea" | STR -> "str" | STRB -> "strb" | STRBT -> "strbt"
             | STRD -> "strd" | STREX -> "strex" | STREXB -> "strexb" | STREXD -> "strexd" | STREXH -> "strexh" | STRH -> "strh" | STRHT -> "strht"
             | STRT -> "strt" | VCVT -> "vcvt" | VCVTT -> "vcvtt" | VCVTR -> "vcvtr" | VCVTB -> "vcvtb" | VMOV -> "vmov" | VMSR -> "vmsr"
@@ -761,6 +772,8 @@ let show_intel_reg = function
         | BKPT -> "bkpt" | CLREX -> "clrex" | CPS -> "cps" | CPSIE -> "cpsie" | CPSID -> "cpsid" | DBG -> "dbg" | DMB -> "dmb"
         | DSB -> "dsb" | ISB -> "isb" | PLD -> "pld" | PLI -> "pli" | RFE -> "rfe" | SEV -> "sev" | SMC -> "smc" | SRS -> "srs"
         | SVC -> "svc" | WFE -> "wfe" | WFI -> "wfi" | YIELD -> "yield" | UDF -> "udf"
+        | MCR -> "mcr" | MCR2 -> "mcr2" | MCRR -> "mcrr" | MCRR2 -> "mcrr2"
+        | MRC -> "mrc" | MRC2 -> "mrc2"
       end
     | Arm_ErrorOP aerror ->
       begin

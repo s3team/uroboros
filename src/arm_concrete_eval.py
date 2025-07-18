@@ -48,11 +48,17 @@ class ArmConcreteEval(object):
 
                 data_addr += 1
                 if data_addr % 4 == 0:
-                    word_data_str = hex(int(word_data_str, 16) - 1).replace("0x", "")
+                    if self.arch == "thumb":
+                        word_data_str = hex(int(word_data_str, 16) - 1).replace("0x", "")
+                    elif self.arch == "arm":
+                        word_data_str = hex(int(word_data_str, 16)).replace("0x", "")
+                    else:
+                        raise ValueError("Unknown architecture")
                     self.__data_dict[data_addr - 4] = word_data_str
                     word_data_str = ""
 
-    def __init__(self):
+    def __init__(self, arch: str = "arm"):
+        self.arch = arch
         self.__init_reg_dict()
         self.init_code_data()
         self.init_got_data()
@@ -107,7 +113,6 @@ class ArmConcreteEval(object):
         data_addr = src_reg_value + src_offset
         data_addr = data_addr - (data_addr % 4)
 
-        # giyeol:
         # inst.print()
         # print("src_reg_value:", hex(src_reg_value))
         # print("data addr:", hex(data_addr))

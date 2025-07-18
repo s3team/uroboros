@@ -74,8 +74,8 @@ def find_intel_start_section(lines, entry_point_str):
 
 
 def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
-    # if thumb mode, we need to subtract 1 from entry point
-    if is_thumb_mode:
+    # For ARM 32-bit binary, the entry function is Thumb mode
+    if is_32bit_binary:
         entry_point = int(entry_point_str, 16)
         entry_point -= 1
         entry_point_str = hex(entry_point)[2:]
@@ -88,7 +88,7 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
                 while (ln < ll) and "Cannot identify main function using entry point":
                     # There could be other forms of nop for ARM such as "nop", "movs r8, r8", etc.
                     # So far, did not handle those cases.
-                    if "movs	r0, r0" in lines[ln]:
+                    if "movs" in lines[ln] and "movs" in lines[ln+1]:
                         return lines[i:ln+1]
                     ln += 1
             else:
@@ -155,7 +155,9 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
             inst.init_parse(line)
             instrs.append(inst)
 
-        eval = ArmConcreteEval()
+        arch_mode = "thumb" if is_thumb else "arm"
+        eval = ArmConcreteEval(arch=arch_mode)
+        # if thumb mode, we need to set the arch to thumb
         eval.run(instrs)
         main_symbol = hex(eval.reg_value_dict["r0"])
 
@@ -247,6 +249,7 @@ else:
         # For stripped non-PIE binary, find the main function manually
         start_section = find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb)
         main_symbol = get_main_symbol(start_section, is_32bit_binary)
+        print(f"main symbol: {main_symbol}")
         i = len(start_section)-1
 
     # Some of the PIC code/module rely on typical pattern to locate

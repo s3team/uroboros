@@ -142,6 +142,8 @@ def get_call_weak_fn_pattern_addr(filename):
                     call_weak_fn_addrs.append(addr)
                 return call_weak_fn_addrs
 
+    return call_weak_fn_addrs
+
 
 def get_start_fn_addrs(filename):
     """
@@ -183,17 +185,21 @@ def get_start_fn_addrs(filename):
             and "blx" in lines[14]
         )
 
+    start_fn_lines = []
     start_fn_addrs = []
     with open(f"{filename}.temp.thumb", "r") as f:
         lines = f.readlines()
         for i, line in enumerate(lines):
-            if i < len(lines) - 16 and is_start_fn(lines[i : i + 17]):
+            if i < len(lines) - 17 and is_start_fn(lines[i : i + 17]):
                 # return the address of the start function
                 #   10668:       f04f 0b00       mov.w   fp, #0
                 for j in range(18):
+                    start_fn_lines.append(lines[i + j].strip())
                     addr = lines[i + j].split(":")[0].strip()
                     start_fn_addrs.append(addr)
-                return start_fn_addrs
+                return start_fn_addrs, start_fn_lines
+
+    return start_fn_addrs, start_fn_lines
 
 
 def get_register_tm_clones_fn_addrs(filename):
@@ -244,6 +250,8 @@ def get_register_tm_clones_fn_addrs(filename):
                     register_tm_clones_fn_addrs.append(addr)
                 return register_tm_clones_fn_addrs
 
+    return register_tm_clones_fn_addrs
+
 
 def get_deregister_tm_clones_fn_addrs(filename):
     """
@@ -287,6 +295,8 @@ def get_deregister_tm_clones_fn_addrs(filename):
                     deregister_tm_clones_fn_addrs.append(addr)
                 return deregister_tm_clones_fn_addrs
 
+    return deregister_tm_clones_fn_addrs
+
 
 def get_do_global_dtors_aux_fn_addrs(filename):
     """
@@ -324,6 +334,8 @@ def get_do_global_dtors_aux_fn_addrs(filename):
                     do_global_dtors_aux_fn_addrs.append(addr)
                 return do_global_dtors_aux_fn_addrs
 
+    return do_global_dtors_aux_fn_addrs
+
 
 def disassemble_arm32_binary(filename, output_dir):
     """
@@ -336,7 +348,7 @@ def disassemble_arm32_binary(filename, output_dir):
     )
 
     call_weak_fn_addrs = get_call_weak_fn_pattern_addr(filename)
-    start_fn_addrs = get_start_fn_addrs(filename)
+    start_fn_addrs, start_fn_lines = get_start_fn_addrs(filename)
     deregister_tm_clones_fn_addrs = get_deregister_tm_clones_fn_addrs(filename)
     register_tm_clones_fn_addrs = get_register_tm_clones_fn_addrs(filename)
     do_global_dtors_aux_fn_addrs = get_do_global_dtors_aux_fn_addrs(filename)
@@ -361,7 +373,7 @@ def disassemble_arm32_binary(filename, output_dir):
 
         return False
 
-    new_content = []
+    filtered_content = []
     with open(f"{filename}.temp", "r") as f:
         lines = f.readlines()
         for line in lines:
@@ -372,7 +384,14 @@ def disassemble_arm32_binary(filename, output_dir):
             if is_between(addr, init_fn_addrs):
                 continue
 
-            new_content.append(line)
+            filtered_content.append(line)
+
+    start_fn_lines = ["   " + l + "\n" for l in start_fn_lines]
+    new_content = []
+    for line in filtered_content:
+        new_content.append(line)
+        if "<.text>" in line:
+            new_content.extend(start_fn_lines)
 
     with open(f"{filename}.temp", "w") as f:
         f.writelines(new_content)

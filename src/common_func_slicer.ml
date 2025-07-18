@@ -82,11 +82,19 @@ class virtual common_func_slicer instrs funcs =
     method filter_addr_by_secs (bl : int list) : int list =
       ignore (Sys.command "python3 init_sec_adjust.py");
       let il = read_file "init_sec.info" in
-      let l = List.nth il 0 in
-      let items = Str.split (Str.regexp " +") l in
-      let addr = int_of_string ("0x" ^ List.nth items 1)
-      and size = int_of_string ("0x" ^ List.nth items 3) in
-      List.filter (fun n -> n < addr || n >= addr + size) bl
+      (* check if its empty *)
+      if List.length il = 0 then
+        begin
+          print_endline "init_sec.info is empty, exiting.";
+          bl
+        end
+      else begin
+        let l = List.nth il 0 in
+        let items = Str.split (Str.regexp " +") l in
+        let addr = int_of_string ("0x" ^ List.nth items 1)
+        and size = int_of_string ("0x" ^ List.nth items 3) in
+        List.filter (fun n -> n < addr || n >= addr + size) bl
+      end
 
     method update_text_info =
       (* we manually add the begin address of text section as the first address of a function,

@@ -228,6 +228,7 @@ def process(f, i, arch):
             print("init failed")
             return False
 
+
         os.system(f"python3 main_discover.py {f} {arch}")
 
         if not os.path.isfile("final.s"):

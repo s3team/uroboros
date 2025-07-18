@@ -212,8 +212,8 @@ object (self)
        * Therefore, we can skip the instruction.
        * See [text_as_data] in [arm_reassemble_symbol_get.ml#v_exp2] *)
       let illegal_instrs = [
-        "illegal"; "??";"cdp"; "cdp2"; "mrc2"; "ldc2l"; "stc"; "stc2l"; "ltc2l";
-        "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"]
+        "illegal"; "??";"cdp"; "cdp2"; "mrc"; "mrc2"; "ldc2l"; "stc"; "stc2l";
+        "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr";]
       in
       let rec has_illegal_instr instr' = function
         | [] -> false

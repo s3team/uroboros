@@ -1751,10 +1751,12 @@ class arm_reassemble =
       match c with Point s -> s | Normal s -> s | Immediate s -> s
 
     method build_symbol c =
+      let _ = Printf.printf "build_symbol: %s\n" (p_const c) in
       let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s in
       match c with
       | Point s -> "=S_" ^ dec_hex s
       | Normal s -> "=S_" ^ dec_hex s
+      | Immediate s -> "=S_" ^ dec_hex s
 
     method build_plt_symbol c =
       let dec_hex (s : int) : string = Printf.sprintf "0x%x" s in
@@ -1791,7 +1793,8 @@ class arm_reassemble =
         let loc = get_loc i in
         let addr = loc.loc_addr in
         if Hashtbl.mem literal_pool_candidates addr then
-          let _ = Printf.printf "literal pool cand: %s\n" (pp_print_instr' i) in
+          (* giyeol:  *)
+          (* let _ = Printf.printf "literal pool cand: %s\n" (pp_print_instr' i) in *)
           TU.replace_tag i (Some Del)
         else
           i
@@ -1799,7 +1802,7 @@ class arm_reassemble =
 
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
       (* giyeol:  *)
-      (* let _ = Printf.printf "v_exp2: %s\n" (pp_print_instr' i) in *)
+      let _ = Printf.printf "v_exp2: %s\n" (pp_print_instr' i) in
       let check_test_condition l chk =
         match (l, chk) with
         | _, false -> true
@@ -1921,7 +1924,8 @@ class arm_reassemble =
                 Label s_label
               end
               else if self#has_text_as_data pc_relative_addr then begin
-                let _ = Printf.printf "literal pool candidate: %s: 0x%x\n" (pp_print_instr' i ) pc_relative_addr in
+                (* giyeol: *)
+                (* let _ = Printf.printf "literal pool candidate: %s: 0x%x\n" (pp_print_instr' i ) pc_relative_addr in *)
                 Hashtbl.replace literal_pool_candidates pc_relative_addr i;
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
                 label <- (".text", pc_relative_addr) :: label;
@@ -2213,10 +2217,12 @@ class arm_reassemble =
         (* ELF LSB shared object *)
         | _, false -> 4
       in
-
+      let _ = print_endline "sfsg 4" in
       let tl1 =
         List.map
           (fun l ->
+            (* giyeol: *)
+            (* let _ = Printf.printf "l: %s\n" l in *)
             try
               let s' = String.sub l 2 addr_len in
               int_of_string s'
@@ -2225,6 +2231,7 @@ class arm_reassemble =
               int_of_string s')
           deslist
       in
+      let _ = print_endline "sfsg 5" in
       symbol_list <- List.rev_append (List.rev tl1) symbol_list;
       self#add_del_to_literal_pool_candidates tl;
 
