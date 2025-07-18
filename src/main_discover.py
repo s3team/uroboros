@@ -249,7 +249,8 @@ else:
         # For stripped non-PIE binary, find the main function manually
         start_section = find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb)
         main_symbol = get_main_symbol(start_section, is_32bit_binary)
-        print(f"main symbol: {main_symbol}")
+        # giyeol:
+        # print(f"main symbol: {main_symbol}")
         i = len(start_section)-1
 
     # Some of the PIC code/module rely on typical pattern to locate

@@ -151,7 +151,8 @@ module ArmGotAbs : DfaAbs = struct
                 Printf.printf "This case should not happen: 0x%x\n"
                   pc_relative_addr
               in
-              failwith "check literal pools."
+              (* failwith "check literal pools." *)
+              outs
           end
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_CommonReg src), imm)),

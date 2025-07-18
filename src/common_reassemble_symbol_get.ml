@@ -20,4 +20,5 @@ class virtual common_reassemble =
     method virtual unify_loc : instr list -> instr list
     method virtual visit_type_infer_analysis : bblock list -> instr list -> instr list
     method virtual adjust_globallabel : (string * string * string) list -> string list -> string list
+    method virtual instr_addrs_collect : instr list -> unit
   end

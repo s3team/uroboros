@@ -120,7 +120,9 @@ module Disam = struct
       ail_parser#set_secs secs;
       ail_parser#set_arch arch;
       let instr_list = read_file "instrs.info" in
+      (* giyeol: remove_literal_pools is here *)
       ail_parser#process_instrs instr_list arch;
+      re#instr_addrs_collect ail_parser#get_instrs;
 
       let fl = ail_parser#get_funcs in
       print_endline "2: disassembly validates";
@@ -181,19 +183,6 @@ module Disam = struct
         AGA.result
         else Hashtbl.create 1
       in
-
-      (* giyeol: print instructions in ail_parser#get_instrs *)
-      (* List.iter (fun i ->
-        let s = pp_print_instr' i in
-        Printf.printf "cfg: %s\n" s
-      ) ail_parser#get_instrs; *)
-      print_endline (List.length ail_parser#get_instrs |> string_of_int);
-
-      (* giyeol: print functions in ail_parser#get_funcs *)
-      (* List.iter (fun f ->
-        let s = f.func_name in
-        Printf.printf "func: %s\n" s
-      ) ail_parser#get_funcs; *)
 
       let rewriting_result = got_rewrite il_init in
 

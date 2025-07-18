@@ -131,6 +131,7 @@ class arm_parse =
       in
       let split = Str.split (Str.regexp_string ",") in
       let items = split bracket_removed_s in
+      if List.length items <> 2 then raise ParseError;
       let reg = List.nth items 0 in
       let offset_with_hash = List.nth items 1 in
       let offset = String.sub offset_with_hash 1 ((String.length offset_with_hash)-1) in
@@ -152,6 +153,7 @@ class arm_parse =
       in
       let split = Str.split (Str.regexp_string ",") in
       let items = split bracket_removed_s in
+      if List.length items <> 2 then raise ParseError;
       let first_reg = List.nth items 0 in
       let second_reg = List.nth items 1 in
       (reg_symb first_reg, reg_symb second_reg) in
@@ -169,6 +171,7 @@ class arm_parse =
       in
       let split = Str.split (Str.regexp_string ",") in
       let items = split bracket_removed_s in
+      if List.length items <> 2 then raise ParseError;
       let reg = List.nth items 0 in
       let offset_with_hash = List.nth items 1 in
       let offset = String.sub offset_with_hash 1 ((String.length offset_with_hash)-1) in
@@ -190,6 +193,7 @@ class arm_parse =
       in
       let split = Str.split (Str.regexp_string ",") in
       let items = split bracket_removed_s in
+      if List.length items <> 2 then raise ParseError;
       let reg = List.nth items 0 in
       let offset_with_hash = List.nth items 1 in
       let offset = String.sub offset_with_hash 1 ((String.length offset_with_hash)-1) in
@@ -211,6 +215,7 @@ class arm_parse =
       in
       let split = Str.split (Str.regexp_string ",") in
       let items = split bracket_removed_s in
+      if List.length items <> 2 then raise ParseError;
       let reg = List.nth items 0 in
       let offset_with_hash = List.nth items 1 in
       let offset = String.sub offset_with_hash 1 ((String.length offset_with_hash)-1) in
@@ -219,9 +224,25 @@ class arm_parse =
         let unsigned_offset = String.sub offset 1 ((String.length offset)-1) in
         (reg_symb reg, int_of_string unsigned_offset) in
 
+  let threeptr_s_symb s =
+    let bracket_removed_s =
+      if s.[(String.length s)-1] = ']' then
+        String.sub s 1 ((String.length s)-2)
+      else
+        raise ParseError in
+    let split = Str.split (Str.regexp_string ",") in
+    let items = split bracket_removed_s in
+    let r1 = reg_symb (List.nth items 0)
+    and r2 = reg_symb (List.nth items 1)
+    and str = List.nth items 2 in
+    (Arm_Reg r1, Arm_Reg r2, str)
+  in
+
   let arithm_symb = function
     | "adc" -> ADC | "adcs" -> ADCS | "add" -> ADD | "adds" -> ADDS | "addw" -> ADDW | "adr" -> ADR | "and" -> AND | "ands" -> ANDS
-    | "clz" -> CLZ | "mla" -> MLA | "mls" -> MLS | "mul" -> MUL | "neg" -> NEG | "qadd" -> QADD | "qadd16" -> QADD16 | "qadd8" -> QADD8
+    | "clz" -> CLZ | "mla" -> MLA | "mls" -> MLS
+    | "mul" -> MUL | "muls" -> MULS
+    | "neg" -> NEG | "qadd" -> QADD | "qadd16" -> QADD16 | "qadd8" -> QADD8
     | "qasx" -> QASX | "qdadd" -> QDADD | "qdsub" -> QDSUB | "qsax" -> QSAX | "qsub" -> QSUB | "qsub16" -> QSUB16 | "qsub8" -> QSUB8
     | "rsb" -> RSB | "rsbs" -> RSBS
     | "rsc" -> RSC | "rscs" -> RSCS
@@ -321,24 +342,27 @@ class arm_parse =
     | "(bad)" -> BAD
     | _ -> failwith "unsupported type in errorop_symb" in
 
-  let commonop_symb = function s ->
-    try Arm_Arithm (arithm_symb s)
-    with _ ->
-      try Arm_Logic (logicop_symb s)
+  let commonop_symb (s : string) (is_special : bool) =
+    if is_special then
+      raise ParseError
+    else
+      try Arm_Arithm (arithm_symb s)
       with _ ->
-        try Arm_Rol (rolop_symb s)
+        try Arm_Logic (logicop_symb s)
         with _ ->
-          try Arm_Assign (assignop_symb s)
+          try Arm_Rol (rolop_symb s)
           with _ ->
-            try Arm_Compare (compareop_symb s)
+            try Arm_Assign (assignop_symb s)
             with _ ->
-              try Arm_Other (otherop_symb s)
-              with _ -> raise ParseError in
+              try Arm_Compare (compareop_symb s)
+              with _ ->
+                try Arm_Other (otherop_symb s)
+                with _ -> raise ParseError in
 
-  let op_symb = function s ->
+  let op_symb (s : string) (is_special : bool) =
     try Arm_ErrorOP (errorop_symb s)
     with _ ->
-      try Arm_CommonOP (commonop_symb s)
+      try Arm_CommonOP (commonop_symb s is_special)
       with _ ->
         try Arm_StackOP (stackop_symb s)
         with _ ->
@@ -347,8 +371,8 @@ class arm_parse =
             try Arm_SystemOP (systemop_symb s)
             with _ -> raise ParseError in
 
-  let op_cond_symb = function s ->
-    try (op_symb s, None)
+  let op_cond_symb (s : string) (is_special : bool) =
+    try (op_symb s is_special, None)
     with _ ->
       (* raise ParseError *)
       try
@@ -358,7 +382,7 @@ class arm_parse =
       else
         let cond_str = String.sub s (len-2) 2 in
         let op_str = String.sub s 0 (len-2) in
-        let op = op_symb op_str in
+        let op = op_symb op_str is_special in
         let cond = condsuff_symb cond_str in
         (op, Some cond)
       with _ -> raise ParseError in
@@ -395,31 +419,34 @@ class arm_parse =
 
   method ptraddr_symb s =
     try UnOP (Arm_Reg (unptr_symb s))
-    with _ -> (
+    with _ ->
       (* ARM-specific write-back syntax *)
       try UnOP_WB (unptr_symb_wb s)
-      with _ -> (
+      with _ ->
         try
           let r, i = binptr_p_symb s in
           BinOP_PLUS (Arm_Reg r, i)
-        with _ -> (
+        with _ ->
           try
             let r1, r2 = binptr_p_r_symb s in
             BinOP_PLUS_R (r1, r2)
-          with _ -> (
+          with _ ->
             try
               let r, i = binptr_p_wb_symb s in
               (* ARM-specific write-back syntax *)
               BinOP_PLUS_WB (r, i)
-            with _ -> (
+            with _ ->
               try
                 let r, i = binptr_m_symb s in
                 BinOP_MINUS (Arm_Reg r, i)
-              with _ -> (
+              with _ ->
                 try
                   let r, i = binptr_m_wb_symb s in
                   BinOP_MINUS_WB (r, i)
-                with _ -> raise ParseError))))))
+                with _ ->
+                  try ThreeOP_S (threeptr_s_symb s)
+                  with _ ->
+                    raise ParseError
 
   method ptr_symb s =
     let has s1 s2 =
@@ -445,6 +472,8 @@ class arm_parse =
     (f, int_of_string offset')
 
   method jumpdes_symb s =
+    (* giyeol: *)
+    (* let _ = Printf.printf "jumpdes_symb: %s\n" s in *)
     if String.contains s '+' then
       let split = Str.split (Str.regexp " +") in
       let s1 = List.nth (split s) 0 in
@@ -546,11 +575,14 @@ class arm_parse =
           with _ ->
             try Symbol (self#symbol_symb s)
             with _ ->
+              (* giyeol: *)
+              (* let _ = Printf.printf "exp_symb: Label\n" in *)
               try Label (s)   (* we just consider these as labels *)
               with _ ->
                 raise ParseError
 
-  method push_stack lex =
+  (** [is_special] is used to make stmdb and ldmia opcodes parsed to stackop *)
+  method push_stack lex (is_special : bool) =
     match lex with
     | Lop s ->
       let str_list = Str.split (Str.regexp_string ".") in
@@ -558,18 +590,18 @@ class arm_parse =
         let op_str = List.nth (str_list s) 0 in
         let widthsuff_str = List.nth (str_list s) 1 in
         let widthsuff = widthsuff_symb widthsuff_str in
-        let op, cond = op_cond_symb op_str in
+        let op, cond = op_cond_symb op_str is_special in
         Op (Arm_OP (op, cond, Some (widthsuff)))
       else if (List.length (str_list s)) = 3 then
         let op_str = List.nth (str_list s) 0 in
         let qualifier_str =
           (List.nth (str_list s) 1) ^ "." ^ (List.nth (str_list s) 2)
         in
-        let op, cond = op_cond_symb op_str in
+        let op, cond = op_cond_symb op_str is_special in
         let suffix = widthsuff_symb qualifier_str in
         Op (Arm_OP (op, cond, Some (suffix)))
       else
-        let op, cond = op_cond_symb s in
+        let op, cond = op_cond_symb s is_special in
         Op (Arm_OP (op, cond, None))
     | Lexp s -> Exp (self#exp_symb s)
     | Lloc s -> Loc (loc_symb s)
@@ -632,7 +664,7 @@ class arm_parse =
 
   method parse_instr instr loc (arch : string) =
     (* giyeol: *)
-    (* let _ = Printf.printf "Parsing instruction: %s\n" instr in *)
+    (* let _ = Printf.printf "parse_instr: %s\n" instr in *)
     self#init_process;
     let compact (instr : string) =
       (* See [arm_postprocess.py#remove_caret] *)
@@ -646,12 +678,20 @@ class arm_parse =
     let pre = prefix_identify compact_instr in
     (* let (compact_instr, tag) = tag_identify compact_instr in *)
     let compact_instr' = prefix_sub compact_instr in
+    let is_special_stackop (i : string) =
+      if contains i "stmdb" && contains i "sp!" then
+        true
+      else if contains i "ldmia" && contains i "sp!" then
+        true
+      else false
+    in
+    let is_special = is_special_stackop compact_instr' in
     let lexem_list = Array.to_list (lexer compact_instr' loc arch) in
     let s : stack_type list = [] in
     let parse_one s l =
       match l with
       | Lend -> s
-      | _ -> (self#push_stack l)::s
+      | _ -> (self#push_stack l is_special)::s
     in
   let stack = List.fold_left parse_one s lexem_list in
   let parsed_instr = self#reduce_stack stack pre None in

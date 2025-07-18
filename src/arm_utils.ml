@@ -17,7 +17,20 @@ module ArmUtils = struct
 
   let get_pc_relative_addr (mode : string) (i : instr) : int =
     match i with
-    | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign _), _), exp2, _, loc, _, _, _)
+    | DoubleInstr (Arm_OP (_, _, _), exp, loc, _, _, _) -> begin
+      match exp with
+      | Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), offset)) ->
+        let instr_addr = loc.loc_addr in
+        let pc =
+          if mode = "thumb" then instr_addr + 4 else instr_addr + 8
+        in
+        let aligned_pc =
+          if pc mod 4 = 0 then pc else pc - 2
+        in
+        aligned_pc + offset
+      | _ -> failwith "Unhandled expression type in DoubleInstr"
+      end
+    | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign _), _, _), exp2, _, loc, _, _, _)
       -> begin
         match exp2 with
         | Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), offset)) ->

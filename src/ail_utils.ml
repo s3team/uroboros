@@ -171,6 +171,12 @@ let get_cf_des i =
   | DoubleInstr (_, e, _, _, _, _) -> Some e
   | _ -> None
 
+(** Get the first exp.
+    e.g.:
+    bx r1 -> r1
+    mov r0, r1 -> r1
+    add r1, r2, r3 -> r3
+ *)
 let get_exp_1 i =
   match i with
   | SingleInstr (_, _, _, _, _) -> failwith "undefined expression"
@@ -178,6 +184,19 @@ let get_exp_1 i =
   | TripleInstr (_, e, _, _, _, _, _) -> e
   | FourInstr (_, e, _, _, _, _, _, _) -> e
   | FifInstr (_, e, _, _, _, _, _, _, _) -> e
+
+(** Get the second exp.
+    e.g.:
+    mov r0, r1 -> r0
+    add r1, r2, r3 -> r2
+*)
+let get_exp_2 i =
+  match i with
+  | SingleInstr (_, _, _, _, _) -> failwith "undefined expression"
+  | DoubleInstr (_, _, _, _, _, _) -> failwith "undefined expression"
+  | TripleInstr (_, _, e, _, _, _, _) -> e
+  | FourInstr (_, _, e, _, _, _, _, _) -> e
+  | FifInstr (_, _, e, _, _, _, _, _, _) -> e
 
 let get_tag (i : instr) =
   match i with
@@ -278,11 +297,16 @@ let sort_loc (ll : loc list) : loc list =
  * we assume no instructions share same location!
 *)
 let get_instr_byloc (instrs : instr list) (locs : loc list) : instr list =
+  (* giyeol: *)
+  (* let _ = List.iter (fun i -> Printf.printf "get instrs: 0x%x\n" (get_addr i)) instrs in
+  let _ = List.iter (fun l -> Printf.printf "get locs: 0x%x\n" l.loc_addr) locs in *)
   let rec aux il ll acc =
     match (il, ll) with
     | (ih::it, lh::lt) ->
       begin
         let iloc = get_loc ih in
+        (* giyeol: *)
+        (* let _ = Printf.printf "iloc(0x%x), lloc(0x%x)\n" iloc.loc_addr lh.loc_addr in *)
         if iloc.loc_addr < lh.loc_addr then
           aux it ll acc
         else if iloc.loc_addr = lh.loc_addr then

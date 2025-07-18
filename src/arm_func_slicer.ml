@@ -89,12 +89,13 @@ class arm_func_slicer instrs funcs =
             pop {r7,pc}
             BB_21:
             lsls r6,r5,#0x2 *)
-            (* giyeol: 여기에 문제가 있음 쭉 data일수도 있어서 함수로 분류하지 않아야 할 수도 있음 *)
-            (* 따라서 func_begins를 다른 조건을 통해서 명시해주는 것이 필요함 *)
-            (* 하지만 그렇다고 push instruction일 때만 함수 시작으로 인식하면
-             * init function들이 인식되지 않는 문제가 발생할 수 있음.
-             * init function들의 특정 패턴 + push가 있을 때만 함수 시작으로 분류하면 될 듯
-             *)
+            (* There is a potential issue here — this region might be continuous data, *)
+            (* so it might be inappropriate to classify it as a function. *)
+            (* Therefore, we need to explicitly specify func_begins using different criteria. *)
+            (* However, if we classify a function beginning only when a push instruction appears, *)
+            (* we may fail to detect certain init functions. *)
+            (* It would be better to classify the start of a function only when a specific init function pattern *)
+            (* is present together with a push instruction. *)
             last_nop <- false;
             last_ret <- false;
             last_special <- false;

@@ -1670,6 +1670,10 @@ class reassemble =
       in
       Enum.iter help filelines
 
+    method instr_addrs_collect (instrs : instr list) =
+      (* do nothing *)
+      ()
+
     method plt_sec_collect =
       let filelines = File.lines_of "plt_sec.info"
       and help l =

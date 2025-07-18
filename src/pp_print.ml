@@ -164,6 +164,12 @@ let p_ptraddr = function
   | BinOP_MINUS_S (r, s) -> "-"^s^"("^(p_reg r)^")"
   | BinOP_MINUS_WB (r, i) -> "["^(p_arm_reg r)^", #-"^(p_hex i)^"]!"
   | ThreeOP (r1, r2, i) -> "("^(p_reg r1)^","^(p_reg r2)^","^(p_loc i)^")"
+  | ThreeOP_S (r1, r2, s) ->
+    begin
+      match r1, r2 with
+      | Arm_Reg r1, Arm_Reg r2 -> "["^(p_arm_reg r1)^","^(p_arm_reg r2)^","^s^"]"
+      | _ -> failwith "ThreeOP_S: unhandled register type"
+    end
   | FourOP_PLUS (r1,r2,i1,i2) -> (p_loc i2)^"("^(p_reg r1)^","^(p_reg r2)^","^(p_loc i1)^")"
   | FourOP_MINUS (r1,r2,i1,i2) -> "-"^(p_loc i2)^"("^(p_reg r1)^","^(p_reg r2)^","^(string_of_int i1)^")"
   | FourOP_PLUS_S (r1,r2,i1,s1) -> s1^"("^(p_reg r1)^","^(p_reg r2)^","^(p_loc i1)^")"

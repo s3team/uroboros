@@ -62,6 +62,8 @@ and ptraddr =
   (* stp x29,x30,[sp,#-32]! *)
   | ThreeOP of (intel_arm_reg * intel_arm_reg * int)
   (* lea (%edi, %esi, 8), %edi *)
+  | ThreeOP_S of (intel_arm_reg * intel_arm_reg * string)
+  (* tbh	[pc, r2, lsl #1] *)
   | FourOP_PLUS of (intel_arm_reg * intel_arm_reg * int * int)
   (* mov 0x18(%esp,%eax,4),%edx *)
   | FourOP_MINUS of (intel_arm_reg * intel_arm_reg * int * int)
@@ -326,8 +328,8 @@ and arm_controlop =
   | RET | RETAA | RETAB | RETAASPPC | RETABSPPC | RETAASPPCR | RETABSPPCR
 and arm_stackop =
   | PUSH | POP | VPUSH | VPOP
-  | STMDB (* when used with sp! *)
-  | LDMIA (* when used with sp! *)
+  | STMDB (* push when used with sp! *)
+  | LDMIA (* pop when used with sp! *)
 and arm_systemop =
   | BKPT | CLREX | CPS | CPSIE | CPSID | DBG | DMB
   | DSB | ISB | PLD | PLI | RFE | SEV | SMC | SRS
@@ -336,7 +338,9 @@ and arm_systemop =
   | MRC | MRC2
 and arm_arithmop =
   | ADC | ADCS | ADD | ADDS | ADDW | ADR | AND | ANDS
-  | CLZ | MLA | MLS | MUL | NEG | QADD | QADD16 | QADD8
+  | CLZ | MLA | MLS
+  | MUL | MULS
+  | NEG | QADD | QADD16 | QADD8
   | QASX | QDADD | QDSUB | QSAX | QSUB | QSUB16 | QSUB8
   | RSB | RSBS
   | RSC | RSCS
@@ -670,7 +674,9 @@ let show_intel_reg = function
           begin
             match acommon_arith with
             | ADC -> "adc" | ADCS -> "adcs" | ADD -> "add" | ADDS -> "adds" | ADDW -> "addw" | ADR -> "adr" | AND -> "and" | ANDS -> "ands"
-            | CLZ -> "clz" | MLA -> "mla" | MLS -> "mls" | MUL -> "mul" | NEG -> "neg" | QADD -> "qadd" | QADD16 -> "qadd16" | QADD8 -> "qadd8"
+            | CLZ -> "clz" | MLA -> "mla" | MLS -> "mls"
+            | MUL -> "mul" | MULS -> "muls"
+            | NEG -> "neg" | QADD -> "qadd" | QADD16 -> "qadd16" | QADD8 -> "qadd8"
             | QASX -> "qasx" | QDADD -> "qdadd" | QDSUB -> "qdsub" | QSAX -> "qsax" | QSUB -> "qsub" | QSUB16 -> "qsub16" | QSUB8 -> "qsub8"
             | RSB -> "rsb" | RSBS -> "rsbs"
             | RSC -> "rsc" | RSCS -> "rscs"
@@ -756,6 +762,7 @@ let show_intel_reg = function
       begin
         match astack with
         | PUSH -> "push" | POP -> "pop" | VPUSH -> "vpush" | VPOP -> "vpop"
+        | LDMIA -> "ldmia" | STMDB -> "stmdb"
       end
     | Arm_ControlOP acontrol ->
       begin
