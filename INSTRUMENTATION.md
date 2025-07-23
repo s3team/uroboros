@@ -39,15 +39,15 @@ Following is the Table of Contents:
 Following is the format of an instrumentation point
 using Uroboros' domain-specific language:
 ```
-action direction loc loc-modifier stack cmd code-entry-point code; # comment here
+action direction loc loc-modifier stack cmd language code-entry-point code; # comment here
 ```
 An instrumentation point must ends with a semicolon ";" in which a comment
 beginning with a hash "#" may follow.
 
-`action` is one of `{insert, insertcall, delete, replace, printargs}`.
+`action` is one of `{insert, insertcall, delete, replace, printargs, include}`.
 `action` is case-insensitive, e.g., `insert` or `INSERT`.
 
-`direction` is one of `{before, after}`.
+`direction` is one of `{before, after, at}`.
 `direction` is case-insensitive.
 If not used, then `x`.
 It is not used for action `delete` or `replace`.

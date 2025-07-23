@@ -10,7 +10,6 @@ all:
 clean:
 	rm src/fl_calls || true
 	rm src/fl || true
-	rm src/points.ins || true
 	find . -type f -name "*.help" -delete
 	find . -type f -name "*.res" -delete
 	find . -type f -name "*.out" -delete
