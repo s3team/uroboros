@@ -28,6 +28,12 @@ module IntSet = Set.Make(
 
 module StringSet = Set.Make(String)
 
+let stub_loc : loc = {
+  loc_label = "";
+  loc_addr = 0;
+  loc_visible = true
+}
+
 let read_lines (filename : string) : string list =
   File.with_file_in filename (fun input ->
     List.of_enum (IO.lines_of input)
@@ -102,6 +108,14 @@ let string_to_int32 s =
 
 let compare_loc l1 l2 =
   l1.loc_addr = l2.loc_addr && (l1.loc_label = l2.loc_label)
+
+let get_tags i =
+  match i with
+  | SingleInstr (_, _, _, tags) -> tags
+  | DoubleInstr (_, _, _, _, tags) -> tags
+  | TripleInstr (_, _, _, _, _, tags) -> tags
+  | FourInstr (_, _, _, _, _, _, tags) -> tags
+  | FifInstr (_, _, _, _, _, _, _, tags) -> tags
 
 let get_loc i =
   match i with
@@ -1445,34 +1459,10 @@ module Func_utils = struct
         (*aux "S_0x80541C5" (Hashtbl.find func2cfg_table "S_0x80541C5")*)
         Hashtbl.iter aux func2cfg_table
 
-      let func2cfg (il : instr list) funcs =
-        let func2il il =
-          let func2il_table = Hashtbl.create 40 in
-          let rec slice_il fl il =
-            match (fl,il) with
-            | ([], il') -> func2il_table
-            | (hf::tf, []) -> func2il_table
-            | (hf::tf, hi::ti) ->
-              begin
-                let f_ba = hf.func_begin_addr in
-                let f_ea = hf.func_end_addr in
-                let i_loc = get_loc hi in
-                let i_addr = i_loc.loc_addr in
-                if i_addr >= f_ba && i_addr < f_ea then
-                  begin
-                    if Hashtbl.mem func2il_table hf.func_name then
-                      let hf_il = Hashtbl.find func2il_table hf.func_name in
-                      Hashtbl.replace func2il_table hf.func_name (hi::hf_il)
-                    else
-                      Hashtbl.add func2il_table hf.func_name [hi];
-                    slice_il fl ti
-                  end
-                else
-                  slice_il tf il
-              end
-          in
-          slice_il funcs il
-        in
+      let func2cfg
+          (il : instr list)
+          (funcs : func list)
+        : (string, cfgi) Hashtbl.t =
         let is_ct op =
           match op with
           | Intel_OP io -> (
@@ -1494,7 +1484,74 @@ module Func_utils = struct
               | _ -> None)
           | _ -> None
         in
-        let add_edge curr_cfg (i_from:instr option) (i_to:instr option) : (instr option, instr option list) Hashtbl.t =
+        let fb2fn funcs d =
+          match List.find_opt (fun f -> f.func_begin_addr = d) funcs with
+          | Some f -> Some f.func_name
+          | None -> None
+        in
+        let func2il il =
+          let func2il_table = Hashtbl.create 40 in
+          let worklist = Queue.create () in
+          let rec slice_il
+              (fl : func list)
+              (il : instr list)
+            : (string, instr list) Hashtbl.t =
+            match (fl,il) with
+            | ([], il') -> func2il_table
+            | (hf :: tf, []) -> func2il_table
+            | (hf :: tf, hi :: ti) ->
+              begin
+                let f_ba = hf.func_begin_addr in
+                let f_ea = hf.func_end_addr in
+                let i_loc = get_loc hi in
+                let i_addr = i_loc.loc_addr in
+                if i_addr >= f_ba && i_addr < f_ea then
+                  begin
+                    if Hashtbl.mem func2il_table hf.func_name then
+                      let hf_il = Hashtbl.find func2il_table hf.func_name in
+                      Hashtbl.replace func2il_table hf.func_name (hi :: hf_il)
+                    else Hashtbl.add func2il_table hf.func_name [hi];
+                    let _ = match get_ct_des hi with
+                    | Some d ->
+                      if d >= f_ea then
+                        begin
+                          match fb2fn funcs d with
+                          | Some fn ->
+                            Queue.push (hf.func_name, fn) worklist
+                          | None -> ()
+                        end
+                    | None -> () in
+                    slice_il fl ti
+                  end
+                else
+                  slice_il tf il
+              end
+          in
+          let func2il' = slice_il funcs il in
+          while not (Queue.is_empty worklist) do
+            let (fn, fn2) = Queue.pop worklist in
+            match Hashtbl.find_opt func2il' fn with
+            | Some f_il ->
+              begin
+                match Hashtbl.find_opt func2il' fn2 with
+                | Some f_il2 ->
+                  Hashtbl.replace func2il' fn (f_il @ f_il2);
+                  Hashtbl.remove func2il' fn2
+                | None -> ()
+              end
+            | None -> ()
+            (*let f_il = Hashtbl.find func2il' fn in
+            let f_il2 = Hashtbl.find func2il' fn2 in
+            Hashtbl.replace func2il' fn (f_il @ f_il2);
+            Hashtbl.remove func2il' fn2*)
+          done;
+          func2il'
+        in
+        let add_edge
+            curr_cfg
+            (i_from : instr option)
+            (i_to : instr option)
+          : (instr option, instr option list) Hashtbl.t =
           if Hashtbl.mem curr_cfg i_from then
             let existing_edges = Hashtbl.find curr_cfg i_from in
             Hashtbl.replace curr_cfg i_from (i_to :: existing_edges)
@@ -1504,7 +1561,7 @@ module Func_utils = struct
         in
         let func2cfg_table = Hashtbl.create 40 in
         let func2il_table = func2il il in
-        let rec create_cfg f (f_il:instr list) pred_cfg succ_cfg =
+        let rec create_cfg f (f_il : instr list) pred_cfg succ_cfg =
           match f_il with
           | [] ->
             let ordered_il = List.rev (Hashtbl.find func2il_table f.func_name) in

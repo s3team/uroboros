@@ -9,7 +9,6 @@ open Cg
 open Ail_utils
 
 
-
 class ail =
 object (self)
   val mutable funcs : func list = []
@@ -17,34 +16,41 @@ object (self)
   val mutable intrs: string list = []
   val mutable instrs_list: instr list = []
   val mutable datas: string list = []
-  val mutable g_bss: (string*string*string) list = []
+  val mutable g_bss: (string * string * string) list = []
 
-  method sections =
+  method sections : unit =
     let filelines = File.lines_of "sections.info"
     and help l =
       let items = Str.split (Str.regexp " +") l in
       let addr = int_of_string ("0x"^(List.nth items 1))
       and size = int_of_string ("0x"^(List.nth items 3))
       and secname = List.nth items 0 in
-      secs <- {sec_name=secname; sec_begin_addr=addr;
-               sec_size=size}::secs
+      secs <- {
+        sec_name = secname;
+        sec_begin_addr = addr;
+        sec_size = size
+      } :: secs
     in
     Enum.iter help filelines
 
-  method externfuncs =
+  method externfuncs : unit =
     let filelines = File.lines_of "externfuncs.info"
     and help l =
       let items = Str.split (Str.regexp " +") l in
       let addr = int_of_string ("0x"^(List.nth items 0))
       and func = List.nth items 1 in
-      funcs <- {func_name=func; func_begin_addr=addr; func_end_addr = 0;
-                is_lib=true}::funcs
+      funcs <- {
+        func_name = func;
+        func_begin_addr = addr;
+        func_end_addr = 0;
+        is_lib = true
+      } :: funcs
     in
     Enum.iter help filelines
 
-  (* in stripped binary, any user functions' information has been stripped
+  (** in stripped binary, any user functions' information has been stripped
    *  so slicing function class really does the job *)
-  method userfuncs =
+  method userfuncs : unit =
     let filelines = File.lines_of "userfuncs.info"
     and help l =
       if String.exists l "-0x" || String.exists l "+0x" then
@@ -58,20 +64,27 @@ object (self)
           let funname' = String.sub funname 1 (len-3) in
           if String.exists funname' "@@" then
             let fn = List.nth (Str.split (Str.regexp_string "@@") funname') 0 in
-            funcs <- {func_name=fn; func_begin_addr=addr; func_end_addr = 0;
-                    is_lib=false}::funcs
+            funcs <- {
+              func_name = fn;
+              func_begin_addr = addr;
+              func_end_addr = 0;
+              is_lib = false
+            } :: funcs
           else
-          funcs <- {func_name=funname'; func_begin_addr=addr; func_end_addr = 0;
-                    is_lib=false}::funcs
+          funcs <- {
+            func_name = funname';
+            func_begin_addr = addr;
+            func_end_addr = 0;
+            is_lib = false
+          } :: funcs
         end
     in
     Enum.iter help filelines
 
-
-  method get_userfuncs =
+  method get_userfuncs : func list =
     List.filter (fun f -> f.is_lib=false) funcs
 
-  method externdatas =
+  method externdatas : unit =
     let filelines = File.lines_of "externdatas.info"
     and help l =
       let data = String.trim l in
@@ -79,7 +92,7 @@ object (self)
     in
     Enum.iter help filelines
 
-  method global_bss =
+  method global_bss : unit =
     let filelines = File.lines_of "globalbss.info"
     and help l =
       let items = Str.split (Str.regexp " +") l in
@@ -88,11 +101,11 @@ object (self)
       let addr' = String.uppercase_ascii addr
       and rtype = List.nth items 1
       and n = String.trim (List.nth items 2) in
-      g_bss <- (addr', rtype, n)::g_bss
+      g_bss <- (addr', rtype, n) :: g_bss
     in
     Enum.iter help filelines
 
-  method ail_dump =
+  method ail_dump : unit =
     (* currently we just dump the extern function info *)
     let check_sym_func f =
       try
@@ -106,23 +119,23 @@ object (self)
      |> List.iter (fun l -> Printf.fprintf oc "extern %s\n" l.func_name));
     close_out oc
 
-  method ehframe_dump =
-    ignore (Sys.command("cat eh_frame.data >> final.s"))
+  method ehframe_dump : unit =
+    ignore ( Sys.command ("cat eh_frame.data >> final.s") )
 
-  method excpt_tbl_dump =
-    ignore (Sys.command("cat gcc_exception_table.data >> final.s"))
+  method excpt_tbl_dump : unit =
+    ignore ( Sys.command ("cat gcc_exception_table.data >> final.s") )
 
-  method post_process f (arch : string) = 
-    ignore (Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch));
-    ignore (Sys.command("python3 post_process.py "^arch));
-    ignore (Sys.command("python3 post_process_lib.py"))
+  method post_process (f : string) (arch : string) : unit =
+    ignore ( Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch) );
+    ignore ( Sys.command ("python3 post_process.py "^arch) );
+    ignore ( Sys.command ("python3 post_process_lib.py") )
     (*
     self#ehframe_dump;
     self#excpt_tbl_dump;
     *)
 
-  method pre_process =
-    ignore (Sys.command("python3 pre_process.py"))
+  method pre_process : unit =
+    ignore ( Sys.command ("python3 pre_process.py") )
 
   method instr_process (f : string) (arch : string) : unit =
     let open Disassemble_process in
@@ -138,9 +151,9 @@ object (self)
 
     let fbl, bbl, cfg_t, cg, il', re, ufl = A.analyze_one il fl re in
 
-    let il', ufl', fch = S.apply il' ufl in
+    let il', ufl', fch = S.apply il' ufl f in
 
-    let instrumented_il =
+    let instrumented_il : instr list =
       I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch
     in
 

@@ -5,6 +5,7 @@ exception Pass_Validator
 module Disam = struct
 
     open Semantic_analysis
+    open Flow_insensitive_analysis
     open Reassemble_symbol_get
     open Disassemble_validator
     open Ail_parser
@@ -65,28 +66,41 @@ module Disam = struct
           print_endline (name ^ ", " ^ ba ^ ", " ^ ea);
       ) fl in*)
 
-      if EU.elf_32 () && arch <> "arm" then
-        let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
-        let _ = Hashtbl.iter (
-          fun f cfg ->
-            let _ = D.flow_analysis cfg in
-            ()
-        ) func2cfg_table in ()
-      else ();
+      let rewriting_result =
+        if EU.elf_32 () && arch <> "arm" then
+          let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
+          let _ = Hashtbl.iter (
+            fun f cfg ->
+              (* track GOT ptr in comment of result[0] NOP instr *)
+              let _ = Hashtbl.remove GA.result 0 in
+              (*let _ =
+                if f = "S_0x8089F36" then
+                  let cfg = Hashtbl.find func2cfg_table f in
+                  List.iter (fun instr ->
+                    Printf.printf "instr: %s\n" (pp_print_instr' instr)
+                  ) cfg.il
+              in*)
+              let _ = D.flow_analysis f cfg in
+              if Hashtbl.mem GA.result 0 then
+                let tags = get_tags (Hashtbl.find GA.result 0) in
+                let got_reg = Hashtbl.find tags "got_reg" in
+                if not (is_reassign got_reg cfg.il) then
+                  (* perform flow-insensitive term rewriting *)
+                  got_rewrite got_reg cfg.il GA.result
+          ) func2cfg_table in
+          GA.result
+        else Hashtbl.create 100
+      in
 
       il :=
         if EU.elf_32 () && arch <> "arm" then
-          begin
-            FnU.replace_got_ref GA.result @@ ail_parser#get_instrs
-            |> re#visit_heuristic_analysis
-          end
+          ( FnU.replace_got_ref rewriting_result @@ ail_parser#get_instrs )
+          |> re#visit_heuristic_analysis
         else
-          begin
-            re#visit_heuristic_analysis @@ ail_parser#get_instrs
-          end
-        |> re#adjust_loclabel |> re#adjust_jmpref
-        |> re#add_func_label @@ get_userfuncs fl
-        |> dis_valid#visit;
+          ( re#visit_heuristic_analysis @@ ail_parser#get_instrs )
+          |> re#adjust_loclabel |> re#adjust_jmpref
+          |> re#add_func_label @@ get_userfuncs fl
+          |> dis_valid#visit;
 
       let adjust_list = dis_valid#trim_results in
       if List.length adjust_list != 0 then (
@@ -97,6 +111,7 @@ module Disam = struct
         total := !total +. TR.elapsed once)
       else cond := true
     done;
+
     print_endline "\tno disassembly error detects";
     let funcs = ail_parser#get_funcs in
     (!il, funcs, re)

@@ -290,7 +290,7 @@ class cfg =
     method visit il =
       let last_i = List.nth il (List.length il - 1) in
       end_loc <- get_loc last_i;
-      let il' = List.map self#vinst il in
+      let il' = List.map self#vinst' il in
       bl <- self#update_bl;
       self#fb_list bl;
       let bl' = List.sort (fun b1 b2 ->

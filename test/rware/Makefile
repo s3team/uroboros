@@ -1,5 +1,6 @@
 #:Compiler and flags
 CC = gcc
+#CFLAGS = -O3 -no-pie -static -m32 -I./tiny-AES-c -I./tiny-ECDH-c
 CFLAGS = -O3 -no-pie -static -I./tiny-AES-c -I./tiny-ECDH-c
 
 # Source files
@@ -40,6 +41,10 @@ $(DECRYPTOR): $(DECRYPTOR_SRC)
 # Clean up generated files
 clean:
 	rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
+	rm -rf hello
+	rm -rf hello2
+	cp -R hello-bk hello
+	cp -R hello-bk hello2
 
 .PHONY: all clean genkey
 

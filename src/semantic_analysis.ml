@@ -17,7 +17,7 @@ module type DfaAbs = sig
   val merge : instr option list -> (instr, ExpSet.t) Hashtbl.t -> ExpSet.t
   val flow_through : instr -> ExpSet.t -> ExpSet.t
   val process_instr : instr -> ExpSet.t -> unit
-  val result : (int, instr) Hashtbl.t (* for rewriting based on DFA results *)
+  val result : (int, instr) Hashtbl.t (* term rewriting based on DFA results *)
 end
 
 module GotAbs : DfaAbs = struct
@@ -30,7 +30,7 @@ module GotAbs : DfaAbs = struct
   let union = ExpSet.union
   let result = Hashtbl.create 100
 
-  let init_got () =
+  let init_got () : int =
     let split_by_space s = Str.split (Str.regexp " ") s in
     let filelines : string list = read_lines "pic_secs.info" in
     let info = List.nth filelines 0 in
@@ -38,7 +38,10 @@ module GotAbs : DfaAbs = struct
     let got_addr_str = "0x" ^ List.nth info_str 1 in
     int_of_string got_addr_str
 
-  let merge preds input_map =
+  let merge
+      (preds : instr option list)
+      (input_map : (instr, ExpSet.t) Hashtbl.t)
+    : ExpSet.t =
     let union_preds =
      fun acc (p_op : instr option) ->
       match p_op with
@@ -49,8 +52,23 @@ module GotAbs : DfaAbs = struct
     in
     List.fold_left union_preds ExpSet.empty preds
 
-  let process_inner i ins got_addr =
+  let got_rewrite_instr (i : instr) (ins : ExpSet.t) (got_addr : int) : instr =
     match i with
+    | DoubleInstr
+        ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
+          Symbol (StarDes (Ptr (FourOP_MINUS (reg1, reg2, const1, const2)))),
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg1) ins ->
+        let got_plus_offset = got_addr + const2 in
+        (*let _ = print_endline ("orig0: " ^ (pp_print_instr' i)) in*)
+         DoubleInstr
+         ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
+           Symbol (StarDes (Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)))),
+           loc,
+           prefix,
+           tags )
     | DoubleInstr
         ( Intel_OP (Intel_ControlOP CALL),
           Symbol (StarDes (Ptr (BinOP_PLUS (reg, const)))),
@@ -287,14 +305,14 @@ module GotAbs : DfaAbs = struct
             tags )
     | _ -> i
 
-  let process_instr i ins =
+  let process_instr (i : instr) (ins : ExpSet.t) : unit =
     let got_addr = init_got () in
-    let newi = process_inner i ins got_addr in
+    let newi = got_rewrite_instr i ins got_addr in
     if pp_print_instr newi <> pp_print_instr i then
       Hashtbl.replace result (get_loc i).loc_addr newi
     else ()
 
-  let flow_through i ins =
+  let flow_through (i : instr) (ins : ExpSet.t) : ExpSet.t =
     let outs = ins in
     match i with
     | TripleInstr (p, e1, e2, _, _, _) -> (
@@ -304,6 +322,15 @@ module GotAbs : DfaAbs = struct
             if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then
               (* gen *)
               (*print_endline ("gen: " ^ (p_exp (Reg r)) ^ ", " ^ (pp_print_instr' i));*)
+              let got_reg_tags = Hashtbl.create 0 in
+              let _ = Hashtbl.replace got_reg_tags "got_reg" (p_exp (Reg r)) in
+              Hashtbl.replace
+                result
+                0
+                ( SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)),
+                  stub_loc,
+                  None,
+                  got_reg_tags) );
               ExpSet.add (Reg r) outs
             else outs
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), e1, e2 ->
@@ -413,7 +440,7 @@ module DFA (A : DfaAbs) = struct
   let in_map = Hashtbl.create 10
   let out_map = Hashtbl.create 10
 
-  let flow_analysis cfg =
+  let flow_analysis (f : string) (cfg : cfgi) : unit =
     (* init each CFG node *)
     let { preds; succs; il } = cfg in
     let _ =
@@ -441,11 +468,13 @@ module DFA (A : DfaAbs) = struct
       let outs = A.flow_through i ins in
 
       (* debug log *)
-      (*let _ = print_endline ("> " ^ (pp_print_instr' i)) in
-      let _ = print_endline (" outs: ") in
-      let _ = ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) outs in
-      let _ = print_endline (" ins: ") in
-      let _ = ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) ins in*)
+      (*if f = "S_0x8089F36" then
+        let _ = print_endline ("> " ^ (pp_print_instr' i)) in
+        let _ = print_endline (" outs: ") in
+        let _ = ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) outs in
+        let _ = print_endline (" ins: ") in
+        ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) ins;*)
+
       if not (A.equal old_outs outs) then (
         Hashtbl.replace out_map i outs;
         let succs =
