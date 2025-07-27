@@ -16,7 +16,6 @@ from argparse import ArgumentParser
 # keep the intermediate binary/final.s or not.
 k = False
 f_dic = ""
-
 iter_num = 0
 
 
@@ -51,6 +50,7 @@ def check_strip():
     else:
         return False
 
+
 def check_static():
     lines = []
     with open("elf.info") as f:
@@ -59,6 +59,7 @@ def check_static():
         return True
     else:
         return False
+
 
 def get_custom_objects(cleanup):
     result = subprocess.run("ls | grep '\\.o$'", shell=True, capture_output=True, text=True)
@@ -74,6 +75,7 @@ def get_custom_objects(cleanup):
             libs = [l for l in line_nocmd[8:].split() if l]
             result.extend(libs)
     return list(set(result))
+
 
 def reassemble(assembly_file, arch):
     compiler = ""
@@ -104,6 +106,7 @@ def reassemble(assembly_file, arch):
     print(f"reassemble: {compiler} {assembly_file} {compile_option}")
     os.system(f"{compiler} {assembly_file} {compile_option}")
 
+
 def plt_changed():
     with open("plt_sec.info") as plt_sec, open("plt_sec_re.info") as plt_sec_re:
         plt_sec_line = plt_sec.readlines()[0]
@@ -111,6 +114,7 @@ def plt_changed():
         plt_sec_size = plt_sec_line.split()[3]
         plt_sec_re_size = plt_sec_re_line.split()[3]
         return plt_sec_size != plt_sec_re_size
+
 
 def get_plt_info(plt_sec_file):
     with open(plt_sec_file) as plt_sec, open("plt_entries.info") as plt_entries:
@@ -120,6 +124,7 @@ def get_plt_info(plt_sec_file):
         plt_sec_entry_num = int(plt_entries.readlines()[0])
         size_per_entry = int(plt_sec_size / plt_sec_entry_num)
         return plt_sec_start, plt_sec_entry_num, size_per_entry
+
 
 def update_final(plt_addr2entry, plt_new_entry2addr):
     lines = list()
@@ -146,6 +151,7 @@ def check_thumb_mode(arch: str, entry_point: int) -> bool:
     else:
         return False
 
+
 def get_entry_point_address(fn) -> str:
     output = subprocess.getoutput("readelf -h " + fn)
     entry_point = ""
@@ -156,6 +162,7 @@ def get_entry_point_address(fn) -> str:
             break
 
     return entry_point
+
 
 def dump(fn):
     entry_point_str = get_entry_point_address(fn)
@@ -172,6 +179,7 @@ def dump(fn):
                 raise Exception("Only ARM Thumb mode is supported.")
         else:
             os.system(f"aarch64-linux-gnu-objdump -Dr -j .text {fn} > {fn}.temp")
+
 
 def process(f, i, arch):
     is_32bit_binary = check_32()
@@ -202,6 +210,7 @@ def process(f, i, arch):
         if check_static():
             os.system(f"objdump -d --section=.plt {f} > plt_whole.info")
             os.system(f"readelf -r {f} > rela_plt.info")
+            os.system(f"readelf -l {f} > headers.info")
         os.system(f"{strip_command} {f}")
 
         dump(f)
@@ -280,8 +289,6 @@ def process(f, i, arch):
         os.system("rm " + "faddr.txt." + str(i))
 
         return True
-
-
 
 
 def iterate (f, iterations, arch):
@@ -383,10 +390,6 @@ def strip_elf(f):
     stripped_path = os.path.basename(f) + "_stripped"
     os.system(f"strip -o {stripped_path} {f}")
     return stripped_path
-
-
-
-
 
 
 if __name__ == "__main__":

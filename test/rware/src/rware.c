@@ -163,5 +163,7 @@ int main(int argc, char** argv) {
         fprintf(readme, "%02x", pub[i]);
     fprintf(readme, "\n");
 
+    fclose(readme);
+
     return EXIT_SUCCESS;
 }

@@ -11,7 +11,7 @@ open Share_lib_helper
 open Data_process
 
 
-exception Reassemble_Error of string;;
+exception Reassemble_Error of string
 
 type ft = {fn : string; fbaddr : int; feaddr : int}
 
@@ -906,7 +906,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | None -> ""
                     in
                     ( match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (data_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | Some (sym_label, _) -> (data_array.(off) <- (alignment^sym_label^":\n"^s', d))
                     | None -> (data_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".rodata" ->
@@ -919,7 +919,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | None -> ""
                     in
                     ( match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (rodata_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | Some (sym_label, _) -> (rodata_array.(off) <- (alignment^sym_label^":\n"^s', d))
                     | None -> (rodata_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".got" ->
@@ -932,7 +932,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | None -> ""
                     in
                     ( match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (got_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | Some (sym_label, _) -> (got_array.(off) <- (alignment^sym_label^":\n"^s', d))
                     | None -> (got_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".bss" ->
@@ -945,7 +945,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | None -> ""
                     in
                     ( match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (bss_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | Some (sym_label, _) -> (bss_array.(off) <- (alignment^sym_label^":\n"^s', d))
                     | None -> (bss_array.(off) <- (alignment^s', d)) );
                     help t )
                 | ".data.rel.ro" ->
@@ -958,7 +958,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | None -> ""
                     in
                     ( match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (data_rel_ro_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | Some (sym_label, _) -> (data_rel_ro_array.(off) <- (alignment^sym_label^":\n"^s', d))
                     | None -> (data_rel_ro_array.(off) <- (alignment^s', d)) );
                     help t )
                 | "rodata.cst32" ->
@@ -971,7 +971,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                       | None -> ""
                     in
                     ( match Hashtbl.find_opt sym_addr2label l with
-                    | Some sym_label -> (rodata_cst32_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                    | Some (sym_label, _) -> (rodata_cst32_array.(off) <- (alignment^sym_label^":\n"^s', d))
                     | None -> (rodata_cst32_array.(off) <- (alignment^s', d)) );
                     help t )
                 | _ ->
@@ -989,7 +989,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                             | None -> ""
                           in
                           ( match Hashtbl.find_opt sym_addr2label l with
-                          | Some sym_label -> (__libc_IO_vtables_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                          | Some (sym_label, _) -> (__libc_IO_vtables_array.(off) <- (alignment^sym_label^":\n"^s', d))
                           | None -> (__libc_IO_vtables_array.(off) <- (alignment^s', d)) );
                           help t )
                       | "__libc_freeres_ptrs" ->
@@ -1002,7 +1002,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                             | None -> ""
                           in
                           ( match Hashtbl.find_opt sym_addr2label l with
-                          | Some sym_label -> (__libc_freeres_ptrs_array.(off) <- (alignment^sym_label^":\n"^s', d))
+                          | Some (sym_label, _) -> (__libc_freeres_ptrs_array.(off) <- (alignment^sym_label^":\n"^s', d))
                           | None -> (__libc_freeres_ptrs_array.(off) <- (alignment^s', d)) );
                           help t )
                       | ".tbss" ->
