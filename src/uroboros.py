@@ -72,7 +72,7 @@ def get_custom_objects(cleanup):
             if not line.startswith("INCLUDE"):
                 continue
             line_nocmd = line.split('"')[0]
-            libs = [l for l in line_nocmd[8:].split() if l]
+            libs = [os.path.basename(l) for l in line_nocmd[8:].split() if l]
             result.extend(libs)
     return list(set(result))
 
