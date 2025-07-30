@@ -78,7 +78,7 @@ has_failed="false"
 echo ">>> test00"
 
 pushd $(pwd)/src
-cp points.test00.32.ins points.ins
+cp points.test00.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test00/test00.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -90,10 +90,11 @@ if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 pushd $(pwd)/src
-cp points.test00.64.ins points.ins
+cp points.test00.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test00/test00.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -105,6 +106,7 @@ if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 ##########
@@ -113,7 +115,7 @@ popd
 echo ">>> test01"
 
 pushd $(pwd)/src
-cp points.test01.32.ins points.ins
+cp points.test01.32.ins points/
 echo "0x804919d" > instrument_locs.ins
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test01/test01.32.nopie.dynamic.sym &> /dev/null
@@ -126,10 +128,11 @@ if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 pushd $(pwd)/src
-cp points.test01.64.ins points.ins
+cp points.test01.64.ins points/
 echo "0x401162" > instrument_locs.ins
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test01/test01.64.nopie.dynamic.sym &> /dev/null
@@ -142,6 +145,7 @@ if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 ##########
@@ -150,7 +154,7 @@ popd
 echo ">>> test05"
 
 pushd $(pwd)/src
-cp points.test05.32.ins points.ins
+cp points.test05.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test05/test05.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -162,10 +166,11 @@ if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 pushd $(pwd)/src
-cp points.test05.64.ins points.ins
+cp points.test05.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test05/test05.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -177,6 +182,7 @@ if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 ##########
@@ -185,7 +191,7 @@ popd
 echo ">>> test07"
 
 pushd $(pwd)/src
-cp points.test07.32.ins points.ins
+cp points.test07.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test07/test07.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -197,10 +203,11 @@ if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 pushd $(pwd)/src
-cp points.test07.64.ins points.ins
+cp points.test07.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test07/test07.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -212,6 +219,7 @@ if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 
 if [[ "$has_failed" == "true" ]]; then
@@ -224,7 +232,7 @@ fi
 echo ">>> simul_io"
 
 pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.32.ins points.ins
+cp ../test/simul_io/points.float_capture.32.ins points/
 cp ../test/simul_io/capture.c capture.c
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/simul_io/simul_io.32.nopie.dynamic.sym &> /dev/null
@@ -238,10 +246,11 @@ if [[ "$expected_simul_io_32" != $(cat "$tmpfile") ]]; then
 fi
 rm "$tmpfile"
 rm capture.c
+rm points/*
 popd
 
 pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.64.ins points.ins
+cp ../test/simul_io/points.float_capture.64.ins points/
 cp ../test/simul_io/capture.c capture.c
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
@@ -255,6 +264,7 @@ if [[ "$expected_simul_io_64" != $(cat "$tmpfile") ]]; then
 fi
 rm "$tmpfile"
 rm capture.c
+rm points/*
 popd
 
 ##################
@@ -267,7 +277,7 @@ pushd ${rware_dir}
 make
 popd
 pushd $(pwd)/src
-cp ${rware_dir}/points.getrandom.64.ins points.ins
+cp ${rware_dir}/points.getrandom.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
@@ -284,6 +294,7 @@ cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
 popd
 pushd ${rware_dir}
 make clean
+rm points/*
 popd
 
 echo ">>> genecdh"
@@ -293,7 +304,7 @@ pushd ${rware_dir}
 make
 popd
 pushd $(pwd)/src
-cp ${rware_dir}/points.getrandom.64.ins points.ins
+cp ${rware_dir}/points.getrandom.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
 $(pwd)/a.out genkey &> "$tmpfile"
@@ -305,6 +316,7 @@ if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
+rm points/*
 popd
 pushd ${rware_dir}
 make clean

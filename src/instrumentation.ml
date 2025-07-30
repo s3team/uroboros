@@ -11,12 +11,12 @@ type locm = SELF | FUNENTRY | FUNEXIT | CALLSITE
 type lang = ASM | C | OCaml
 (* instrument point:
  *  format 1:
-      address action direction stack cmd language code code-entry-point idx
+      address action direction stack cmd language code code-entry-point lidx pidx fp
  * or
  *  format 2: user module *)
 type point_f1 =
   int * act option * dir option * (string * string) list
-  * string * lang option * string * string * int
+  * string * lang option * string * string * string * int * string
 type point_f2 = string * string
 
 type c_ret_type = VOID | NOT_VOID
@@ -37,7 +37,9 @@ let get_plugin () : (module PLUGIN)  =
   | None ->
     failwith ("Need to pass plugin path, failure at " ^ __LOC__)
 
-let load_plugin (f : string) : unit =
+let load_plugin
+    (f : string)
+  : unit =
   let module_name = Filename.basename f in
   let module_path = "_build/default/plugins/" ^ module_name in
   if Sys.file_exists module_path then
@@ -65,13 +67,49 @@ let file_append
   output_string oc content;
   close_out oc
 
+let get_linenum_point
+    (s : string)
+  : string * string =
+  match String.index_opt s '^' with
+  | Some i ->
+    begin
+      let linenum = String.sub s 0 i in
+      let linenum_len = String.length linenum in
+      let point = String.sub s (linenum_len+1) (String.length s - (linenum_len+1)) in
+      (linenum, point)
+    end
+  | None ->
+    let s = String.lowercase_ascii s in
+    if String.starts_with ~prefix:"user" s then
+      (* for calling OCaml modules *)
+      ("0", s)
+    else failwith ("invalid point format at " ^ __LOC__)
+
+let is_valid_action
+    (s : string)
+  : bool =
+  let s = String.lowercase_ascii s in
+  if String.starts_with ~prefix:"insert" s ||
+     String.starts_with ~prefix:"insertcall" s ||
+     String.starts_with ~prefix:"delete" s ||
+     String.starts_with ~prefix:"replace" s ||
+     String.starts_with ~prefix:"printargs" s ||
+     String.starts_with ~prefix:"include" s
+  then true
+  else false
+
 let remove_comment_from_point
     (ch : char)
     (s : string)
+    (idx : int)
   : string =
   match String.index_opt s ch with
-  | Some i -> String.sub s 0 i
-  | None -> s
+  | Some i ->
+    if is_valid_action s then (string_of_int idx) ^ "^" ^ (String.sub s 0 i)
+    else String.sub s 0 i
+  | None ->
+    if is_valid_action s then (string_of_int idx) ^ "^" ^ s
+    else s
 
 let create_comment
     (comment : string)
@@ -505,12 +543,15 @@ let read_points
     let ic = open_in f in
     let content = really_input_string ic (in_channel_length ic) in
     let _ = close_in ic in
-    let content_nocomments = List.map (
-      fun s -> remove_comment_from_point '#' s
+    let content = List.filter (
+      fun i -> i <> ""
     ) (String.split_on_char '\n' content) in
+    let content_nocomments = List.mapi (
+      fun i s -> remove_comment_from_point '#' s (i + 1)
+    ) content in
     let content' = String.concat "\n" content_nocomments in
-    let content' = String.split_on_char ';' content' in
-    content'
+    let points = String.split_on_char ';' content' in
+    points
   with Sys_error _ -> []
 
 let count_char
@@ -590,7 +631,9 @@ let create_points_f1
     (code : string)
     (ufl : func list)
     (fname2css : (string, int list) Hashtbl.t)
-    (idx : int)
+    (linenum : string)
+    (pidx : int)
+    (filepath : string)
     (loc : string) 
   : unit =
   let locations : location list =
@@ -600,7 +643,10 @@ let create_points_f1
       (get_location loc) :: []
   in
   let locations_len = List.length locations in
-  let visit_location (i : int) (location : location) : unit =
+  let visit_location
+      (i : int)
+      (location : location)
+    : unit =
     match location with
     | ADDRESS a ->
       begin match action with
@@ -616,7 +662,9 @@ let create_points_f1
                 lang,
                 code_ep,
                 code,
-                idx + 1 )
+                linenum,
+                pidx + 1,
+                filepath )
             in
             points_f1 := p' :: !points_f1
           else
@@ -629,7 +677,9 @@ let create_points_f1
                 None,
                 "",
                 "",
-                idx + 1 )
+                linenum,
+                pidx + 1,
+                filepath )
             in
             points_f1 := p' :: !points_f1
         end
@@ -643,7 +693,9 @@ let create_points_f1
             lang,
             code_ep,
             code,
-            idx + 1 )
+            linenum,
+            pidx + 1,
+            filepath )
         in
         points_f1 := p' :: !points_f1
       end
@@ -661,7 +713,9 @@ let create_points_f1
               lang,
               code_ep,
               code,
-              idx + 1 )
+              linenum,
+              pidx + 1,
+              filepath )
           in
           points_f1 := p' :: !points_f1
         | None -> ()
@@ -682,7 +736,9 @@ let create_points_f1
               lang,
               code_ep,
               code,
-              idx + 1 )
+              linenum,
+              pidx + 1,
+              filepath )
           in
           points_f1 := p' :: !points_f1
         | None -> ()
@@ -700,7 +756,9 @@ let create_points_f1
                 lang,
                 code_ep,
                 code,
-                idx + 1 )
+                linenum,
+                pidx + 1,
+                filepath )
             in
             points_f1 := p' :: !points_f1
           ) css
@@ -718,17 +776,19 @@ let process_instrument_point
     (fbl : (string, bblock list) Hashtbl.t)
     (bbl : bblock list)
     (line : string)
-    (idx : int)
+    (pidx : int)
+    (filepath : string)
   : unit =
-  if not (String.starts_with ~prefix:"user" line) &&
-     not (String.starts_with ~prefix:"INCLUDE" line) then
+  let (linenum, point) = get_linenum_point line in
+  if not (String.starts_with ~prefix:"user" point) &&
+     not (String.starts_with ~prefix:"INCLUDE" point) then
     (* create a point for format 1 *)
     let ls' =
-      let ls = String.trim line |> String.split_on_char '\"' in
+      let ls = String.trim point |> String.split_on_char '\"' in
       let ls0 = List.nth ls 0 |> String.trim |> String.split_on_char ' ' in
       let ls1 = List.nth ls 1 in
       let ls2 = List.nth ls 2 |> String.trim |> String.split_on_char ' ' in
-      let quotes = count_char ~s:line ~c:'\"' in
+      let quotes = count_char ~s:point ~c:'\"' in
       if quotes = 2 then
         ls0 @ [ls1] @ ls2
       else
@@ -758,16 +818,28 @@ let process_instrument_point
       in
       List.iter (
         create_points_f1
-          action dir locm stack'' cmd lang code_ep code' ufl fname2css idx
-      ) locations
+          action
+          dir
+          locm
+          stack''
+          cmd
+          lang
+          code_ep
+          code'
+          ufl
+          fname2css
+          linenum
+          pidx
+          filepath
+      ) locations;
     | _ -> failwith ("invalid instrument format at " ^ __LOC__)
-  else if String.starts_with ~prefix:"INCLUDE" line then
-    let ls = String.trim line |> String.split_on_char '\"' in
+  else if String.starts_with ~prefix:"INCLUDE" point then
+    let ls = String.trim point |> String.split_on_char '\"' in
     let cmd = List.nth ls 1 in
     ignore (Sys.command (cmd))
   else
     (* create a point for format 2 *)
-    let ls' = String.trim line |> String.split_on_char ' ' in
+    let ls' = String.trim point |> String.split_on_char ' ' in
     match ls' with
     | [user; module_path] -> begin
       let module_name = module_path
@@ -795,34 +867,61 @@ let process_instrument_point
     end
     | _ -> failwith ("invalid instrument format at " ^ __LOC__)
 
-let parse_instrumentation
+let parse_instrument_file
+    ~(funcs : func list)
+    ~(fname_callsites : (string, int list) Hashtbl.t)
+    ~(instrs : instr list)
+    ~(fbl : (string, bblock list) Hashtbl.t)
+    ~(bbl : bblock list)
+    ~(filepath : string)
+  : unit =
+  let filelines =
+    read_points ~f:filepath
+    |> List.filter (fun s -> not (String.trim s = ""))
+    |> List.map (fun s -> String.trim s)
+  in
+  List.iteri (
+    fun i l ->
+      process_instrument_point
+        funcs
+        fname_callsites
+        instrs
+        fbl
+        bbl
+        l
+        i
+        filepath
+  ) filelines;
+  points_f1 := List.sort (
+    fun
+      (addr1, _, _, _, _, _, _, _, _, _, _)
+      (addr2, _, _, _, _, _, _, _, _, _, _)
+    -> compare addr1 addr2
+  ) !points_f1
+
+let parse_instrument
     ~(funcs : func list)
     ~(fname_callsites : (string, int list) Hashtbl.t)
     ~(instrs : instr list)
     ~(fbl : (string, bblock list) Hashtbl.t)
     ~(bbl : bblock list)
   : unit =
-  let filelines =
-    read_points ~f:"points.ins"
-    |> List.filter (fun s -> not (String.trim s = ""))
-    |> List.map (fun s -> String.trim s)
-  in
-  let filelines0 =
-    read_points ~f:"points0.ins"
-    |> List.filter (fun s -> not (String.trim s = ""))
-    |> List.map (fun s -> String.trim s)
-  in
-  let filelines' = filelines @ filelines0 in
-  List.iteri (
-    fun i l ->
-      process_instrument_point funcs fname_callsites instrs fbl bbl l i
-  ) filelines';
-  points_f1 := List.sort (
-    fun (addr1, _, _, _, _, _, _, _, _) (addr2, _, _, _, _, _, _, _, _) ->
-      compare addr1 addr2
-  ) !points_f1
+  (* points folder contains the instrumentation files *)
+  let files = Sys.readdir "points" in
+  Array.iter (fun f ->
+    let filepath = Filename.concat "points" f in
+    parse_instrument_file
+      ~funcs
+      ~fname_callsites
+      ~instrs
+      ~fbl
+      ~bbl
+      ~filepath
+  ) files
 
-let arg_order_64 i =
+let arg_order_64
+    (i : int)
+  : intel_reg =
   match i with
   | 0 -> Intel_CommonReg RDI
   | 1 -> Intel_CommonReg RSI
@@ -1101,7 +1200,7 @@ let get_ret_type
   in
   find_code_ep code_ep lines
 
-let parse_instr_from_code
+let process_point
     ~(instr_type : string)
     ~(cmd : string)
     ~(code_ep : string)
@@ -1146,6 +1245,7 @@ let parse_instr_from_code
         add_comment i instr_type
     ) asm
   end else begin
+    (* asm provided in instrumentation point *)
     let ail_parser = new ailParser in
     let asm = String.split_on_char '\n' code in
     let _ = ail_parser#process_asms asm "intel" in
@@ -1164,7 +1264,7 @@ let apply
     ~(fname_callsites : (string, int list) Hashtbl.t)
   : instr list =
   (* populate points_f1 and points_f2 *)
-  parse_instrumentation ~funcs ~fname_callsites ~instrs ~fbl ~bbl;
+  parse_instrument ~funcs ~fname_callsites ~instrs ~fbl ~bbl;
   let rec add_instrumentation_f1
       (instrs : instr list)
       (points_f1 : point_f1 list)
@@ -1175,18 +1275,21 @@ let apply
     | (ih :: it, []) -> add_instrumentation_f1 it [] (ih :: acc)
     | (ih :: it, ph :: pt) ->
       begin
-        let ( p_addr, p_action, p_dir, p_stack,
-              p_cmd, p_lang, p_code_ep, p_code, p_idx ) = ph in
+        let ( p_addr, p_action, p_dir, p_stack, p_cmd,
+              p_lang, p_code_ep, p_code, p_linenum, p_idx, p_fp ) = ph in
         let ih_loc : loc = get_loc ih in
         let ih_addr : int = ih_loc.loc_addr in
+        let comment : string = "    filename: " ^ p_fp
+                               ^ ", line: " ^ p_linenum
+                               ^ ", instrumentation point: "
+                               ^ string_of_int p_idx in
         if p_cmd <> "" then ignore (Sys.command (p_cmd));
         if ih_addr = p_addr then begin
           match p_action with
           | Some INSERT ->
             let add_seq : instr list =
-              parse_instr_from_code
-                ~instr_type:("    instrumentation point "
-                              ^ (string_of_int p_idx))
+              process_point
+                ~instr_type:comment
                 ~cmd:p_cmd
                 ~code_ep:p_code_ep
                 ~code:p_code
@@ -1211,9 +1314,8 @@ let apply
             add_instrumentation_f1 it pt (acc' @ acc)
           | Some INSERTCALL ->
             let add_seq : instr list =
-              parse_instr_from_code
-                ~instr_type:("    instrumentation point "
-                              ^ (string_of_int p_idx))
+              process_point
+                ~instr_type:comment
                 ~cmd:p_cmd
                 ~code_ep:p_code_ep
                 ~code:p_code
@@ -1240,9 +1342,8 @@ let apply
             add_instrumentation_f1 it pt acc
           | Some REPLACE ->
             let add_seq : instr list =
-              parse_instr_from_code
-                ~instr_type:("    instrumentation point "
-                              ^ (string_of_int p_idx))
+              process_point
+                ~instr_type:comment
                 ~cmd:p_cmd
                 ~code_ep:p_code_ep
                 ~code:p_code
@@ -1259,9 +1360,8 @@ let apply
             add_instrumentation_f1 it pt (add_seq' @ acc)
           | Some PRINTARGS ->
             let add_seq : instr list =
-              parse_instr_from_code
-                ~instr_type:("    instrumentation point "
-                              ^ (string_of_int p_idx))
+              process_point
+                ~instr_type:comment
                 ~cmd:""
                 ~code_ep:p_code_ep
                 ~code:p_code
