@@ -145,6 +145,7 @@ object (self)
     let module S = Symbol_table_get in
     let module I = Instrumentation in
     let _ = self#pre_process in
+    (* .text section is in instrs.info *)
     let il, fl, re = D.disassemble f funcs secs arch in
 
     print_endline "3: analysis";

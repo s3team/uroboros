@@ -398,7 +398,7 @@ let pp_print_list instr_list =
     match l with
 	| h::t ->
 		let s = pp_print_instr h in
-		  help (s::acc) t
+    help (s :: acc) t
 	| []   -> List.rev acc in
     help [] instr_list
 

@@ -86,6 +86,9 @@ object (self)
                         > got.info");
     let module EU = ELF_utils in
     if EU.elf_static () then begin
+      ret := Sys.command(objdump_command ^  " -s -j \
+                          .got.plt "^f^" | grep \"^ \" | cut -d \" \" -f3,4,5,6 \
+                          > got_plt.info");
       ret := Sys.command(objdump_command ^ " -d -j \
                           .plt "^f^" | grep jmp | wc -l > plt_entries.info");
       ret := Sys.command(objdump_command ^ " -s -j \
@@ -134,8 +137,13 @@ object (self)
       else failwith "unsupported architecture for fields" in
     ignore (Sys.command("cat "^f^".disassemble | grep \"^ \" | cut -f"^fields^" \
                         > instrs.info"));
+    let module EU = ELF_utils in
+    if EU.elf_static () then
+      ( ignore (Sys.command("cat plt_whole.info | grep \"^ \" | cut -f1,3 \
+                          > plt_whole2.info"));
+      ignore (Sys.command("cat plt_whole2.info >> instrs.info")) );
     ignore (Sys.command("python3 filter_nop.py"));
-    ignore (Sys.command("cut -f 1 instrs.info > text_mem.info"))
+    ignore (Sys.command("cut -f 1 instrs.info > text_mem.info"));
 
   method user_func_process (f : string) : unit =
     ignore (Sys.command("cat "^f^".disassemble | grep \"<\" | grep \">:\" \
@@ -147,12 +155,12 @@ object (self)
         (ignore (Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | \
                               awk \'/data|bss|got|__libc_IO_vtables|\
                               __libc_freeres_ptrs/ {print $3,$5,$6,$7} \' | \
-                              awk \' $1 != \".got.plt\" {print $1,$2,$3,$4}\' \
+                              awk \' {print $1,$2,$3,$4}\' \
                               > sections.info"));
         ignore (Sys.command("readelf -SW " ^ f ^ " | awk \'FNR>14\' | \
                             awk \'/data|bss|got|__libc_IO_vtables|\
                             __libc_freeres_ptrs/ {print $2,$4,$5,$6} \' | \
-                            awk \' $1 != \".got.plt\" {print $1,$2,$3,$4}\' \
+                            awk \' {print $1,$2,$3,$4}\' \
                             >> sections.info")))
     else
         (ignore (Sys.command("readelf -SW " ^ f ^ " | awk \'FNR<15\' | \
@@ -300,8 +308,8 @@ let main () =
       let _ = Random.self_init () in
       let init = new ailInit in
       ( init#init arch bit_mode;
-        init#disassemble elf arch;
-        init#process elf arch bit_mode;
+        init#disassemble elf arch;  (* create text and data files *)
+        init#process elf arch bit_mode;  (* create other text files *)
         init#ail_process(elf) )
     else
       print_string ("binary file "^elf^" doesn't exist\n")

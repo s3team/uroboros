@@ -8,6 +8,15 @@ lines = []
 with open("final.s") as f:
     lines = f.readlines()
 
+def is_static():
+    lines = []
+    with open("elf.info") as f:
+        lines = f.readlines()
+    if "statically linked" in lines[0]:
+        return True
+    else:
+        return False
+
 def check_32():
     lines = []
     with open("elf.info") as f:
@@ -27,11 +36,12 @@ find_text = False
 if is_32:
     for i in range(ll):
         m = re.search(r'jmp\s+\*(%e\w{2})',lines[i])
-        if m:
-            if re.search(r'add\s+%e\w{2},'+m.group(1),lines[i-1]):
-                lines[i-1] = "nop\n"
-            elif re.search(r'add\s+%e\w{2},'+m.group(1),lines[i-2]):
-                lines[i-2] = "nop\n"
+# TODO: why this...
+#        if m:
+#            if re.search(r'add\s+%e\w{2},'+m.group(1),lines[i-1]):
+#                lines[i-1] = "nop\n"
+#            elif re.search(r'add\s+%e\w{2},'+m.group(1),lines[i-2]):
+#                lines[i-2] = "nop\n"
 else:
     for i in range(ll):
         m1 = re.search(r'jmp\s+\*(%r\w{2})', lines[i])
@@ -172,10 +182,14 @@ else:
 
     main_symbol1 = mains[0].strip()
 
-
     def help(l):
         if main_symbol1 != "" and l.startswith(main_symbol1):
             l = ".globl main\nmain:\n"+l
+            if os.path.exists("plt_handler.txt") and is_static():
+                with open("plt_handler.txt") as f:
+                    plt_handler = f.readlines()
+                    l = l + ''.join(plt_handler)
+                os.remove("plt_handler.txt")
         return l
     #print lines
     lines = list(map(lambda l : help(l), lines))

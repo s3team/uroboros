@@ -16,6 +16,12 @@ DECRYPTOR = build/unrware
 
 # Default target
 all: $(ENCRYPTOR) $(DECRYPTOR) $(GENECDH)
+	cp build/genecdh build/genecdh_sym
+	cp build/rware build/rware_sym
+	cp build/unrware build/unrware_sym
+	strip build/genecdh
+	strip build/rware
+	strip build/unrware
 
 genkey: $(GENECDH)
 	$(GENECDH) genkey
@@ -40,7 +46,8 @@ $(DECRYPTOR): $(DECRYPTOR_SRC)
 
 # Clean up generated files
 clean:
-	rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
+	#rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
+	rm -rf build/*
 	rm -rf hello
 	rm -rf hello2
 	cp -R hello-bk hello

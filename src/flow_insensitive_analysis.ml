@@ -27,17 +27,13 @@ let got_rewrite_instr
         prefix,
         tags )
     when got_reg = (p_exp (Reg reg1)) ->
-      (*let point = "INSERT BEFORE [" ^ (dec_hex loc.loc_addr)
-                  ^ "] SELF [] \"\" asm x \"add $_GLOBAL_OFFSET_TABLE_, "
-                  ^ (p_reg reg1) ^ "\";" in
-      U.write_file [point] "points0.ins";*)
       (* reg1 contains GOT pointer,
        * reg2 contain index,
        * const1 contains multipler,
        * const2 contains offset
        * EX: 808a4d6: jmp    *-0x2514(%ebp,%eax,4)  ---> jmp *S_0x80F7508(,%eax,0x4)
        *)
-      let got_plus_offset = got_addr + const2 in
+      let got_plus_offset = got_addr - const2 in
       Hashtbl.replace
         result
         loc.loc_addr

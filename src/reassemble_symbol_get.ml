@@ -23,6 +23,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable __libc_IO_vtables : string list = []
     val mutable __libc_freeres_ptrs : string list = []
     val mutable got : string list = []
+    val mutable got_plt : string list = []
     val mutable bss : string list = []
     val mutable tbss : string list = []
     (* .data.rel.ro section*)
@@ -30,6 +31,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable rodata_cst32: string list = []
 
     val mutable text_mem_addrs: int list = []
+    val mutable plt_mem_addrs: int list = []  (* statically-linked only *)
     val mutable label_mem_addrs: int list = []
 
     val mutable data_labels : (string * int) list = []
@@ -46,6 +48,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable __libc_IO_vtables_list: (string * string) list = []
     val mutable __libc_freeres_ptrs_list: (string * string) list = []
     val mutable got_list: (string * string) list = []
+    val mutable got_plt_list: (string * string) list = []
     val mutable bss_list: (string * string) list = []
     val mutable tbss_list: (string * string) list = []
     (* .data.rel.ro section*)
@@ -57,6 +60,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable __libc_IO_vtables_array: (string * string) array = [||]
     val mutable __libc_freeres_ptrs_array: (string * string) array = [||]
     val mutable got_array: (string * string) array = [||]
+    val mutable got_plt_array: (string * string) array = [||]
     val mutable bss_array: (string * string) array = [||]
     val mutable tbss_array: (string * string) array = [||]
     (* .data.rel.ro section*)
@@ -64,12 +68,15 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable rodata_cst32_array: (string * string) array = [||]
 
     val mutable text_sec: (int * int) = (0,0)  (* begin addr, size *)
+    val mutable plt_sec: (int * int) = (0,0)
     val mutable locations = []
     val mutable align_locations = Hashtbl.create 90
+    val mutable got_plt_addr2label = Hashtbl.create 90
 
     val mutable in_jmptable = false
 
     val mutable text_mem_arr = Array.make 1 0
+    val mutable plt_mem_arr = Array.make 1 0
     val mutable label_mem_arr = Array.make 1 0
     val mutable func_begin_arr = Array.make 1 0
     val mutable label_arr = Array.make 1 0
@@ -97,9 +104,10 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       rodata_cst32_list <- self#data_trans rodata_cst32;
       let module EU = ELF_utils in
       if EU.elf_static () then
-        (tbss_list <- self#data_trans tbss;
-        __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
-        __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs);
+        ( got_plt_list <- self#data_trans got_plt;
+          tbss_list <- self#data_trans tbss;
+          __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
+          __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs );
 
       (* locations are sec,offset where labels need to be added *)
       locations <- label;
@@ -148,7 +156,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       else
         self#data_refer_solve_64 funcs
 
-
     method set_assumption_flag () =
       (* this method read assumption configuration assumption_set.info
        * and set two flags *)
@@ -163,28 +170,55 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       text_labels
 
     method text_sec_collect =
-      let filelines = File.lines_of "text_sec.info"
-      and help l =
+      let text_filelines = File.lines_of "text_sec.info" in
+      let help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x"^(List.nth items 1))
         and size = int_of_string ("0x"^(List.nth items 3)) in
         text_sec <- (addr, size)
       in
-      Enum.iter help filelines
+      Enum.iter help text_filelines;
+      let help l =
+        let items = Str.split (Str.regexp " +") l in
+        let addr = int_of_string ("0x"^(List.nth items 1))
+        and size = int_of_string ("0x"^(List.nth items 3)) in
+        plt_sec <- (addr, size)
+      in
+      let module EU = ELF_utils in
+      if EU.elf_static () then
+        let plt_filelines = File.lines_of "plt_sec.info" in
+        Enum.iter help plt_filelines
 
     method check_text addr =
       let judge_mem_list addr =
 	    bbn_byloc addr text_mem_arr in
-	  (*List.mem addr text_mem_addrs in *)
-      let (b,size) = text_sec in
-      let e = b + size in
+      let (tb, tsize) = text_sec in
+      let te = tb + tsize in
+      let (pb, psize) = plt_sec in
+      let pe = pb + psize in
+      let module EU = ELF_utils in
       if addr = 0xffff then false
       (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
          found instructions like this in the code:
          cmp $0xffff,%eax
       *)
-      else if (addr>=b && addr < e) && (judge_mem_list addr) then true
+      else if (EU.elf_static ())
+        && ((addr >= tb && addr < te) || (addr >= pb && addr < pe))
+        && (judge_mem_list addr) then true
+      else if (addr >= tb && addr < te) && (judge_mem_list addr) then true
+      else false
+
+    method check_plt addr =
+      let judge_mem_list addr =
+	    bbn_byloc addr text_mem_arr in
+      let (pb, psize) = plt_sec in
+      let pe = pb + psize in
+      let module EU = ELF_utils in
+      if addr = 0xffff then false
+      else if (EU.elf_static ())
+        && (addr >= pb && addr < pe)
+        && (judge_mem_list addr) then true
       else false
 
     method dump_c2d_labels dl =
@@ -367,8 +401,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       got_list <- List.rev (traverse [] got_list 0x0 ".got");
       let module EU = ELF_utils in
       if EU.elf_static () then
-        (__libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
-        __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs"))
+        ( __libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
+          __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs");
+          got_plt_list <- List.rev (traverse [] got_plt_list 0x0 ".got.plt") )
 
     (* this method solve all the references in the .data .rodata sections *)
     method data_refer_solve funcs =
@@ -524,12 +559,17 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       let module EU = ELF_utils in
       if EU.elf_static () then
         begin
-          __libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
-          __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs")
+          got_plt_list <-
+            List.rev
+              (traverse [] got_plt_list 0x0 "got_plt");
+          __libc_IO_vtables_list <-
+            List.rev
+              (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
+          __libc_freeres_ptrs_list <-
+            List.rev
+              (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs")
         end
       else ()
-      (* 32-bit binary does not need this *)
-      (* got_list <- List.rev (traverse [] got_list 0x0) *)
 
     method check_jmptable_1 addrs =
       begin
@@ -665,6 +705,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       bss <- self#collect_bss "bss.info";
       if EU.elf_static () then
         begin
+          got_plt <- self#collect "got_plt_split.info";
           __libc_IO_vtables <- self#collect "__libc_IO_vtables_split.info";
           __libc_freeres_ptrs <- self#collect "__libc_freeres_ptrs.info"
         end
@@ -680,6 +721,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         if EU.elf_static () then
           begin
             match s with
+              | ".got.plt" -> ".got.plt"
               | "__libc_IO_vtables" -> "__libc_IO_vtables"
               | "__libc_freeres_ptrs" -> "__libc_freeres_ptrs"
               | _ -> ".rodata"
@@ -873,7 +915,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       if EU.elf_static () then
         begin
           __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
-          __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list
+          __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
+          got_plt_array <- Array.of_list got_plt_list
         end
       else ();
       p#process locations;
@@ -883,6 +926,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         begin
           __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
           __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
+          got_plt_list <- Array.to_list got_plt_array
         end
       else ()
 
@@ -979,6 +1023,35 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                   if EU.elf_static () then
                     begin
                       match n with
+                      | ".got.plt" ->
+                        ( let off = l - (self#section_addr ".got.plt") in
+                          let s' = dec_hex l
+                          and (s,d) = got_plt_array.(off) in
+                          let alignment =
+                            match Hashtbl.find_opt align_locations (n, l) with
+                            | Some _ -> ".p2align 4\n"
+                            | None -> ""
+                          in
+                          ( match Hashtbl.find_opt sym_addr2label l with
+                          | Some (sym_label, _) ->
+                            ( let lab = sym_label in
+                              got_plt_array.(off) <- (alignment^lab^":\n"^s', d);
+                              if EU.elf_32 ()
+                                && d <> ".byte 0x00"
+                                && (String.length d) <> 0 then
+                                let size_func = String.split_on_char ' ' d in
+                                let func = List.hd (List.rev size_func) in
+                                Hashtbl.replace got_plt_addr2label lab func )
+                          | None ->
+                            ( let lab = dec_hex_sym l in
+                              got_plt_array.(off) <- (alignment^lab^":\n", d);
+                              if EU.elf_32 ()
+                                && d <> ".byte 0x00"
+                                && (String.length d) <> 0 then
+                                let size_func = String.split_on_char ' ' d in
+                                let func = List.hd (List.rev size_func) in
+                                Hashtbl.replace got_plt_addr2label lab func) );
+                          help t )
                       | "__libc_IO_vtables" ->
                         ( let off = l - (self#section_addr "__libc_IO_vtables") in
                           let s' = dec_hex l
@@ -1045,6 +1118,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
           if EU.elf_static () then
             begin
               __libc_IO_vtables_list <- (".section __libc_IO_vtables, \"wa\"\n", "")::__libc_IO_vtables_list;
+              got_plt_list <- (".section .got.plt, \"wa\"\n", "")::got_plt_list;
               __libc_freeres_ptrs_list <- (".section __libc_freeres_ptrs, \"wa\"\n", "")::__libc_freeres_ptrs_list;
               tbss_list <- (".section .tbss\n", "")::tbss_list
             end
@@ -1066,6 +1140,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
           let module EU = ELF_utils in
           if EU.elf_static () then
             begin
+              write_file_opt got_plt_list;
               write_file_opt __libc_IO_vtables_list;
               write_file_opt __libc_freeres_ptrs_list;
               write_file_opt tbss_list
@@ -1104,9 +1179,10 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       rodata_cst32_array <- Array.of_list rodata_cst32_list;
       let module EU = ELF_utils in
       if EU.elf_static () then
-        (__libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
-        __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
-        tbss_array <- Array.of_list tbss_list);
+        ( got_plt_array <- Array.of_list got_plt_list;
+          __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
+          __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
+          tbss_array <- Array.of_list tbss_list );
       (* data_labels <- p#de_redunt data_labels; *)
       (*
       self#dump_d2d_labels data_labels_reloc;
@@ -1121,12 +1197,62 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       data_rel_ro_list <- Array.to_list data_rel_ro_array;
       rodata_cst32_list <- Array.to_list rodata_cst32_array;
       if EU.elf_static () then
-        (__libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
-        __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
-        tbss_list <- Array.to_list tbss_array);
+        ( got_plt_list <- Array.to_list got_plt_array;
+          __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
+          __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
+          tbss_list <- Array.to_list tbss_array;
+          self#static_plt_handler );
       p#insert_dummy;
       p#insert_head;
       p#write_file
+
+    method static_plt_handler =
+      let module EU = ELF_utils in
+      let rela_plt_mapping () =
+        let rela_plt_map = Hashtbl.create 100 in
+        let filelines = read_lines "rela_plt.info" in
+        let filelines' = List.filter (
+          fun l -> contains ~str:l ~sub:"IRELATIV"
+        ) filelines in
+        List.iter (
+          fun l ->
+            let items = Str.split (Str.regexp "[ \t]+") l in
+            let k = "0x" ^ List.nth items 0
+                    |> int_of_string
+                    |> dec_hex_sym
+            in
+            let v = "0x" ^ List.nth items 3
+                    |> int_of_string
+                    |> dec_hex_sym
+            in
+            Hashtbl.add rela_plt_map k v
+        ) filelines';
+        rela_plt_map
+      in
+      if EU.elf_64 () then
+        got_plt_addr2label <- rela_plt_mapping ();
+      let rec create_plt_handler entries =
+        match entries with
+        | [] -> ""
+        | (l, v) :: t ->
+          let call_entry =
+            if EU.elf_64 () then
+              "call " ^ v ^ "\n" ^ "mov %rax, " ^ l ^ "\n"
+            else
+              "call " ^ v ^ "\n" ^ "mov %eax, " ^ l ^ "\n"
+          in
+          call_entry ^ create_plt_handler t
+      in
+      let oc = open_out "plt_handler.txt" in
+      let entries = Hashtbl.fold (fun l v acc -> (l, v) :: acc) got_plt_addr2label [] in
+      let handler =
+        if EU.elf_64 () then
+          "push %rax\n" ^ create_plt_handler entries ^ "pop %rax\n"
+        else
+          "push %eax\n" ^ create_plt_handler entries ^ "pop %eax\n"
+      in
+      output_string oc handler;
+      close_out oc
 
     (* this method might be too slow *)
     method collect_ocaml name =
@@ -1207,6 +1333,9 @@ class instrhandler instr_list des'  =
         | (i::ti, h::tl) ->  help ((set_loc i h)::acc) ti tl
         | ([], []) -> List.rev acc
         |_ -> raise (Reassemble_Error "instrhandler error in get_instr_list") in
+      let instr_list = List.sort (
+        fun i1 i2 -> compare (get_loc i1).loc_addr (get_loc i2).loc_addr
+      ) instr_list in
       help [] instr_list locs
 
     method set_instr_list =
@@ -1216,6 +1345,9 @@ class instrhandler instr_list des'  =
         | h::t -> help ((get_loc h)::acc) t
         | [] -> List.rev acc in
       locs <- help [] instr_list;
+      locs <- List.sort (
+        fun loc1 loc2 -> compare loc1.loc_addr loc2.loc_addr
+      ) locs
       (* locs <- List.rev locs *)
       (* self#print_loclist *)
 
@@ -1335,7 +1467,6 @@ class instrhandler instr_list des'  =
       let items = Str.split (Str.regexp "_") d in
       let d' = List.nth items 1 in
       List.map (help d') locs
-
   end
 
 class funchandler instr_list u_funcs'  =
@@ -1360,13 +1491,15 @@ class funchandler instr_list u_funcs'  =
         print_string (l.loc_label^":\n"^d^"\n") in
       List.iter help locs
 
-
     method get_instr_list =
       let rec help acc i_list l_list =
         match (i_list, l_list) with
         | (i::ti, h::tl) -> help ((set_loc i h)::acc) ti tl
         | ([], []) -> List.rev acc
         |_ -> raise (Reassemble_Error "funchandler error in get_instr_list") in
+      let instr_list = List.sort (
+        fun i1 i2 -> compare (get_loc i1).loc_addr (get_loc i2).loc_addr
+      ) instr_list in
       help [] instr_list locs
 
     method set_instr_list =
@@ -1375,8 +1508,9 @@ class funchandler instr_list u_funcs'  =
         | h::t -> help ((get_loc h)::acc) t
         | [] -> List.rev acc in
       locs <- help [] instr_list;
-      (* self#print_loclist *)
-
+      locs <- List.sort (
+        fun loc1 loc2 -> compare loc1.loc_addr loc2.loc_addr
+      ) locs
 
     method pp_print l =
       let rec help l =
@@ -1552,42 +1686,40 @@ class reassemble =
         | h::t -> (
             let b = h.sec_begin_addr in
             let e = b + h.sec_size in
-            if (addr>=b && addr < e)  then
+            if (addr >= b && addr < e) then
               Some (h)
             else  help t addr )
-        | [] -> None in
+        | [] -> None
+        in
       help sec addr
-
 
     method check_text addr =
       let dec_hex n =
   	    (Printf.sprintf "%x:" n) in
       let judge_mem_list addr =
 	    let addrs = dec_hex addr in
-	    (* List.mem addrs text_mem_addrs in *)
-	    bbn_byloc addrs (Array.of_list text_mem_addrs) in
-      let (b,size) = text_sec in
-      let e = b + size in
+	    List.mem addrs text_mem_addrs in
+      let (tb, tsize) = text_sec in
+      let te = tb + tsize in
+      let (pb, psize) = plt_sec in
+      let pe = pb + psize in
+      let module EU = ELF_utils in
       if addr = 0xffff then false
       (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
          found instructions like this in the code:
          cmp $0xffff,%eax
       *)
-      (*  else if (addr>=b && addr < e) && (judge_mem_list addr) then true *)
-      else if (addr>=b && addr < e) then true
-      else false
-
-    method check_text_abd addr =
-      let (b,size) = text_sec in
-      let e = b + size in
-      if (addr>=b && addr <=e) then true
+      else if (EU.elf_static ())
+        && ((addr >= tb && addr < te) || (addr >= pb && addr < pe))
+        && (judge_mem_list addr) then true
+      else if (addr >= tb && addr < te) && (judge_mem_list addr) then true
       else false
 
     method check_plt addr =
-      let (b,size) = plt_sec in
+      let (b, size) = plt_sec in
       let e = b + size in
-      if (addr>=b && addr <e) then true
+      if (addr >= b && addr < e) then true
       else false
 
     method parse_const c =
@@ -1674,12 +1806,10 @@ class reassemble =
                     (
                       if self#has_text l' then
                         (
-		  	              let rb = f i  in
-                          ();
-
+                          let rb = f i in
                           let s_label = (self#build_symbol l) in
                       	  let loc' = get_loc i in
-                          deslist_reloc <- (loc'.loc_addr)::deslist_reloc;
+                          deslist_reloc <- (loc'.loc_addr) :: deslist_reloc;
                           Label s_label
                         )
                       else
@@ -2061,7 +2191,23 @@ class reassemble =
         (* ELF LSB shared object *)
         | _, false -> 4
       in
-
+      let module EU = ELF_utils in
+      let rela_plt_mapping () =
+        let filelines = read_lines "rela_plt.info" in
+        let filelines' = List.filter (
+          fun l -> contains ~str:l ~sub:"IRELATIV"
+        ) filelines in
+        List.iter (
+          fun l ->
+            let items = Str.split (Str.regexp "[ \t]+") l in
+            let v = "0x" ^ List.nth items 3
+                    |> int_of_string
+                    |> dec_hex_sym
+            in
+            deslist <- v :: deslist;
+        ) filelines'
+      in
+      if EU.elf_static () && EU.elf_64 () then rela_plt_mapping ();
       let tl1 = List.map
         (fun l ->
           try
@@ -2075,16 +2221,9 @@ class reassemble =
       symbol_list <- List.rev_append (List.rev tl1) symbol_list;
       tl
 
-
     method visit_type_infer_analysis (bbl : bblock list) (instrs : instr list) =
       (*let's do type inference analysis on suspicious concerete value*)
-      let func (i : instr) : bool =
-  (*
-            print_string ("    type inference on : "^(pp_print_instr i));
-            TypeInfer.type_infer instrs i;
-*)
-	    true
-      in
+      let func (i : instr) : bool = true in
       instr_list <- instrs;
       List.map (self#vinst2 func) instrs
 
@@ -2127,7 +2266,6 @@ class reassemble =
           List.iter aux labels;
           helper#get_instrs
         end
-
 
     (* redundunt with check_sec *)
     method check_bss addr =
@@ -2449,5 +2587,4 @@ class reassemble =
       self#plt_collect;
       self#plt_sec_collect;
       self#text_sec_collect
-
   end

@@ -78,11 +78,16 @@ class parse =
     {loc_label=""; loc_addr=(int_of_string s); loc_visible = true;}
 
   and const_symb s =
-    if s.[0] = '$' then
+    if contains ~str:s ~sub:" # " && not (contains ~str:s ~sub:"*") then
+      let parts = String.split_on_char '#' s in
+      let abs_addr = String.trim (List.hd (List.rev parts)) in
+      Point (int_of_string abs_addr)
+    else
+      ( if s.[0] = '$' then
       let s' = String.sub s 1 ((String.length s)-1) in
       Normal (int_of_string s')
     else
-      Point (int_of_string s) in
+      Point (int_of_string s) ) in
 
   (*
 and ptrtyp_symb = function

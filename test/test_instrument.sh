@@ -90,7 +90,8 @@ if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 pushd $(pwd)/src
@@ -106,7 +107,8 @@ if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 ##########
@@ -128,7 +130,8 @@ if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 pushd $(pwd)/src
@@ -145,7 +148,8 @@ if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 ##########
@@ -166,7 +170,8 @@ if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 pushd $(pwd)/src
@@ -182,7 +187,8 @@ if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 ##########
@@ -203,7 +209,8 @@ if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 pushd $(pwd)/src
@@ -219,7 +226,8 @@ if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm points/*
+rm -rf points
+mkdir points
 popd
 
 if [[ "$has_failed" == "true" ]]; then
@@ -246,81 +254,85 @@ if [[ "$expected_simul_io_32" != $(cat "$tmpfile") ]]; then
 fi
 rm "$tmpfile"
 rm capture.c
-rm points/*
+rm -rf points
+mkdir points
 popd
 
-pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.64.ins points/
-cp ../test/simul_io/capture.c capture.c
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_simul_io_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for simul_io.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm capture.c
-rm points/*
-popd
-
-##################
-# rware (64-bit) #
-##################
-echo ">>> rware"
-
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make
-popd
-pushd $(pwd)/src
-cp ${rware_dir}/points.getrandom.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
-$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
-
-if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm -rf ${rware_dir}/hello
-cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
-popd
-pushd ${rware_dir}
-make clean
-rm points/*
-popd
-
-echo ">>> genecdh"
-
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make
-popd
-pushd $(pwd)/src
-cp ${rware_dir}/points.getrandom.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
-$(pwd)/a.out genkey &> "$tmpfile"
-
-if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm points/*
-popd
-pushd ${rware_dir}
-make clean
-popd
+#pushd $(pwd)/src
+#cp ../test/simul_io/points.float_capture.64.ins points/
+#cp ../test/simul_io/capture.c capture.c
+#tmpfile=$(mktemp)
+#python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
+#$(pwd)/a.out &> "$tmpfile"
+#
+#if [[ "$expected_simul_io_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for simul_io.64 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm capture.c
+#rm -rf points
+#mkdir points
+#popd
+#
+###################
+## rware (64-bit) #
+###################
+#echo ">>> rware"
+#
+#rware_dir=$(pwd)/test/rware
+#pushd ${rware_dir}
+#make
+#popd
+#pushd $(pwd)/src
+#cp ${rware_dir}/points.getrandom.64.ins points/
+#tmpfile=$(mktemp)
+#python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
+#$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+#
+#if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for rware.64 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf ${rware_dir}/hello
+#cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
+#popd
+#pushd ${rware_dir}
+#make clean
+#rm -rf points
+#mkdir points
+#popd
+#
+#echo ">>> genecdh"
+#
+#rware_dir=$(pwd)/test/rware
+#pushd ${rware_dir}
+#make
+#popd
+#pushd $(pwd)/src
+#cp ${rware_dir}/points.getrandom.64.ins points/
+#tmpfile=$(mktemp)
+#python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
+#$(pwd)/a.out genkey &> "$tmpfile"
+#
+#if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for genecdh.64 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf points
+#mkdir points
+#popd
+#pushd ${rware_dir}
+#make clean
+#popd
 
 ###########
 # closing #

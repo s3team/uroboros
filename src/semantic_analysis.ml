@@ -61,7 +61,7 @@ module GotAbs : DfaAbs = struct
           prefix,
           tags )
       when ExpSet.mem (Reg reg1) ins ->
-        let got_plus_offset = got_addr + const2 in
+        let got_plus_offset = got_addr - const2 in
         (*let _ = print_endline ("orig0: " ^ (pp_print_instr' i)) in*)
          DoubleInstr
          ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),

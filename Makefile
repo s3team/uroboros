@@ -3,7 +3,7 @@
 all:
 	test/test_all.py -a -c
 	test/test_instrument.sh 2>&1 | tee test.instrument
-	rm src/points.ins src/fun.o || true
+	rm src/points/* src/fun.o || true
 	test/test_action.sh 2>&1 | tee test.all
 	test/test_coreutils.sh 2>&1 | tee test.coreutils
 
