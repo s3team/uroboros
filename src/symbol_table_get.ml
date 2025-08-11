@@ -254,6 +254,8 @@ let apply
             tags ) ->
             ( update_fname2css fname2css func_name loc.loc_addr;
               add_existing_symbols rest (i' :: acc) )
+      (* OUTDATED: using existing symbols to resolve the PLT issue *)
+      (*
       | DoubleInstr
           ( Intel_OP (Intel_ControlOP CALL),
             Const (Point call_addr),
@@ -321,6 +323,7 @@ let apply
                 end
               )
           end
+      *)
       | DoubleInstr
           ( Intel_OP (Intel_ControlOP CALL),
             _,

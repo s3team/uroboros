@@ -113,9 +113,9 @@ let remove_comment_from_point
 
 let create_comment
     (comment : string)
-  : (string, string) Hashtbl.t =
+  : (string, tags_val) Hashtbl.t =
   let tags = Hashtbl.create 1 in
-  let _ = Hashtbl.add tags "comment" comment in
+  let _ = Hashtbl.add tags "comment" (Str comment) in
   tags
 
 let add_comment

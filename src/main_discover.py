@@ -11,7 +11,7 @@ THUMB_OFFSET = 1
 os.system('file ' + fn + ' > elf.info')
 
 
-def check_32():
+def is_32():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
@@ -21,7 +21,7 @@ def check_32():
         return True
 
 
-def check_exe():
+def is_exe():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
@@ -33,7 +33,7 @@ def check_exe():
         return False
 
 
-def check_pie():
+def is_pie():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
@@ -63,7 +63,6 @@ def get_entry_point_address() -> str:
         if "Entry point address" in line:
             entry_point = line.split()[-1][2:]
             break
-
     return entry_point
 
 def find_intel_start_section(lines, entry_point_str):
@@ -171,7 +170,6 @@ def get_intel_main_symbol(start_section):
                 main_symbol = start_section[i-2].split()[-1].split(',')[0]
             break
         i -= 1
-
     return main_symbol
 
 def get_main_symbol(start_section, is_32bit_binary):
@@ -183,14 +181,12 @@ def get_main_symbol(start_section, is_32bit_binary):
         raise Exception("Unknown architecture")
 
 
-is_exe = check_exe()
-
-if is_exe == False:  # share library
+if is_exe() == False:  # share library
     pass
 else:
     entry_point_str = get_entry_point_address()
     is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
-    is_32bit_binary = check_32()
+    is_32bit_binary = is_32()
 
     lines = []
 
@@ -207,7 +203,7 @@ else:
                 if '<main>' in line:
                     main_symbol = '0x'+line.split()[0].lstrip('0')
                     break
-    elif check_pie():
+    elif is_pie():
         if is_32bit_binary:
             pass
         else:

@@ -27,17 +27,13 @@ let got_rewrite_instr
         prefix,
         tags )
     when got_reg = (p_exp (Reg reg1)) ->
-      (*let point = "INSERT BEFORE [" ^ (dec_hex loc.loc_addr)
-                  ^ "] SELF [] \"\" asm x \"add $_GLOBAL_OFFSET_TABLE_, "
-                  ^ (p_reg reg1) ^ "\";" in
-      U.write_file [point] "points0.ins";*)
       (* reg1 contains GOT pointer,
        * reg2 contain index,
        * const1 contains multipler,
        * const2 contains offset
        * EX: 808a4d6: jmp    *-0x2514(%ebp,%eax,4)  ---> jmp *S_0x80F7508(,%eax,0x4)
        *)
-      let got_plus_offset = got_addr + const2 in
+      let got_plus_offset = got_addr - const2 in
       Hashtbl.replace
         result
         loc.loc_addr
@@ -138,6 +134,63 @@ let got_rewrite_instr
             loc,
             prefix,
             tags ) )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
+          Reg reg1,
+          Reg reg2,
+          loc,
+          prefix,
+          tags )
+      when got_reg = (p_exp (Reg reg2)) ->
+        Hashtbl.replace
+        result
+        loc.loc_addr
+        ( TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
+            Reg reg1,
+            Const (Normal got_addr),
+            loc,
+            prefix,
+            tags ) )
+  | TripleInstr
+      ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+        dest_ptr,
+        Ptr (FourOP_PLUS (reg1, reg2, const1, const2)),
+        loc,
+        prefix,
+        tags )
+    when got_reg = (p_exp (Reg reg1)) ->
+      let got_plus_offset = got_addr + const2 in
+      Hashtbl.replace
+      result
+      loc.loc_addr
+      ( TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+          dest_ptr,
+          Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
+          loc,
+          prefix,
+          tags ) )
+  | TripleInstr
+      ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+        dest_ptr,
+        Ptr (FourOP_MINUS (reg1, reg2, const1, const2)),
+        loc,
+        prefix,
+        tags )
+    (* reg1 is base address, reg2 is offset *)
+    when got_reg = (p_exp (Reg reg1)) ->
+      let got_plus_offset = got_addr - const2 in
+      Hashtbl.replace
+      result
+      loc.loc_addr
+      ( TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+          dest_ptr,
+          Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
+          loc,
+          prefix,
+          tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
         Ptr (BinOP_PLUS (reg, const)),

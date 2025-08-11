@@ -15,7 +15,22 @@ exception Reassemble_Error of string
 
 type ft = {fn : string; fbaddr : int; feaddr : int}
 
-class datahandler (label' : (string * int) list) (align' : (string * int) list) =
+
+(** read data bytes files *)
+let collect name =
+  if Sys.file_exists(name) then begin
+    let lines = read_file name in
+    List.map String.trim lines
+  end else []
+
+
+let get_v s = String.sub s 8 2
+
+
+class datahandler
+    (label' : (string * int) list)
+    (align' : (string * int) list)
+    (rodata_rewrite' : (int, string) Hashtbl.t) =
   object (self)
     val mutable sec : section list = []
     val mutable data : string list = []
@@ -23,6 +38,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable __libc_IO_vtables : string list = []
     val mutable __libc_freeres_ptrs : string list = []
     val mutable got : string list = []
+    val mutable got_plt : string list = []
     val mutable bss : string list = []
     val mutable tbss : string list = []
     (* .data.rel.ro section*)
@@ -30,6 +46,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable rodata_cst32: string list = []
 
     val mutable text_mem_addrs: int list = []
+    val mutable plt_mem_addrs: int list = []  (* statically-linked only *)
     val mutable label_mem_addrs: int list = []
 
     val mutable data_labels : (string * int) list = []
@@ -40,12 +57,14 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable label : (string * int) list = label'  (* data section, address *)
     val mutable align : (string * int) list = align'
     val mutable label_set : (int) list = []
+    val mutable rodata_rewrite : (int, string) Hashtbl.t = rodata_rewrite'
 
     val mutable data_list: (string * string) list = []
     val mutable rodata_list: (string * string) list = []
     val mutable __libc_IO_vtables_list: (string * string) list = []
     val mutable __libc_freeres_ptrs_list: (string * string) list = []
     val mutable got_list: (string * string) list = []
+    val mutable got_plt_list: (string * string) list = []
     val mutable bss_list: (string * string) list = []
     val mutable tbss_list: (string * string) list = []
     (* .data.rel.ro section*)
@@ -57,6 +76,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable __libc_IO_vtables_array: (string * string) array = [||]
     val mutable __libc_freeres_ptrs_array: (string * string) array = [||]
     val mutable got_array: (string * string) array = [||]
+    val mutable got_plt_array: (string * string) array = [||]
     val mutable bss_array: (string * string) array = [||]
     val mutable tbss_array: (string * string) array = [||]
     (* .data.rel.ro section*)
@@ -64,12 +84,15 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
     val mutable rodata_cst32_array: (string * string) array = [||]
 
     val mutable text_sec: (int * int) = (0,0)  (* begin addr, size *)
+    val mutable plt_sec: (int * int) = (0,0)
     val mutable locations = []
     val mutable align_locations = Hashtbl.create 90
+    val mutable got_plt_addr2label = Hashtbl.create 90
 
     val mutable in_jmptable = false
 
     val mutable text_mem_arr = Array.make 1 0
+    val mutable plt_mem_arr = Array.make 1 0
     val mutable label_mem_arr = Array.make 1 0
     val mutable func_begin_arr = Array.make 1 0
     val mutable label_arr = Array.make 1 0
@@ -97,9 +120,10 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       rodata_cst32_list <- self#data_trans rodata_cst32;
       let module EU = ELF_utils in
       if EU.elf_static () then
-        (tbss_list <- self#data_trans tbss;
-        __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
-        __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs);
+        ( got_plt_list <- self#data_trans got_plt;
+          tbss_list <- self#data_trans tbss;
+          __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
+          __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs );
 
       (* locations are sec,offset where labels need to be added *)
       locations <- label;
@@ -148,7 +172,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       else
         self#data_refer_solve_64 funcs
 
-
     method set_assumption_flag () =
       (* this method read assumption configuration assumption_set.info
        * and set two flags *)
@@ -163,28 +186,55 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       text_labels
 
     method text_sec_collect =
-      let filelines = File.lines_of "text_sec.info"
-      and help l =
+      let text_filelines = File.lines_of "text_sec.info" in
+      let help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x"^(List.nth items 1))
         and size = int_of_string ("0x"^(List.nth items 3)) in
         text_sec <- (addr, size)
       in
-      Enum.iter help filelines
+      Enum.iter help text_filelines;
+      let help l =
+        let items = Str.split (Str.regexp " +") l in
+        let addr = int_of_string ("0x"^(List.nth items 1))
+        and size = int_of_string ("0x"^(List.nth items 3)) in
+        plt_sec <- (addr, size)
+      in
+      let module EU = ELF_utils in
+      if EU.elf_static () then
+        let plt_filelines = File.lines_of "plt_sec.info" in
+        Enum.iter help plt_filelines
 
     method check_text addr =
       let judge_mem_list addr =
 	    bbn_byloc addr text_mem_arr in
-	  (*List.mem addr text_mem_addrs in *)
-      let (b,size) = text_sec in
-      let e = b + size in
+      let (tb, tsize) = text_sec in
+      let te = tb + tsize in
+      let (pb, psize) = plt_sec in
+      let pe = pb + psize in
+      let module EU = ELF_utils in
       if addr = 0xffff then false
       (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
          found instructions like this in the code:
          cmp $0xffff,%eax
       *)
-      else if (addr>=b && addr < e) && (judge_mem_list addr) then true
+      else if (EU.elf_static ())
+        && ((addr >= tb && addr < te) || (addr >= pb && addr < pe))
+        && (judge_mem_list addr) then true
+      else if (addr >= tb && addr < te) && (judge_mem_list addr) then true
+      else false
+
+    method check_plt addr =
+      let judge_mem_list addr =
+	    bbn_byloc addr text_mem_arr in
+      let (pb, psize) = plt_sec in
+      let pe = pb + psize in
+      let module EU = ELF_utils in
+      if addr = 0xffff then false
+      else if (EU.elf_static ())
+        && (addr >= pb && addr < pe)
+        && (judge_mem_list addr) then true
       else false
 
     method dump_c2d_labels dl =
@@ -215,13 +265,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         (* List.mem v begin_addrs in *)
         bbn_byloc v (Array.of_list begin_addrs) in
       (* this method traverse data list, check each four byte value *)
-      let get_v_old s =
-        let items = Str.split (Str.regexp " +") s in
-        let v = List.nth items 1 in
-        String.sub v 2 ((String.length v)-2) in
-	  (*.byte 0x80*)
-      let get_v s =
-        String.sub s 8 2 in
       let rec traverse acc l addr sec =
       (*
                There exists a bug in 64 bit ELF processing. The address
@@ -360,30 +403,21 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       self#add_data_label;
 
       data_list <- List.rev (traverse [] data_list 0x080500c4 ".data");
-      rodata_array <- Array.of_list rodata_list;
       rodata_list <- List.rev (traverse [] rodata_list 0x0 ".rodata");
       data_rel_ro_list <- List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
       rodata_cst32_list <- List.rev (traverse [] rodata_cst32_list 0x0 "rodata.cst32");
       got_list <- List.rev (traverse [] got_list 0x0 ".got");
       let module EU = ELF_utils in
       if EU.elf_static () then
-        (__libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
-        __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs"))
+        ( __libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
+          __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs");
+          got_plt_list <- List.rev (traverse [] got_plt_list 0x0 ".got.plt") )
 
     (* this method solve all the references in the .data .rodata sections *)
     method data_refer_solve funcs =
       let begin_addrs = List.map (fun f -> f.func_begin_addr) funcs in
       let check_func_begin v =
-        (* List.mem v begin_addrs in *)
         bbn_byloc v (Array.of_list begin_addrs) in
-      (* this method traverse data list, check each four byte value *)
-      let get_v_old s =
-        let items = Str.split (Str.regexp " +") s in
-        let v = List.nth items 1 in
-        String.sub v 2 ((String.length v)-2) in
-	  (*.byte 0x80*)
-      let get_v s =
-        String.sub s 8 2 in
       let rec traverse acc l addr sec =
       (*
                There exists a bug in 64 bit ELF processing. The address
@@ -393,8 +427,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                aux function translate value_str to value, then to value_str' ;
              thus getting rid of capital zeros.
        *)
-       let aux v =
-          (Printf.sprintf "%X" v) in
+       let aux v = (Printf.sprintf "%X" v) in
         match l with
         | [] -> acc
         | h::[] -> h::acc
@@ -402,134 +435,147 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         | h1::h2::h3::[] -> h3::h2::h1::acc
         | (l1,v1)::(h2,v2)::(l3,v3)::(l4,v4)::t ->
           (
-	        let b = Buffer.create 10 in
-            Buffer.add_string b "0x";
-            Buffer.add_string b (get_v v4);
-            Buffer.add_string b (get_v v3);
-            Buffer.add_string b (get_v v2);
-            Buffer.add_string b (get_v v1);
-	        let v_str = Buffer.contents b in
-            match string_to_int32 v_str with
-            | Some v ->
-              begin
-                match (self#check_sec v) with
-                | Some s ->
-                  (
-                    if assumption_two then
-                      begin
-                        in_jmptable <- false;
-
-                        traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
-                      end
-                    else
-                      begin
-                        let v_str' = aux v in
-                        data_labels <- (s.sec_name, v)::data_labels;
-                        data_labels_reloc <- addr::data_labels_reloc;
-                        (traverse (("","")::("","")::("","")::(l1,".long S_0x"^v_str')::acc)
-                                  t (addr+4) sec)
-                      end
-                  )
-                | None ->
-                  (
-                    match (self#check_text v) with
-                    | true ->
-                      (
-                        let c =
-                          (* we use assumption three  *)
-                          if assumption_three = true then
-                            check_func_begin v
-                          else
-                            (* we reject assumption three *)
-                            true
-                        in
-                        if c = false then
-                          begin
-                            if (self#check_jmptable l1 v) = false then
-                              begin
-                                in_jmptable <- false;
-                       		      traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
-                              end
+          if sec = ".rodata" && Hashtbl.mem rodata_rewrite addr then
+            (* for our jump table detection heuristic
+             * some jump table uses a table of constants stored in .rodata
+             * a constant is used to calculate the jump destination
+             * for symbolization, we calculate each jump destination and them
+             * in .rodata instead *)
+            let s_label = Hashtbl.find rodata_rewrite addr in
+            ( traverse (("","")::("","")::("","")::(l1,".long "^s_label) :: acc) t (addr+4) sec)
+          else (
+            let b = Buffer.create 10 in
+              Buffer.add_string b "0x";
+              Buffer.add_string b (get_v v4);
+              Buffer.add_string b (get_v v3);
+              Buffer.add_string b (get_v v2);
+              Buffer.add_string b (get_v v1);
+            let v_str = Buffer.contents b in
+              match string_to_int32 v_str with
+              | Some v ->
+                begin
+                  match (self#check_sec v) with
+                  | Some s ->
+                    (
+                      if assumption_two then
+                        begin
+                          in_jmptable <- false;
+                          traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
+                        end
+                      else
+                        begin
+                          let v_str' = aux v in
+                          data_labels <- (s.sec_name, v)::data_labels;
+                          data_labels_reloc <- addr::data_labels_reloc;
+                          (traverse (("","")::("","")::("","")::(l1,".long S_0x"^v_str')::acc)
+                                    t (addr+4) sec)
+                        end
+                    )
+                  | None ->
+                    (
+                      match (self#check_text v) with
+                      | true ->
+                        (
+                          let c =
+                            (* we use assumption three  *)
+                            if assumption_three = true then
+                              check_func_begin v
                             else
+                              (* we reject assumption three *)
+                              true
+                          in
+                          if c = false then
+                            begin
+                              if (self#check_jmptable l1 v) = false then
+                                begin
+                                  in_jmptable <- false;
+                                  traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
+                                end
+                              else
+                                begin
+                                  in_jmptable <- true;
+                                  cur_func_name <- self#fn_byloc v;
+                                  let v_str' = aux v in
+                                  (* text_labels <- v::text_labels;
+                                  text_labels_reloc <- addr::text_labels_reloc; *)
+                                  (traverse (("","")::("","")::("","")
+                                            ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
+                                end
+                            end
+                          else
+                            begin
+                              if (self#check_jmptable_1 l1) = false then
+                                in_jmptable <- false
+                              else
                               begin
                                 in_jmptable <- true;
-					                      cur_func_name <- self#fn_byloc v;
-                                let v_str' = aux v in
-                                (* text_labels <- v::text_labels;
-                                text_labels_reloc <- addr::text_labels_reloc; *)
-                                (traverse (("","")::("","")::("","")
-                                           ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
-                              end
-                          end
-                        else
+                                cur_func_name <- self#fn_byloc v;
+                              end;
+                              let v_str' = aux v in
+                              text_labels <- v::text_labels;
+                              text_labels_reloc <- addr::text_labels_reloc;
+                              (traverse (("","")::("","")::("","")
+                                        ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
+                            end
+                        )
+                      | false ->
+                        (
+                        match (self#check_offset v funcs sec) with
+                        | Some v ->
                           begin
-                            if (self#check_jmptable_1 l1) = false then
-                              in_jmptable <- false
-				                    else
-				                    begin
-                              in_jmptable <- true;
-			                        cur_func_name <- self#fn_byloc v;
-				                    end;
+                            in_jmptable <- true;
+                            cur_func_name <- self#fn_byloc v;
                             let v_str' = aux v in
                             text_labels <- v::text_labels;
                             text_labels_reloc <- addr::text_labels_reloc;
                             (traverse (("","")::("","")::("","")
-                                       ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
+                                        ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
                           end
-                      )
-                    | false ->
-                      (
-                      match (self#check_offset v funcs sec) with
-                      | Some v ->
-                        begin
-                          in_jmptable <- true;
-                          cur_func_name <- self#fn_byloc v;
-                          let v_str' = aux v in
-                          text_labels <- v::text_labels;
-                          text_labels_reloc <- addr::text_labels_reloc;
-                          (traverse (("","")::("","")::("","")
-                                      ::(l1,".long S_0x"^(v_str'))::acc) t (addr+4) sec)
-                        end
-                      | None ->
-                        begin
-                            (*in_jmptable <- false;
-                            let h::t = l in
-                            traverse ((l1,v1)::acc) t (addr+1) *)
+                        | None ->
+                          begin
+                              (*in_jmptable <- false;
+                              let h::t = l in
+                              traverse ((l1,v1)::acc) t (addr+1) *)
 
-                          in_jmptable <- false;
-                          traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
+                            in_jmptable <- false;
+                            traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
 
-                        end
-                      )
-                  )
-              end
-            | None ->
-              begin
-                (*in_jmptable <- false;
-                let h::t = l in  (*let it crash it not matched*)
-                traverse ((l1,v1)::acc) t (addr+1)*)
+                          end
+                        )
+                    )
+                end
+              | None ->
+                begin
+                  (*in_jmptable <- false;
+                  let h::t = l in  (*let it crash it not matched*)
+                  traverse ((l1,v1)::acc) t (addr+1)*)
 
-                traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
+                  traverse ((l4,v4)::(l3,v3)::(h2,v2)::(l1,v1)::acc) t (addr+4) sec
 
-              end
+                end )
           ) in
 
       (* add labels in data, rodata sections to support check jmp table*)
       self#add_data_label;
 
-      data_list <- List.rev (traverse [] data_list 0x082f3110 ".data");
-      rodata_list <- List.rev (traverse [] rodata_list 0x08288680 ".rodata");
+      data_list <- List.rev (traverse [] data_list 0x0 ".data");
+      rodata_list <- List.rev (traverse [] rodata_list 0x0 ".rodata");
       data_rel_ro_list <- List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
       rodata_cst32_list <- List.rev (traverse [] rodata_cst32_list 0x0 "rodata.cst32");
       let module EU = ELF_utils in
       if EU.elf_static () then
         begin
-          __libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
-          __libc_freeres_ptrs_list <- List.rev (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs")
+          got_plt_list <-
+            List.rev
+              (traverse [] got_plt_list 0x0 "got_plt");
+          __libc_IO_vtables_list <-
+            List.rev
+              (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
+          __libc_freeres_ptrs_list <-
+            List.rev
+              (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs")
         end
       else ()
-      (* 32-bit binary does not need this *)
-      (* got_list <- List.rev (traverse [] got_list 0x0) *)
 
     method check_jmptable_1 addrs =
       begin
@@ -656,17 +702,17 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
 
     method data_collect =
       let module EU = ELF_utils in
-      ignore (Sys.command("python3 spliter.py"));
-      data <- self#collect "data_split.info";
-      rodata <- self#collect "rodata_split.info";
-      data_rel_ro <- self#collect "data_rel_ro_split.info";
-      rodata_cst32 <- self#collect "rodata_cst32_split.info";
-      got <- self#collect "got_split.info";
-      bss <- self#collect_bss "bss.info";
+      data <- collect "data_split.info";
+      rodata <- collect "rodata_split.info";
+      data_rel_ro <- collect "data_rel_ro_split.info";
+      rodata_cst32 <- collect "rodata_cst32_split.info";
+      got <- collect "got_split.info";
+      bss <- collect "bss.info";
       if EU.elf_static () then
         begin
-          __libc_IO_vtables <- self#collect "__libc_IO_vtables_split.info";
-          __libc_freeres_ptrs <- self#collect "__libc_freeres_ptrs.info"
+          got_plt <- collect "got_plt_split.info";
+          __libc_IO_vtables <- collect "__libc_IO_vtables_split.info";
+          __libc_freeres_ptrs <- collect "__libc_freeres_ptrs.info"
         end
       else ()
 
@@ -680,6 +726,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         if EU.elf_static () then
           begin
             match s with
+              | ".got.plt" -> ".got.plt"
               | "__libc_IO_vtables" -> "__libc_IO_vtables"
               | "__libc_freeres_ptrs" -> "__libc_freeres_ptrs"
               | _ -> ".rodata"
@@ -873,7 +920,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       if EU.elf_static () then
         begin
           __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
-          __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list
+          __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
+          got_plt_array <- Array.of_list got_plt_list
         end
       else ();
       p#process locations;
@@ -883,6 +931,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         begin
           __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
           __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
+          got_plt_list <- Array.to_list got_plt_array
         end
       else ()
 
@@ -979,6 +1028,35 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
                   if EU.elf_static () then
                     begin
                       match n with
+                      | ".got.plt" ->
+                        ( let off = l - (self#section_addr ".got.plt") in
+                          let s' = dec_hex l
+                          and (s,d) = got_plt_array.(off) in
+                          let alignment =
+                            match Hashtbl.find_opt align_locations (n, l) with
+                            | Some _ -> ".p2align 4\n"
+                            | None -> ""
+                          in
+                          ( match Hashtbl.find_opt sym_addr2label l with
+                          | Some (sym_label, _) ->
+                            ( let lab = sym_label in
+                              got_plt_array.(off) <- (alignment^lab^":\n"^s', d);
+                              if EU.elf_32 ()
+                                && d <> ".byte 0x00"
+                                && (String.length d) <> 0 then
+                                let size_func = String.split_on_char ' ' d in
+                                let func = List.hd (List.rev size_func) in
+                                Hashtbl.replace got_plt_addr2label lab func )
+                          | None ->
+                            ( let lab = dec_hex_sym l in
+                              got_plt_array.(off) <- (alignment^lab^":\n", d);
+                              if EU.elf_32 ()
+                                && d <> ".byte 0x00"
+                                && (String.length d) <> 0 then
+                                let size_func = String.split_on_char ' ' d in
+                                let func = List.hd (List.rev size_func) in
+                                Hashtbl.replace got_plt_addr2label lab func) );
+                          help t )
                       | "__libc_IO_vtables" ->
                         ( let off = l - (self#section_addr "__libc_IO_vtables") in
                           let s' = dec_hex l
@@ -1045,6 +1123,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
           if EU.elf_static () then
             begin
               __libc_IO_vtables_list <- (".section __libc_IO_vtables, \"wa\"\n", "")::__libc_IO_vtables_list;
+              got_plt_list <- (".section .got.plt, \"wa\"\n", "")::got_plt_list;
               __libc_freeres_ptrs_list <- (".section __libc_freeres_ptrs, \"wa\"\n", "")::__libc_freeres_ptrs_list;
               tbss_list <- (".section .tbss\n", "")::tbss_list
             end
@@ -1066,6 +1145,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
           let module EU = ELF_utils in
           if EU.elf_static () then
             begin
+              write_file_opt got_plt_list;
               write_file_opt __libc_IO_vtables_list;
               write_file_opt __libc_freeres_ptrs_list;
               write_file_opt tbss_list
@@ -1104,9 +1184,10 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       rodata_cst32_array <- Array.of_list rodata_cst32_list;
       let module EU = ELF_utils in
       if EU.elf_static () then
-        (__libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
-        __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
-        tbss_array <- Array.of_list tbss_list);
+        ( got_plt_array <- Array.of_list got_plt_list;
+          __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
+          __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
+          tbss_array <- Array.of_list tbss_list );
       (* data_labels <- p#de_redunt data_labels; *)
       (*
       self#dump_d2d_labels data_labels_reloc;
@@ -1121,12 +1202,62 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
       data_rel_ro_list <- Array.to_list data_rel_ro_array;
       rodata_cst32_list <- Array.to_list rodata_cst32_array;
       if EU.elf_static () then
-        (__libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
-        __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
-        tbss_list <- Array.to_list tbss_array);
+        ( got_plt_list <- Array.to_list got_plt_array;
+          __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
+          __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
+          tbss_list <- Array.to_list tbss_array;
+          self#static_plt_handler );
       p#insert_dummy;
       p#insert_head;
       p#write_file
+
+    method static_plt_handler =
+      let module EU = ELF_utils in
+      let rela_plt_mapping () =
+        let rela_plt_map = Hashtbl.create 100 in
+        let filelines = read_lines "rela_plt.info" in
+        let filelines' = List.filter (
+          fun l -> contains ~str:l ~sub:"IRELATIV"
+        ) filelines in
+        List.iter (
+          fun l ->
+            let items = Str.split (Str.regexp "[ \t]+") l in
+            let k = "0x" ^ List.nth items 0
+                    |> int_of_string
+                    |> dec_hex_sym
+            in
+            let v = "0x" ^ List.nth items 3
+                    |> int_of_string
+                    |> dec_hex_sym
+            in
+            Hashtbl.add rela_plt_map k v
+        ) filelines';
+        rela_plt_map
+      in
+      if EU.elf_64 () then
+        got_plt_addr2label <- rela_plt_mapping ();
+      let rec create_plt_handler entries =
+        match entries with
+        | [] -> ""
+        | (l, v) :: t ->
+          let call_entry =
+            if EU.elf_64 () then
+              "call " ^ v ^ "\n" ^ "mov %rax, " ^ l ^ "\n"
+            else
+              "call " ^ v ^ "\n" ^ "mov %eax, " ^ l ^ "\n"
+          in
+          call_entry ^ create_plt_handler t
+      in
+      let oc = open_out "plt_handler.txt" in
+      let entries = Hashtbl.fold (fun l v acc -> (l, v) :: acc) got_plt_addr2label [] in
+      let handler =
+        if EU.elf_64 () then
+          "push %rax\n" ^ create_plt_handler entries ^ "pop %rax\n"
+        else
+          "push %eax\n" ^ create_plt_handler entries ^ "pop %eax\n"
+      in
+      output_string oc handler;
+      close_out oc
 
     (* this method might be too slow *)
     method collect_ocaml name =
@@ -1151,13 +1282,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list) 
         Enum.iter p#process filelines;
         p#get_c
       end else ""
-
-    (* let's try python3 script *)
-    method collect name =
-      if Sys.file_exists(name) then begin
-        let lines = read_file name in
-        List.map String.trim lines
-      end else []
 
     (* this is a optimizated solution for large size .bss section ELF binary *)
     method collect_bss name =
@@ -1207,6 +1331,9 @@ class instrhandler instr_list des'  =
         | (i::ti, h::tl) ->  help ((set_loc i h)::acc) ti tl
         | ([], []) -> List.rev acc
         |_ -> raise (Reassemble_Error "instrhandler error in get_instr_list") in
+      let instr_list = List.sort (
+        fun i1 i2 -> compare (get_loc i1).loc_addr (get_loc i2).loc_addr
+      ) instr_list in
       help [] instr_list locs
 
     method set_instr_list =
@@ -1216,6 +1343,9 @@ class instrhandler instr_list des'  =
         | h::t -> help ((get_loc h)::acc) t
         | [] -> List.rev acc in
       locs <- help [] instr_list;
+      locs <- List.sort (
+        fun loc1 loc2 -> compare loc1.loc_addr loc2.loc_addr
+      ) locs
       (* locs <- List.rev locs *)
       (* self#print_loclist *)
 
@@ -1335,7 +1465,6 @@ class instrhandler instr_list des'  =
       let items = Str.split (Str.regexp "_") d in
       let d' = List.nth items 1 in
       List.map (help d') locs
-
   end
 
 class funchandler instr_list u_funcs'  =
@@ -1360,13 +1489,15 @@ class funchandler instr_list u_funcs'  =
         print_string (l.loc_label^":\n"^d^"\n") in
       List.iter help locs
 
-
     method get_instr_list =
       let rec help acc i_list l_list =
         match (i_list, l_list) with
         | (i::ti, h::tl) -> help ((set_loc i h)::acc) ti tl
         | ([], []) -> List.rev acc
         |_ -> raise (Reassemble_Error "funchandler error in get_instr_list") in
+      let instr_list = List.sort (
+        fun i1 i2 -> compare (get_loc i1).loc_addr (get_loc i2).loc_addr
+      ) instr_list in
       help [] instr_list locs
 
     method set_instr_list =
@@ -1375,8 +1506,9 @@ class funchandler instr_list u_funcs'  =
         | h::t -> help ((get_loc h)::acc) t
         | [] -> List.rev acc in
       locs <- help [] instr_list;
-      (* self#print_loclist *)
-
+      locs <- List.sort (
+        fun loc1 loc2 -> compare loc1.loc_addr loc2.loc_addr
+      ) locs
 
     method pp_print l =
       let rec help l =
@@ -1474,9 +1606,15 @@ class reassemble =
     val mutable text_sec: (int * int) = (0,0)  (* begin addr, size*)
     val mutable plt_sec: (int * int) = (0,0)  (* begin addr, size*)
     val mutable text_mem_addrs: string list = []
+    val mutable rodata_list : string list = []
+    (* offset, label *)
+    val mutable rodata_rewrite : (int, string) Hashtbl.t = Hashtbl.create 200
 
     (* collect all the symbols from code section or from data sections *)
     val mutable symbol_list : int list = []
+
+    method rodata_collect =
+      rodata_list <- List.rev (collect "rodata_split.info")
 
     method section_collect =
       let filelines = File.lines_of "sections.info"
@@ -1552,42 +1690,40 @@ class reassemble =
         | h::t -> (
             let b = h.sec_begin_addr in
             let e = b + h.sec_size in
-            if (addr>=b && addr < e)  then
+            if (addr >= b && addr < e) then
               Some (h)
             else  help t addr )
-        | [] -> None in
+        | [] -> None
+        in
       help sec addr
-
 
     method check_text addr =
       let dec_hex n =
   	    (Printf.sprintf "%x:" n) in
       let judge_mem_list addr =
 	    let addrs = dec_hex addr in
-	    (* List.mem addrs text_mem_addrs in *)
-	    bbn_byloc addrs (Array.of_list text_mem_addrs) in
-      let (b,size) = text_sec in
-      let e = b + size in
+	    List.mem addrs text_mem_addrs in
+      let (tb, tsize) = text_sec in
+      let te = tb + tsize in
+      let (pb, psize) = plt_sec in
+      let pe = pb + psize in
+      let module EU = ELF_utils in
       if addr = 0xffff then false
       (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
          found instructions like this in the code:
          cmp $0xffff,%eax
       *)
-      (*  else if (addr>=b && addr < e) && (judge_mem_list addr) then true *)
-      else if (addr>=b && addr < e) then true
-      else false
-
-    method check_text_abd addr =
-      let (b,size) = text_sec in
-      let e = b + size in
-      if (addr>=b && addr <=e) then true
+      else if (EU.elf_static ())
+        && ((addr >= tb && addr < te) || (addr >= pb && addr < pe))
+        && (judge_mem_list addr) then true
+      else if (addr >= tb && addr < te) && (judge_mem_list addr) then true
       else false
 
     method check_plt addr =
-      let (b,size) = plt_sec in
+      let (b, size) = plt_sec in
       let e = b + size in
-      if (addr>=b && addr <e) then true
+      if (addr >= b && addr < e) then true
       else false
 
     method parse_const c =
@@ -1674,12 +1810,10 @@ class reassemble =
                     (
                       if self#has_text l' then
                         (
-		  	              let rb = f i  in
-                          ();
-
+                          let rb = f i in
                           let s_label = (self#build_symbol l) in
                       	  let loc' = get_loc i in
-                          deslist_reloc <- (loc'.loc_addr)::deslist_reloc;
+                          deslist_reloc <- (loc'.loc_addr) :: deslist_reloc;
                           Label s_label
                         )
                       else
@@ -2044,6 +2178,124 @@ class reassemble =
       | FourInstr (p, e1, e2, e3, l, pre, tags) -> FourInstr (p, e1, (self#v_exp2 e2 i f false), e3, l, pre, tags)
       | FifInstr (p, e1, e2,e3,e4, l, pre, tags) -> FifInstr (p, e1, (self#v_exp2 e2 i f false), e3, e4, l, pre, tags)
 
+    method find_jmp_table_dests
+        (rodata_sec : section)
+        (const_base : int)
+        (instr_base)
+      : unit =
+      let int_of_hex s =
+        let signed_of_hex_int64 ~bits (s : string) : int64 =
+          let s =
+            if String.length s >= 2
+              && (String.sub s 0 2 = "0x" || String.sub s 0 2 = "0X")
+              then s else "0x" ^ s
+          in
+          let n = Int64.of_string s in
+          let width_mask = Int64.sub (Int64.shift_left 1L bits) 1L in
+          let n = Int64.logand n width_mask in
+          let sign_bit = Int64.shift_left 1L (bits - 1) in
+          if Int64.logand n sign_bit = 0L then n
+          else Int64.sub n (Int64.shift_left 1L bits)
+        in
+        Int32.to_int (Int64.to_int32 (signed_of_hex_int64 ~bits:32 s))
+      in
+      let base_offset = const_base - rodata_sec.sec_begin_addr in
+      let table_base = List.drop base_offset rodata_list in
+      (*
+      Printf.printf
+      "---: %s @ %s @ %d @ %s @ %d\n"
+      (dec_hex_sym rodata_sec.sec_begin_addr)
+      (dec_hex_sym const_base)
+      base_offset
+      (dec_hex_sym instr_base)
+      (List.length table_base);
+      *)
+      let rec get_jmp_table_dests table offset =
+        match table with
+        | [] -> ()
+        | b1 :: [] -> ()
+        | b1 :: b2 :: [] -> ()
+        | b1 :: b2 :: b3 :: [] -> ()
+        | b1 :: b2 :: b3 :: b4 :: t ->
+          begin
+            let b = Buffer.create 10 in
+            Buffer.add_string b "0x";
+            Buffer.add_string b (get_v b4);
+            Buffer.add_string b (get_v b3);
+            Buffer.add_string b (get_v b2);
+            Buffer.add_string b (get_v b1);
+            let v_str = Buffer.contents b in
+            (*let _ = print_endline ("~~~~~~~~~ " ^ v_str) in*)
+            match int_of_hex v_str with
+            | v when v < -1 ->
+              begin
+                let next_instr = instr_base + v in
+                (*
+                print_string "<<<< ";
+                print_int (v);
+                print_endline "";
+                print_endline ("^ " ^ string_of_int offset ^ ", " ^ dec_hex_sym next_instr);
+                *)
+                let next_instr_label = dec_hex_sym next_instr in
+                deslist <- next_instr_label :: deslist;
+                Hashtbl.replace rodata_rewrite offset next_instr_label;
+                get_jmp_table_dests t (offset+4)
+              end
+            | _ -> ()
+          end
+      in
+      get_jmp_table_dests table_base base_offset
+
+    method jmp_table_rewrite (instrs: instr list) : instr list =
+      let rec rewrite3 instrs =
+        match instrs with
+        | i1 :: i2 :: i3 :: x as instrs' when List.length instrs' >= 3 -> begin
+          match i1, i2, i3 with
+          | TripleInstr
+              ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+                Reg dest_reg_i1,
+                Ptr (JmpTable_PLUS (base_addr_i1, reg2_i1, 4)),
+                loc_i1,
+                prefix_i1,
+                tags_i1 ),
+            TripleInstr
+              ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
+                Reg dest_reg_i2,
+                Const (Normal lab_i2),
+                loc_i2,
+                prefix_i2,
+                tags_i2 ),
+            DoubleInstr
+              ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
+                Symbol (StarDes (Reg dest_reg_i3)),
+                loc_i3,
+                prefix_i3,
+                tags_i3 )
+            when (p_reg dest_reg_i1 = p_reg dest_reg_i2)
+              && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
+            begin
+              (*
+              Printf.printf "^^^ %s @ %s @ %s\n"
+              (pp_print_instr' i1)
+              (pp_print_instr' i2)
+              (pp_print_instr' i3);
+              *)
+              match (self#check_sec base_addr_i1) with
+              | Some s when s.sec_name = ".rodata" ->
+                (* jump table constants are stored in a table (base_addr_il)
+                 * which is located in .rodata *)
+                begin
+                  self#find_jmp_table_dests s base_addr_i1 lab_i2;
+                  i1 :: rewrite3 (List.tl (List.tl instrs'))
+                end
+              | None -> i1 :: rewrite3 (List.tl instrs')
+            end
+          | _ -> ();
+          i1 :: rewrite3 (List.tl instrs')
+        end
+        | rest -> rest
+      in
+      rewrite3 instrs
 
     method visit_heuristic_analysis (instrs: instr list) =
       let func (i : instr) : bool =
@@ -2061,7 +2313,23 @@ class reassemble =
         (* ELF LSB shared object *)
         | _, false -> 4
       in
-
+      let module EU = ELF_utils in
+      let rela_plt_mapping () =
+        let filelines = read_lines "rela_plt.info" in
+        let filelines' = List.filter (
+          fun l -> contains ~str:l ~sub:"IRELATIV"
+        ) filelines in
+        List.iter (
+          fun l ->
+            let items = Str.split (Str.regexp "[ \t]+") l in
+            let v = "0x" ^ List.nth items 3
+                    |> int_of_string
+                    |> dec_hex_sym
+            in
+            deslist <- v :: deslist;
+        ) filelines'
+      in
+      if EU.elf_static () && EU.elf_64 () then rela_plt_mapping ();
       let tl1 = List.map
         (fun l ->
           try
@@ -2075,16 +2343,9 @@ class reassemble =
       symbol_list <- List.rev_append (List.rev tl1) symbol_list;
       tl
 
-
     method visit_type_infer_analysis (bbl : bblock list) (instrs : instr list) =
       (*let's do type inference analysis on suspicious concerete value*)
-      let func (i : instr) : bool =
-  (*
-            print_string ("    type inference on : "^(pp_print_instr i));
-            TypeInfer.type_infer instrs i;
-*)
-	    true
-      in
+      let func (i : instr) : bool = true in
       instr_list <- instrs;
       List.map (self#vinst2 func) instrs
 
@@ -2127,7 +2388,6 @@ class reassemble =
           List.iter aux labels;
           helper#get_instrs
         end
-
 
     (* redundunt with check_sec *)
     method check_bss addr =
@@ -2235,7 +2495,7 @@ class reassemble =
       self#dump_c2d_labels c2d_addr;
       let export_datas = self#export_data_dump in
       let t = List.rev_append (List.rev label) export_datas in
-      let p = new datahandler t align in
+      let p = new datahandler t align rodata_rewrite in
       p#text_sec_collect;
       p#set_datas funcs;
       let templist = p#get_textlabel in
@@ -2448,6 +2708,6 @@ class reassemble =
       self#section_collect;
       self#plt_collect;
       self#plt_sec_collect;
+      self#rodata_collect;
       self#text_sec_collect
-
   end

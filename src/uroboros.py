@@ -19,7 +19,7 @@ f_dic = ""
 iter_num = 0
 
 
-def check_exe():
+def is_exe():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
@@ -31,7 +31,7 @@ def check_exe():
         return False
 
 
-def check_32():
+def is_32():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
@@ -41,7 +41,7 @@ def check_32():
         return False
 
 
-def check_strip():
+def is_strip():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
@@ -51,7 +51,7 @@ def check_strip():
         return False
 
 
-def check_static():
+def is_static():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
@@ -80,7 +80,7 @@ def get_custom_objects(cleanup):
 def reassemble(assembly_file, arch):
     compiler = ""
     compile_option = "-no-pie -lm -lrt -lpthread "
-    is_32bit_binary = check_32()
+    is_32bit_binary = is_32()
     custom_objects = get_custom_objects(cleanup=False)
 
     if arch == "intel":
@@ -96,7 +96,7 @@ def reassemble(assembly_file, arch):
         else:
             compiler = "aarch64-linux-gnu-gcc"
 
-    if check_static() == True:
+    if is_static() == True:
         compile_option += "-static"
 
     for obj in custom_objects:
@@ -167,7 +167,7 @@ def get_entry_point_address(fn) -> str:
 def dump(fn):
     entry_point_str = get_entry_point_address(fn)
     is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
-    is_32bit_binary = check_32()
+    is_32bit_binary = is_32()
     
     if arch == "intel":
         os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")
@@ -182,7 +182,7 @@ def dump(fn):
 
 
 def process(f, i, arch):
-    is_32bit_binary = check_32()
+    is_32bit_binary = is_32()
     strip_command = ""
     if arch == "intel":
         strip_command = "strip"
@@ -207,7 +207,7 @@ def process(f, i, arch):
         os.system(f"echo \"{str(i)}\" > count.txt")
         os.system(f"cp {f} {f}.sym")
         os.system(f"nm {f}.sym > nm.info")
-        if check_static():
+        if is_static():
             os.system(f"objdump -d --section=.plt {f} > plt_whole.info")
             os.system(f"readelf -r {f} > rela_plt.info")
             os.system(f"readelf -l {f} > headers.info")
@@ -247,26 +247,6 @@ def process(f, i, arch):
         os.system("python3 label_adjust.py")
 
         reassemble("final.s", arch)
-
-        if check_static():
-            os.system("readelf -SW a.out | awk \'FNR<15\' | awk '$3==\".plt\" {print $3,$5,$6,$7}' > plt_sec_re.info");
-            os.system("readelf -SW a.out | awk \'FNR>14\' | awk '$2==\".plt\" {print $2,$4,$5,$6}' >> plt_sec_re.info");
-
-            if plt_changed():
-                plt_addr2entry = dict()      # plt mapping for original binary
-                plt_new_entry2addr = dict()  # plt mapping for reassembled binary
-
-                plt_start, plt_entry_num, size_per_entry = get_plt_info("plt_sec.info")
-                plt_new_start, _, size_per_new_entry = get_plt_info("plt_sec_re.info")  # plt start and entry numbers are same as before
-
-                for i in range(plt_entry_num):
-                    old_addr = hex(plt_start + i*size_per_entry).upper().replace("X", "x")
-                    plt_addr2entry[old_addr] = i
-                    new_addr = hex(plt_new_start + i*size_per_new_entry).upper().replace("X", "x")
-                    plt_new_entry2addr[i] = new_addr
-
-                update_final(plt_addr2entry, plt_new_entry2addr)
-                reassemble("final2.s", arch)
 
         custom_objects = get_custom_objects(cleanup=True)
         for obj in custom_objects:
@@ -318,12 +298,12 @@ def check(b, f, al):
         os.system("cp " + b + " .")
 
     os.system("file " + f + " > elf.info")
-    if check_exe() == False:
+    if is_exe() == False:
         print("Uroboros doesn't support shared library")
         return False
 
     # if assumption three is utilized, then input binary must be unstripped.
-    if "3" in al and check_strip() == False:
+    if "3" in al and is_strip() == False:
         print(
             """Uroboros doesn't support stripped binaries when using assumption three"""
         )

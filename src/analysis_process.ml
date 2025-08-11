@@ -10,6 +10,25 @@ module Analysis = struct
   open Type
   open Reassemble_symbol_get
 
+  let instrument_got_plt () =
+    let filelines = read_file "got_plt.info" in
+    let help acc l =
+      let items =
+        Str.split (Str.regexp " +") l
+        |> List.filter (fun i -> i <> "00000000")
+        |> List.map (fun i ->
+            let addr = String.sub i 6 2
+                     ^ String.sub i 4 2
+                     ^ String.sub i 2 2
+                     ^ String.sub i 0 2
+            in
+            "S_" ^ (dec_hex (int_of_string ("0x" ^ addr)))
+           )
+      in
+      items @ acc
+    in
+    List.fold_left help [] filelines
+
   let global_bss () =
     let filelines = read_file "globalbss.info"
     and help acc l =
