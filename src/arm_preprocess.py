@@ -484,20 +484,47 @@ def disassemble_got_section_as_data(fn):
     os.system("rm got_section_as_data.temp")
 
 
-def add_tag(line: str, tag: str) -> str:
+def adjust_floating_point_instructions(fn):
     """
-    Take a line from objdump and add an tag to it.
+    Find vmov instructions and change their immediates with the floating point numbers.
+
+    e.g.,
+    before:
+       15282:	eeb7 6b00 	vmov.f64	d6, #112	; 0x3f800000  1.0
+
+    after:
+       15282:	eeb7 6b00 	vmov.f64	d6, #1.0	; 0x3f800000  1.0
     """
+    disas_file_name = f"{fn}.temp"
+    new_content = []
+    with open(disas_file_name, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.rstrip("\n")
+            if "vmov" in line and ";" in line:
+                # 15282:	eeb7 6b00 	vmov.f64	d6, #112	; 0x3f800000  1.0
+                # after:
+                # 15282:	eeb7 6b00 	vmov.f64	d6, #1.0	; 0x3f800000  1.0
+                parts = line.split(";")
+                if len(parts) == 2:
+                    inst = parts[0]
+                    comment = parts[1]
+                    # Find the floating point value in `comment`
+                    comment_parts = comment.split(" ")
+                    float_imm = comment_parts[-1]
+                    # Replace the immediate value with the floating point value
+                    inst_arr = inst.split(",")
+                    inst_arr[-1] = f" #{float_imm}"  # The blank matters
+                    new_inst = ",".join(inst_arr)
+                    new_line = f"{new_inst}"
+                    new_content.append(f"{new_line}\n")
+                else:
+                    new_content.append(f"{line}\n")
+            else:
+                new_content.append(f"{line}\n")
 
-    line_parts = line.split("\t")
-    if "\n" in line_parts[3]:
-        line_parts[3] = line_parts[3].strip().rstrip("\n")
-        line_parts[3] += " " + tag
-        line_parts[3] += "\n"
-    else:
-        line_parts[3] += " " + tag
-
-    return "\t".join(line_parts)
+    with open(disas_file_name, "w") as f:
+        f.writelines(new_content)
 
 
 if __name__ == "__main__":
@@ -510,3 +537,4 @@ if __name__ == "__main__":
         disassemble_arm32_binary(filename, output_dir)
     disassemble_text_section_as_data(filename)
     disassemble_got_section_as_data(filename)
+    adjust_floating_point_instructions(filename)
