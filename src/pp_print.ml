@@ -222,13 +222,24 @@ and p_triple p e1 e2 =
   let assist_list = ["pop"] in
   let check_assist exp =
     List.mem exp assist_list in
+  let is_const e = match e with
+    | Const _ -> true
+    | _ -> false
+  in
+  let check_if_ldr_imm () = match p with
+    | Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _) when is_const e1 -> true
+    | _ -> false
+  in
   let p_str = p_op p
   and e1_str = p_exp e1
   and e2_str = p_exp e2 in
-    if check_assist e2_str then
+  if check_assist e2_str then
     (p_str^" "^e2_str^" "^e1_str)
   else
-    (p_str^" "^e2_str^","^e1_str)
+    if check_if_ldr_imm () then
+      (p_str^" "^e2_str^",="^e1_str)
+    else
+      (p_str^" "^e2_str^","^e1_str)
 
 and p_four p e1 e2 e3 =
   let assist_list = ["cmpsb"; "scas"; "stos"; "movsl"; "movsb"; "cmpsw";
