@@ -332,10 +332,13 @@ and arm_stackop =
   | LDMIA (* pop when used with sp! *)
 and arm_systemop =
   | BKPT | CLREX | CPS | CPSIE | CPSID | DBG | DMB
-  | DSB | ISB | PLD | PLI | RFE | SEV | SMC | SRS
+  | DSB | ISB
+  | PLD | PLDW
+  | PLI | RFE | SEV | SMC | SRS
   | SVC | WFE | WFI | YIELD | UDF
   | MCR | MCR2 | MCRR | MCRR2
   | MRC | MRC2
+  | SETPAN
 and arm_arithmop =
   | ADC | ADCS | ADD | ADDS | ADDW | ADR | AND | ANDS
   | CLZ | MLA | MLS
@@ -777,10 +780,13 @@ let show_intel_reg = function
       begin
         match asystem with
         | BKPT -> "bkpt" | CLREX -> "clrex" | CPS -> "cps" | CPSIE -> "cpsie" | CPSID -> "cpsid" | DBG -> "dbg" | DMB -> "dmb"
-        | DSB -> "dsb" | ISB -> "isb" | PLD -> "pld" | PLI -> "pli" | RFE -> "rfe" | SEV -> "sev" | SMC -> "smc" | SRS -> "srs"
+        | DSB -> "dsb" | ISB -> "isb"
+        | PLD -> "pld" | PLDW -> "pldw"
+        | PLI -> "pli" | RFE -> "rfe" | SEV -> "sev" | SMC -> "smc" | SRS -> "srs"
         | SVC -> "svc" | WFE -> "wfe" | WFI -> "wfi" | YIELD -> "yield" | UDF -> "udf"
         | MCR -> "mcr" | MCR2 -> "mcr2" | MCRR -> "mcrr" | MCRR2 -> "mcrr2"
         | MRC -> "mrc" | MRC2 -> "mrc2"
+        | SETPAN -> "setpan"
       end
     | Arm_ErrorOP aerror ->
       begin

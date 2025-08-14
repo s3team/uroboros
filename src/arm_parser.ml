@@ -332,10 +332,13 @@ class arm_parse =
 
   and systemop_symb = function
     | "bkpt" -> BKPT | "clrex" -> CLREX | "cps" -> CPS | "cpsie" -> CPSIE | "cpsid" -> CPSID | "dbg" -> DBG | "dmb" -> DMB
-    | "dsb" -> DSB | "isb" -> ISB | "pld" -> PLD | "pli" -> PLI | "rfe" -> RFE | "sev" -> SEV | "smc" -> SMC | "srs" -> SRS
+    | "dsb" -> DSB | "isb" -> ISB
+    | "pld" -> PLD | "pldw" -> PLDW
+    | "pli" -> PLI | "rfe" -> RFE | "sev" -> SEV | "smc" -> SMC | "srs" -> SRS
     | "svc" -> SVC | "wfe" -> WFE | "wfi" -> WFI | "yield" -> YIELD | "udf" -> UDF
     | "mcr" -> MCR | "mcr2" -> MCR2 | "mcrr" -> MCRR | "mcrr2" -> MCRR2
     | "mrc" -> MRC | "mrc2" -> MRC2
+    | "setpan" -> SETPAN
     | _ -> raise ParseError in
 
   let errorop_symb = function
@@ -664,7 +667,7 @@ class arm_parse =
 
   method parse_instr instr loc (arch : string) =
     (* giyeol: *)
-    (* let _ = Printf.printf "parse_instr: %s\n" instr in *)
+    let _ = Printf.printf "parse_instr: %s\n" instr in
     self#init_process;
     let compact (instr : string) =
       (* See [arm_postprocess.py#remove_caret] *)
