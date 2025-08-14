@@ -409,6 +409,8 @@ object (self)
       movs r1,r0
       lsls r0,r3,#0x5
       movs r0,r0
+
+      Note that there could be a nop instruction after the the blx instruction.
     *)
     let check_if_common_reg (e : exp) : bool =
       match e with
@@ -419,20 +421,32 @@ object (self)
       | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _) -> true
       | _ -> false
     in
-    let rec help acc is_literal_pool idx = function
+    let is_nop (op : op) : bool = match op with
+      | Arm_OP (Arm_CommonOP Arm_Other NOP, _, _) -> true
+      | _ -> false
+    in
+    let rec help acc is_literal_pool is_nop_after_blx idx = function
     | [] -> List.rev acc
     | instr :: t -> begin
         match get_op instr with
         | Arm_OP (Arm_ControlOP BLX, _, _) when not is_literal_pool -> begin
-          let nn_instr = List.nth instr_list (idx + 2) in
+          (* check if the next instruction is nop or not *)
+          let n_instr = List.nth instr_list (idx + 1) in
+          let nop_detected = is_nop (get_op n_instr) in
+          let nn_offset = if nop_detected then 3 else 2 in
+          let nn_instr = List.nth instr_list (idx + nn_offset) in
           match get_op nn_instr with
           | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _)
             when (check_if_common_reg (get_exp_1 nn_instr) && check_if_common_reg (get_exp_2 nn_instr)) -> begin
               (* keep the blx instruction *)
-              help (instr :: acc) true (idx + 1) t
+              help (instr :: acc) true nop_detected (idx + 1) t
             end
             (* keep this instruction *)
-          | _ -> help (instr :: acc) false (idx + 1) t
+          | _ -> help (instr :: acc) false false (idx + 1) t
+        end
+        | Arm_OP (Arm_CommonOP Arm_Other NOP, _, _) when is_nop_after_blx -> begin
+          (* skip nop instruction located right after blx *)
+          help acc true false (idx + 1) t
         end
         | _ -> begin
           if is_literal_pool then begin
@@ -441,20 +455,20 @@ object (self)
             let next_op = get_op n_instr in
             if is_movs cur_op || is_movs next_op then begin
               (* skip this instruction *)
-              help acc true (idx + 1) t
+              help acc true false (idx + 1) t
             end
             else begin
               (* stop skipping instructions *)
-              help (instr :: acc) false (idx + 1) t
+              help (instr :: acc) false false (idx + 1) t
             end
           end
           else begin
-            help (instr :: acc) false (idx + 1) t
+            help (instr :: acc) false false (idx + 1) t
           end
         end
       end
     in
-    help [] false 0 instr_list
+    help [] false false 0 instr_list
 
   method process_instrs (l : string list) (arch : string) =
     let cat_tail s =
@@ -478,7 +492,8 @@ object (self)
        * See [text_as_data] in [arm_reassemble_symbol_get.ml#v_exp2] *)
       let illegal_instrs = [
         "illegal"; "??";"cdp"; "cdp2"; "mrc"; "mrc2"; "ldc2l"; "stc"; "stc2l";
-        "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"; "mcr"; "vst"]
+        "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"; "mcr"; "vst";
+        "vld4"; "<und>"]
       in
       let rec has_illegal_instr instr' = function
         | [] -> false
