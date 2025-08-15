@@ -208,6 +208,12 @@ object (self)
         | Label l -> if contains l "pc" then true else false
         | _ -> false
     in
+    let has_fp_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Label l -> if contains l "fp" then true else false
+        | _ -> false
+    in
     let is_exp_lr_reg (i : instr) =
       let exp = get_exp_1 i in
       match exp with
@@ -225,12 +231,12 @@ object (self)
           | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr -> true
           | _ -> false
         end
-      | Arm_OP (Arm_StackOP op, _, _) when is_push op && has_lr_reg i -> true
+      | Arm_OP (Arm_StackOP op, _, _) when is_push op && (has_lr_reg i || has_fp_reg i) -> true
       | _ -> false
     in
     let is_func_end (i : instr) =
       match get_op i with
-      | Arm_OP (Arm_StackOP op, _, _) when is_pop op && has_pc_reg i -> true
+      | Arm_OP (Arm_StackOP op, _, _) when is_pop op && (has_pc_reg i || has_fp_reg i) -> true
       | Arm_OP (Arm_ControlOP BX, _, _) -> begin
           let exp = get_exp_1 i in
           match exp with
@@ -300,17 +306,13 @@ object (self)
             is_going_through_literal_pool := true;
           let should_keep = process_instr instr index in
 
-          if !is_going_through_literal_pool = true then
-            begin
-              (* skip this instruction *)
-              (* add to instrs_after_pop *)
+          if !is_going_through_literal_pool = true then begin
               instrs_after_pop := instr :: !instrs_after_pop;
               aux acc (index + 1) t
             end
-          else
-            begin
+          else begin
               newnew := instr :: !newnew;
-                aux (instr :: acc) (index + 1) t
+              aux (instr :: acc) (index + 1) t
             end
         end
     in
