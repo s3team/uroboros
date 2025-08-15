@@ -412,6 +412,7 @@ object (self)
 
       Note that there could be a nop instruction after the the blx instruction.
     *)
+    let ordered_il = List.rev instr_list in
     let check_if_common_reg (e : exp) : bool =
       match e with
       | Reg (Arm_Reg (Arm_CommonReg _)) -> true
@@ -426,18 +427,19 @@ object (self)
       | _ -> false
     in
     let rec help acc is_literal_pool is_nop_after_blx idx = function
-    | [] -> List.rev acc
+    | [] -> acc
     | instr :: t -> begin
         match get_op instr with
         | Arm_OP (Arm_ControlOP BLX, _, _) when not is_literal_pool -> begin
           (* check if the next instruction is nop or not *)
-          let n_instr = List.nth instr_list (idx + 1) in
+          let n_instr = List.nth ordered_il (idx + 1) in
           let nop_detected = is_nop (get_op n_instr) in
           let nn_offset = if nop_detected then 3 else 2 in
-          let nn_instr = List.nth instr_list (idx + nn_offset) in
+          let nn_instr = List.nth ordered_il (idx + nn_offset) in
           match get_op nn_instr with
           | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _)
-            when (check_if_common_reg (get_exp_1 nn_instr) && check_if_common_reg (get_exp_2 nn_instr)) -> begin
+            when (check_if_common_reg (get_exp_1 nn_instr)
+                  && check_if_common_reg (get_exp_2 nn_instr)) -> begin
               (* keep the blx instruction *)
               help (instr :: acc) true nop_detected (idx + 1) t
             end
@@ -468,7 +470,85 @@ object (self)
         end
       end
     in
-    help [] false false 0 instr_list
+    help [] false false 0 ordered_il
+
+  method remove_literal_pools_after_nop (instr_list : instr list) : instr list =
+    (* 12f0c:	f3af 8000 	nop.w
+       ...
+       12f18:	0001      	movs	r1, r0
+       12f1a:	0000      	movs	r0, r0
+       12f1c:	0000      	movs	r0, r0
+       12f1e:	0000      	movs	r0, r0
+       12f20:	7698      	strb	r0, [r3, #26]
+       12f22:	0001      	movs	r1, r0
+      *)
+    let ordered_il = List.rev instr_list in
+    let check_if_common_reg (e : exp) : bool =
+      match e with
+      | Reg (Arm_Reg (Arm_CommonReg _)) -> true
+      | _ -> false
+    in
+    let is_movs (op : op) : bool = match op with
+      | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _) -> true
+      | _ -> false
+    in
+    let rec help acc is_literal_pool idx = function
+    | [] -> acc
+    | instr :: t -> begin
+      match get_op instr with
+      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) -> begin
+        let nn_instr = List.nth ordered_il (idx + 2) in
+        match get_op nn_instr with
+        | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _)
+          when (check_if_common_reg (get_exp_1 nn_instr)
+                && check_if_common_reg (get_exp_2 nn_instr)) -> begin
+            (* skip this instruction *)
+            help acc true (idx + 1) t
+          end
+        | _ -> help (instr :: acc) false (idx + 1) t
+        end
+      | _ -> begin
+        if is_literal_pool then begin
+          let n_instr = List.nth ordered_il (idx + 1) in
+          let cur_op = get_op instr in
+          let next_op = get_op n_instr in
+          if is_movs cur_op || is_movs next_op then begin
+            help acc true (idx + 1) t
+          end
+          else begin
+            help (instr :: acc) false (idx + 1) t
+          end
+        end
+        else begin
+          help (instr :: acc) false (idx + 1) t
+        end
+      end
+    end
+    in
+    help [] false 0 ordered_il
+
+  method remove_illegal_instructions (instr_list : instr list) (arch : string) : instr list =
+    let ordered_il = List.rev instr_list in
+    match arch with
+    | "thumb" -> begin
+      let check_illegal (i : instr) : bool =
+        match get_op i with
+        | Arm_OP (Arm_SystemOP PLDW, _, _) -> true
+        | _ -> false
+      in
+      let rec help acc = function
+        | [] -> acc
+        | h :: t -> begin
+            if check_illegal h then
+              help acc t
+            else
+              help (h :: acc) t
+          end
+      in
+      help [] ordered_il
+    end
+    | _ -> instr_list
+
 
   method process_instrs (l : string list) (arch : string) =
     let cat_tail s =
@@ -515,8 +595,11 @@ object (self)
     List.iter help l';
     if arch = "arm" || arch = "thumb" then begin
       instrs <- self#remove_literal_pools instrs;
-      instrs <- self#remove_literal_pools_after_blx self#get_instrs;
-      instrs <- self#adjust_width_specifier self#get_instrs;
+      instrs <- self#remove_literal_pools_after_blx instrs;
+      instrs <- self#remove_literal_pools_after_nop instrs;
+      instrs <- self#remove_illegal_instructions instrs arch;
+      instrs <- self#adjust_width_specifier instrs;
+
     end;
 
     (* giyeol: for debugging *)
