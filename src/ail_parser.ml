@@ -164,17 +164,12 @@ object (self)
             let exp = get_exp_1 i in
             match exp with
             | Symbol (JumpDes j) ->
-              (* giyeol: *)
-              (* let _ = Printf.printf "\tJumpDes: %x\n" j in *)
               j :: acc
             | _ -> acc
           end
           | _ -> acc
       ) [] instrs
     in
-    (* let branch_target_addrs = collect_branch_targets instr_list in *)
-
-    (* let _ = print_endline "giyeol: removing literal pools" in *)
     let is_pop arm_stackop = match arm_stackop with
       | POP | VPOP | LDMIA -> true
       | _ -> false
@@ -224,9 +219,7 @@ object (self)
       | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i -> true
       | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
       | Arm_OP (Arm_StackOP PUSH, _, _) -> begin
-          (* Printf.printf "giyeol: hawi\n"; *)
           let next_instr = List.nth ordered_il (idx + 1) in
-          (* let _ = Printf.printf "giyeol: next_instr: %s\n" (pp_print_instr' next_instr) in *)
           let next_op = get_op next_instr in
           match next_op with
           | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr -> true
@@ -253,64 +246,44 @@ object (self)
     let is_going_through_literal_pool = ref false in
     let pop_detected = ref false in
     let collect_branch_target_addr (i : instr) =
-      (* let _ = Printf.printf "giyeol: collecting branch targets: %s\n" (pp_print_instr' i) in *)
-          match get_op i with
-          | Arm_OP (Arm_ControlOP aco, _, _) -> begin
-            let exp = get_exp_1 i in
-            match exp with
-            | Symbol (JumpDes j) ->
-              (* giyeol: *)
-              (* let _ = Printf.printf "\tJumpDes: %x\n" j in *)
-              branch_target_addrs := j :: !branch_target_addrs;
-            | _ -> ()
-          end
-          | _ -> ()
+      match get_op i with
+      | Arm_OP (Arm_ControlOP aco, _, _) -> begin
+        let exp = get_exp_1 i in
+        match exp with
+        | Symbol (JumpDes j) ->
+          branch_target_addrs := j :: !branch_target_addrs;
+        | _ -> ()
+      end
+      | _ -> ()
     in
     let check_if_target_in_branch_target_addrs (addr_list : int list) (i : instr) : bool =
       let loc = get_loc i in
       List.exists (fun addr -> addr = loc.loc_addr) addr_list
     in
     let process_instr (instr : instr) (index : int) : bool =
-      (* Printf.printf "giyeol: processing instruction: %s\n" (pp_print_instr' instr); *)
       collect_branch_target_addr instr;
       (* function start *)
       if is_func_start instr index then begin
-        (* print_endline "\tpush detected"; *)
         is_going_through_literal_pool := false;
         pop_detected := false;
         (* check if at least one of addresses in branch_target_addrs is in addr of instr in instrs_after_pop *)
         let c2c_symbol_detected = List.exists (fun lp_instr ->
           let result = check_if_target_in_branch_target_addrs !branch_target_addrs lp_instr in
-          (* giyeol: *)
-          (* if result then
-            Printf.printf "c2c_symbol_detected: target: %x\n" (get_loc lp_instr).loc_addr; *)
           result
-          (* List.iter (fun addr ->
-            let c2c_test = check_if_target_in_branch_target_addrs !branch_target_addrs lp_instr in
-            if c2c_test then
-              Printf.printf "c2c_symbol_detected: %x\n" addr;
-            c2c_symbol_detected := !c2c_symbol_detected || (check_if_target_in_branch_target_addrs !branch_target_addrs lp_instr)
-            ) !branch_target_addrs *)
         ) !instrs_after_pop
         in
-        (* let c2c_symbol_detected = check_if_target_in_branch_target_addrs !branch_target_addrs instr in *)
         if c2c_symbol_detected then begin
-            (* Printf.printf "c2c_symbol_detected: %x\n" (get_loc instr).loc_addr; *)
-            (* List.iter (fun i -> Printf.printf "\tadded to newnew: %s\n" (pp_print_instr' i)) !instrs_after_pop; *)
             newnew := !instrs_after_pop @ !newnew;
             instrs_after_pop := [];
             true
           end
         else begin
-          (* Printf.printf "c2c_symbol_not_detected: %x\n" (get_loc instr).loc_addr; *)
-          (* List.iter (fun i -> Printf.printf "\tdeleted from instrs_after_pop: %s\n" (pp_print_instr' i)) !instrs_after_pop; *)
           instrs_after_pop := [];
           false
         end
       end
       (* function end *)
       else if is_func_end instr then begin
-        (* let _ = print_endline "\tpop detected" in *)
         pop_detected := true;
         false
       end
@@ -318,44 +291,25 @@ object (self)
     in
     let rec aux acc index = function
       | [] -> begin
-          (* let new_instrs = !instrs_after_pop @ acc in
-          let _ = List.iter (fun i -> Printf.printf "giyeol: new_instrs: %s\n" (pp_print_instr' i)) new_instrs in
-          new_instrs *)
           let result = !instrs_after_pop @ !newnew in
-          (* giyeol:  *)
-          (* List.iter (fun i -> Printf.printf "result: %s\n" (pp_print_instr' i)) (List.rev result); *)
           result
         end
       | instr :: t ->
         begin
           if !pop_detected = true then
             is_going_through_literal_pool := true;
-
-            (* giyeol: *)
-          (* print_endline ("\tis_going_through_literal_pool: " ^ string_of_bool !is_going_through_literal_pool); *)
-          (* print length of instrs_after_pop *)
-          (* print_endline ("\tinstrs_after_pop length: " ^ string_of_int (List.length !instrs_after_pop)); *)
           let should_keep = process_instr instr index in
 
           if !is_going_through_literal_pool = true then
             begin
               (* skip this instruction *)
-              (* let _ = Printf.printf "giyeol: skipping literal pool instruction: %s\n" (pp_print_instr' instr) in *)
-              (* Printf.printf "instr added to instrs_after_pop: %s\n" (pp_print_instr' instr); *)
               (* add to instrs_after_pop *)
               instrs_after_pop := instr :: !instrs_after_pop;
               aux acc (index + 1) t
             end
           else
             begin
-              (* Printf.printf "instr added to newnew: %s\n" (pp_print_instr' instr); *)
               newnew := instr :: !newnew;
-              (* after pop is detected *)
-              (* if should_keep then
-                let acc' = !instrs_after_pop @ [instr] @ acc in
-                instrs_after_pop := [];
-                aux (acc') t
-              else *)
                 aux (instr :: acc) (index + 1) t
             end
         end
