@@ -284,7 +284,19 @@ object (self)
             true
           end
         else begin
+          (* check the length to find the following pattern and keep the instruction:
+            e.g., make-prime-list
+              107e4:	e8bd 0ff0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+              107e8:	4770      	bx	lr ; want to keep
+              107ea:	e92d 43b0 	stmdb	sp!, {r4, r5, r7, r8, r9, lr}
+           *)
+          if List.length !instrs_after_pop = 1 then begin
+            newnew := !instrs_after_pop @ !newnew;
+            instrs_after_pop := [];
+          end
+          else begin
           instrs_after_pop := [];
+          end;
           false
         end
       end
@@ -317,6 +329,146 @@ object (self)
         end
     in
     aux [] 0 ordered_il
+
+  method remove_literal_pools_v2 (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let collect_branch_targets (instrs : instr list) =
+      List.fold_left (
+        fun acc i ->
+          match get_op i with
+          | Arm_OP (Arm_ControlOP aco, _, _) -> begin
+            let exp = get_exp_1 i in
+            match exp with
+            | Symbol (JumpDes j) ->
+              j :: acc
+            | _ -> acc
+          end
+          | _ -> acc
+      ) [] instrs
+    in
+    let is_pop arm_stackop = match arm_stackop with
+      | POP | VPOP | LDMIA -> true
+      | _ -> false
+    in
+    let is_push arm_stackop = match arm_stackop with
+      | PUSH | VPUSH | STMDB -> true
+      | _ -> false
+    in
+    let has_r2_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Label l -> if contains l "r2" then true else false
+        | _ -> false
+    in
+    let has_r3_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Label l -> if contains l "r3" then true else false
+        | _ -> false
+    in
+    let has_r7_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Label l -> if contains l "r7" then true else false
+        | _ -> false
+    in
+    let has_lr_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Label l -> if contains l "lr" then true else false
+        | _ -> false
+    in
+    let has_pc_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Label l -> if contains l "pc" then true else false
+        | _ -> false
+    in
+    let has_fp_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Label l -> if contains l "fp" then true else false
+        | _ -> false
+    in
+    let is_exp_lr_reg (i : instr) =
+      let exp = get_exp_1 i in
+      match exp with
+        | Reg (Arm_Reg (Arm_LinkReg LR)) -> true
+        | _ -> false
+    in
+    let is_func_start (i : instr) (idx : int) =
+      match get_op i with
+      | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i -> true
+      | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
+      | Arm_OP (Arm_StackOP PUSH, _, _) -> begin
+          let next_instr = List.nth ordered_il (idx + 1) in
+          let next_op = get_op next_instr in
+          match next_op with
+          | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr -> true
+          | _ -> false
+        end
+      | Arm_OP (Arm_StackOP op, _, _) when is_push op && (has_lr_reg i || has_fp_reg i) -> true
+      | _ -> false
+    in
+    let is_func_end (i : instr) =
+      match get_op i with
+      | Arm_OP (Arm_StackOP op, _, _) when is_pop op && (has_pc_reg i || has_fp_reg i) -> true
+      | Arm_OP (Arm_ControlOP BX, _, _) -> begin
+          let exp = get_exp_1 i in
+          match exp with
+          | Reg (Arm_Reg (Arm_LinkReg LR)) -> true
+          | _ -> false
+      end
+      | _ -> false
+    in
+    let check_if_common_reg (e : exp) : bool =
+      match e with
+      | Reg (Arm_Reg (Arm_CommonReg _)) -> true
+      | _ -> false
+    in
+    let is_movs (op : op) : bool = match op with
+      | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _) -> true
+      | _ -> false
+    in
+    let is_nop (op : op) : bool = match op with
+      | Arm_OP (Arm_CommonOP Arm_Other NOP, _, _) -> true
+      | _ -> false
+    in
+    let branch_target_addrs = ref [] in
+    let rec aux acc is_literal_pool nop_detected idx = function
+      | [] -> acc
+      | instr :: t when is_func_end instr -> begin
+          let n_instr = List.nth ordered_il (idx + 1) in
+          let nop_detected = is_nop (get_op n_instr) in
+          let nn_offset = if nop_detected then 3 else 2 in
+          let nn_instr = List.nth ordered_il (idx + nn_offset) in
+          match get_op nn_instr with
+          | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _)
+            when (check_if_common_reg (get_exp_1 nn_instr)
+                  && check_if_common_reg (get_exp_2 nn_instr)) -> begin
+              (* keep this instruction *)
+              aux (instr :: acc) true nop_detected (idx + 1) t
+            end
+          | _ -> begin
+              (* keep this instruction *)
+              aux (instr :: acc) false false (idx + 1) t
+            end
+        end
+      | instr :: t when is_func_start instr idx -> begin
+          (* keep this instruction *)
+          aux (instr :: acc) false false (idx + 1) t
+        end
+      | instr :: t when is_literal_pool -> begin
+          (* skip this instruction *)
+          aux acc true false (idx + 1) t
+        end
+      | instr :: t when not is_literal_pool -> begin
+          (* keep this instruction *)
+          aux (instr :: acc) false false (idx + 1) t
+        end
+      | _ -> failwith "should not reach here"
+    in
+    aux [] false false 0 ordered_il
 
   (** For branch instructions that have width specifier,
       adjust it depending on the distance to target address. *)
@@ -382,11 +534,12 @@ object (self)
       | Arm_OP (Arm_CommonOP Arm_Other NOP, _, _) -> true
       | _ -> false
     in
-    let rec help acc is_literal_pool is_nop_after_blx idx = function
+    let rec aux acc is_literal_pool is_nop_after_blx idx = function
     | [] -> acc
     | instr :: t -> begin
         match get_op instr with
-        | Arm_OP (Arm_ControlOP BLX, _, _) when not is_literal_pool -> begin
+        | Arm_OP (Arm_ControlOP BLX, _, _)
+            when not is_literal_pool && (idx + 3) < List.length ordered_il -> begin
           (* check if the next instruction is nop or not *)
           let n_instr = List.nth ordered_il (idx + 1) in
           let nop_detected = is_nop (get_op n_instr) in
@@ -397,36 +550,36 @@ object (self)
             when (check_if_common_reg (get_exp_1 nn_instr)
                   && check_if_common_reg (get_exp_2 nn_instr)) -> begin
               (* keep the blx instruction *)
-              help (instr :: acc) true nop_detected (idx + 1) t
+              aux (instr :: acc) true nop_detected (idx + 1) t
             end
             (* keep this instruction *)
-          | _ -> help (instr :: acc) false false (idx + 1) t
+          | _ -> aux (instr :: acc) false false (idx + 1) t
         end
         | Arm_OP (Arm_CommonOP Arm_Other NOP, _, _) when is_nop_after_blx -> begin
           (* skip nop instruction located right after blx *)
-          help acc true false (idx + 1) t
+          aux acc true false (idx + 1) t
         end
         | _ -> begin
           if is_literal_pool then begin
-            let n_instr = List.nth instr_list (idx + 1) in
+            let n_instr = List.nth ordered_il (idx + 1) in
             let cur_op = get_op instr in
             let next_op = get_op n_instr in
             if is_movs cur_op || is_movs next_op then begin
               (* skip this instruction *)
-              help acc true false (idx + 1) t
+              aux acc true false (idx + 1) t
             end
             else begin
               (* stop skipping instructions *)
-              help (instr :: acc) false false (idx + 1) t
+              aux (instr :: acc) false false (idx + 1) t
             end
           end
           else begin
-            help (instr :: acc) false false (idx + 1) t
+            aux (instr :: acc) false false (idx + 1) t
           end
         end
       end
     in
-    help [] false false 0 ordered_il
+    aux [] false false 0 ordered_il
 
   method remove_literal_pools_after_nop (instr_list : instr list) : instr list =
     (* 12f0c:	f3af 8000 	nop.w
@@ -448,20 +601,20 @@ object (self)
       | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _) -> true
       | _ -> false
     in
-    let rec help acc is_literal_pool idx = function
+    let rec aux acc is_literal_pool idx = function
     | [] -> acc
     | instr :: t -> begin
       match get_op instr with
-      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) -> begin
+      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) when (idx + 2) < List.length ordered_il -> begin
         let nn_instr = List.nth ordered_il (idx + 2) in
         match get_op nn_instr with
         | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _)
           when (check_if_common_reg (get_exp_1 nn_instr)
                 && check_if_common_reg (get_exp_2 nn_instr)) -> begin
             (* skip this instruction *)
-            help acc true (idx + 1) t
+            aux acc true (idx + 1) t
           end
-        | _ -> help (instr :: acc) false (idx + 1) t
+        | _ -> aux (instr :: acc) false (idx + 1) t
         end
       | _ -> begin
         if is_literal_pool then begin
@@ -469,19 +622,19 @@ object (self)
           let cur_op = get_op instr in
           let next_op = get_op n_instr in
           if is_movs cur_op || is_movs next_op then begin
-            help acc true (idx + 1) t
+            aux acc true (idx + 1) t
           end
           else begin
-            help (instr :: acc) false (idx + 1) t
+            aux (instr :: acc) false (idx + 1) t
           end
         end
         else begin
-          help (instr :: acc) false (idx + 1) t
+          aux (instr :: acc) false (idx + 1) t
         end
       end
     end
     in
-    help [] false 0 ordered_il
+    aux [] false 0 ordered_il
 
   method remove_illegal_instructions (instr_list : instr list) (arch : string) : instr list =
     let ordered_il = List.rev instr_list in
@@ -551,6 +704,7 @@ object (self)
     List.iter help l';
     if arch = "arm" || arch = "thumb" then begin
       instrs <- self#remove_literal_pools instrs;
+      (* instrs <- self#remove_literal_pools_v2 instrs; *)
       instrs <- self#remove_literal_pools_after_blx instrs;
       instrs <- self#remove_literal_pools_after_nop instrs;
       instrs <- self#remove_illegal_instructions instrs arch;
