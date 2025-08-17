@@ -392,7 +392,8 @@ and arm_assignop =
   | SEL | STMDB | STMFD | STMIA | STMEA | STR | STRB | STRBT
   | STRD | STREX | STREXB | STREXD | STREXH | STRH | STRHT
   | STRT | VCVT | VCVTT | VCVTR | VCVTB | VMOV | VMSR
-  | VSTR | VSTM | VSTMDB | VPUSH | VLDR | VLDM | VLDMDB
+  | VSTR | VST4
+  | VSTM | VSTMDB | VPUSH | VLDR | VLDM | VLDMDB
   | VLD4 | VSTMIA | VLDMIA | VMRS
   | VEXT
   (* AArch64 *)
@@ -739,7 +740,8 @@ let show_intel_reg = function
             | SEL -> "sel" | STMDB -> "stmdb" | STMFD -> "stmfd" | STMIA -> "stmia" | STMEA -> "stmea" | STR -> "str" | STRB -> "strb" | STRBT -> "strbt"
             | STRD -> "strd" | STREX -> "strex" | STREXB -> "strexb" | STREXD -> "strexd" | STREXH -> "strexh" | STRH -> "strh" | STRHT -> "strht"
             | STRT -> "strt" | VCVT -> "vcvt" | VCVTT -> "vcvtt" | VCVTR -> "vcvtr" | VCVTB -> "vcvtb" | VMOV -> "vmov" | VMSR -> "vmsr"
-            | VSTR -> "vstr" | VSTM -> "vstm" | VSTMDB -> "vstmdb" | VPUSH -> "vpush" | VLDR -> "vldr" | VLDM -> "vldm" | VLDMDB -> "vldmdb"
+            | VSTR -> "vstr" | VST4 -> "vst4"
+            | VSTM -> "vstm" | VSTMDB -> "vstmdb" | VPUSH -> "vpush" | VLDR -> "vldr" | VLDM -> "vldm" | VLDMDB -> "vldmdb"
             | VLD4 -> "vld4" | VSTMIA -> "vstmia" | VLDMIA -> "vldmia" | VMRS -> "vmrs"
             | VEXT -> "vext"
             | STP -> "stp" | LDP -> "ldp"

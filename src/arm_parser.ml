@@ -297,7 +297,8 @@ class arm_parse =
     | "sel" -> SEL | "stmdb" -> STMDB | "stmfd" -> STMFD | "stmia" -> STMIA | "stmea" -> STMEA | "str" -> STR | "strb" -> STRB | "strbt" -> STRBT
     | "strd" -> STRD | "strex" -> STREX | "strexb" -> STREXB | "strexd" -> STREXD | "strexh" -> STREXH | "strh" -> STRH | "strht" -> STRHT
     | "strt" -> STRT | "vcvt" -> VCVT | "vcvtt" -> VCVTT | "vcvtr" -> VCVTR | "vcvtb" -> VCVTB | "vmov" -> VMOV | "vmsr" -> VMSR
-    | "vstr" -> VSTR | "vstm" -> VSTM | "vstmdb" -> VSTMDB | "vpush" -> VPUSH | "vldr" -> VLDR | "vldm" -> VLDM | "vldmdb" -> VLDMDB
+    | "vstr" -> VSTR | "vst4" -> VST4
+    | "vstm" -> VSTM | "vstmdb" -> VSTMDB | "vpush" -> VPUSH | "vldr" -> VLDR | "vldm" -> VLDM | "vldmdb" -> VLDMDB
     | "vld4" -> VLD4 | "vstmia" -> VSTMIA | "vldmia" -> VLDMIA | "vmrs" -> VMRS
     | "stp" -> STP | "ldp" -> LDP
     | "vext" -> VEXT
