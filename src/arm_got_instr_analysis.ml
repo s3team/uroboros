@@ -148,9 +148,10 @@ module ArmGotAbs : DfaAbs = struct
             end
             else
               let _ =
-                Printf.printf "This case should not happen: 0x%x\n"
+                Printf.printf "This case should not happen: %x\n"
                   pc_relative_addr
               in
+              let _ = Printf.printf "\t%s\n" (pp_print_instr' i) in
               (* failwith "check literal pools." *)
               outs
           end

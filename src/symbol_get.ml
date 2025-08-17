@@ -28,19 +28,26 @@ let parse () : (int, string) Hashtbl.t =
         && not (contains l " V ")
       then
         let items = Str.split (Str.regexp " +") l in
-        let addr = List.nth items 0 in
-        let symbol_type = List.nth items 1 in
-        let symbol_name = List.nth items 2 in
-        let symbol_name' =
-          symbol_name |> String.to_seq
-                      |> Seq.map replace_at
-                      |> String.of_seq
-        in
-        let addr' = int_of_string ("0x"^addr) in
-        if symbol_name' <> "main" then
-          if not (Hashtbl.mem seen symbol_name') then
-            (Hashtbl.add sym_addr2label addr' symbol_name';
-            Hashtbl.add seen symbol_name' "")
+        (* nm.info contains blank symbol as follows for some ARM thumb binaries:
+        * 000345e1 ta
+        * 00011804 t $a
+        *
+        * ignore the line that has no symbol by checking the length of `items`
+        *)
+        if List.length items = 3 then
+          let addr = List.nth items 0 in
+          let symbol_type = List.nth items 1 in
+          let symbol_name = List.nth items 2 in
+          let symbol_name' =
+            symbol_name |> String.to_seq
+                        |> Seq.map replace_at
+                        |> String.of_seq
+          in
+          let addr' = int_of_string ("0x"^addr) in
+          if symbol_name' <> "main" then
+            if not (Hashtbl.mem seen symbol_name') then
+              (Hashtbl.add sym_addr2label addr' symbol_name';
+              Hashtbl.add seen symbol_name' "")
   ) filelines;
   (*
   Hashtbl.iter (
