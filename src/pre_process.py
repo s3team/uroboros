@@ -13,7 +13,7 @@ lines = []
 with open("instrs.info") as f:
     lines = f.readlines()
 
-def help(l):
+def help(l, i, length):
    # if "repnz scas %es:(%edi),%al" in l:
    #     l = l.replace("repnz scas %es:(%edi),%al","repnz scas")
    # if "repz cmpsb %es:(%edi),%ds:(%esi)" in l:
@@ -40,13 +40,27 @@ def help(l):
         #if "lea" in l and "eiz" in l:
             addr = l.split(":")[0]
             #print(f"~~~ replace: {addr} at {l}")
-            l = f"{addr}:\tnop\n"
+            if i-1 == length:
+                l = f"{addr}:\tnop\n"
+            else:
+                next_l = lines[i+1]
+                addr_l = next_l.split(":")[0]
+                num_nop = int("0x"+addr_l, 16) - int("0x"+addr, 16)
+                l = ""
+                for n in range(num_nop):
+                    curr_addr = int("0x"+addr, 16) + n
+                    l += f"{hex(curr_addr)[2:]}:\tnop\n"
             return l
     return l
 
-lines = list(map(help, lines))
+#lines = list(map(help, lines))
+
+lines_processed = list()
+length = len(lines)
+for i, l in enumerate(lines):
+    lines_processed.append(help(l, i, length))
 
 with open("instrs.info", 'w') as f:
-    for l in lines:
+    for l in lines_processed:
         f.write(l)
     # map(lambda l : f.write(l), lines)

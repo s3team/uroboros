@@ -255,6 +255,7 @@ object (self)
     processor#userfuncs;
     processor#externdatas;
     processor#global_bss;
+    ignore (Sys.command("python3 spliter.py"));
     processor#instr_process f arch
 end
 

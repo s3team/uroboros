@@ -1,7 +1,7 @@
 #:Compiler and flags
 CC = gcc
-#CFLAGS = -O3 -no-pie -static -m32 -I./tiny-AES-c -I./tiny-ECDH-c
-CFLAGS = -O3 -no-pie -static -I./tiny-AES-c -I./tiny-ECDH-c
+CFLAGS = -O3 -no-pie -static -m32 -I./tiny-AES-c -I./tiny-ECDH-c
+#CFLAGS = -O3 -no-pie -static -I./tiny-AES-c -I./tiny-ECDH-c
 
 # Source files
 GENECDH_SRC = src/genecdh.c tiny-ECDH-c/ecdh.c
@@ -46,8 +46,8 @@ $(DECRYPTOR): $(DECRYPTOR_SRC)
 
 # Clean up generated files
 clean:
-	#rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
-	rm -rf build/*
+	rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
+	#rm -rf build/*
 	rm -rf hello
 	rm -rf hello2
 	cp -R hello-bk hello

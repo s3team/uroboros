@@ -16,6 +16,7 @@
 
 import os, sys
 import re
+import subprocess
 
 sec_symb = {".got.plt": "$_GLOBAL_OFFSET_TABLE_"}
 func_addrs = list()
@@ -29,6 +30,39 @@ def info_dump(f):
 
 
 step = 1
+
+
+def check_thumb_mode(arch: str, entry_point: int) -> bool:
+    # if entry point is odd, then it is thumb mode
+    if arch == "arm" and entry_point % 2 == 1:
+        return True
+    else:
+        return False
+
+def get_entry_point_address(f) -> str:
+    output = subprocess.getoutput("readelf -h " + f)
+    entry_point = ""
+
+    for line in output.split('\n'):
+        if "Entry point address" in line:
+            entry_point = line.split()[-1][2:]
+            break
+    return entry_point
+
+
+def find_intel_start_section(lines, entry_point_str):
+    ll = len(lines)
+    for i in range(ll):
+        if entry_point_str == lines[i].strip().split(':')[0]:
+            ln = i
+            while (ln < ll) and "Cannot identify main function using entry point":
+                if "nop" in lines[ln] or "ret" in lines[ln]:
+                    return lines[i:ln+1]
+                ln += 1
+
+
+def find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
+    return find_intel_start_section(lines, entry_point_str)
 
 
 def text_collect(f):
@@ -128,7 +162,7 @@ def thunk_identify(ls):
     return None, None
 
 
-def adjust_offset(start, instrs, base, init_reg):
+def adjust_offset(start, instrs, base, init_reg, start_section_addrs):
     i = start
     regs = [init_reg]
     while i < len(instrs):
@@ -181,6 +215,12 @@ def text_process_strip(f):
     info_dump(f)
     pic_map = info_collect()
 
+    entry_point_str = get_entry_point_address(f)
+    start_section = find_start_section(ls, entry_point_str, True, False)
+    start_section_addrs = [
+        l.strip().split(":")[0] for l in start_section if ":" in l.strip()
+    ]
+
     while True:
         pc_thunk_addr, register = thunk_identify(ls)
         if pc_thunk_addr == None:
@@ -211,7 +251,7 @@ def text_process_strip(f):
                         # baddr points to .got.plt
                         symb = sec_symb[key]
                         ls[i + 1] = t.replace("$" + off_s, symb)
-                        adjust_offset(i + 2, ls, baddr, register)
+                        adjust_offset(i + 2, ls, baddr, register, start_section_addrs)
                     elif value[0] < baddr and baddr < (value[0] + value[1]):
                         print("unhandled situation")
 
