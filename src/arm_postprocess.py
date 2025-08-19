@@ -100,6 +100,40 @@ def insert_ltorg_directive(filename):
         f.writelines(new_content)
 
 
+def remove_invalid_d2c_labels(filename):
+    new_content = []
+    with open(filename, "r") as f:
+        in_text_section = False
+        in_rodata_section = False
+        labels = []
+
+        lines = f.readlines()
+        for line in lines:
+            if ".section .text" in line:
+                in_text_section = True
+            if ".section .rodata" in line:
+                in_rodata_section = True
+
+            if in_text_section and "S_" in line and ":" in line:
+                labels.append(line.strip().rstrip(":"))
+
+            if in_rodata_section and ".long S_" in line:
+                label_found = False
+                for label in labels:
+                    if label in line:
+                        label_found = True
+                        break
+
+                if not label_found:
+                    # skip this line
+                    continue
+
+            new_content.append(line)
+
+    with open(filename, "w") as f:
+        f.writelines(new_content)
+
+
 def main(argv):
     if len(argv) != 2:
         print("Usage: python arm_postprocess.py <path_to_assembly_file>")
@@ -112,6 +146,7 @@ def main(argv):
     remove_unused_literal_pools_in_data(assembly_path)
     remove_caret(assembly_path)
     insert_ltorg_directive(assembly_path)
+    remove_invalid_d2c_labels(assembly_path)
 
 
 if __name__ == "__main__":
