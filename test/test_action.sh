@@ -32,7 +32,7 @@ echo "##### raw outputs #####"
 cat "$tmpfile"
 
 has_failed="false"
-if [[ "$failed" != "$expected_fail" ]]; then
+if [[ -n "$failed" ]]; then
   echo "##### expected failures not matching #####"
   echo "~ expected:"
   echo "$expected_fail"
@@ -41,7 +41,7 @@ if [[ "$failed" != "$expected_fail" ]]; then
   has_failed="true"
 fi  
 
-if [[ "$mismatched" != "$expected_mismatch" ]]; then
+if [[ -n "$mismatched" ]]; then
   echo "##### expected runtime failures not matching #####"
   echo "~ expected:"
   echo "$expected_mismatch"

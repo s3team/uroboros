@@ -46,8 +46,8 @@ $(DECRYPTOR): $(DECRYPTOR_SRC)
 
 # Clean up generated files
 clean:
-	rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
-	#rm -rf build/*
+	#rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
+	rm -rf build/*
 	rm -rf hello
 	rm -rf hello2
 	cp -R hello-bk hello

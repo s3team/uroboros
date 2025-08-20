@@ -41,7 +41,7 @@ let load_plugin
     (f : string)
   : unit =
   let module_name = Filename.basename f in
-  let module_path = "_build/default/plugins/" ^ module_name in
+  let module_path = "_build/default/instr_modules/" ^ module_name in
   if Sys.file_exists module_path then
     try
       Dynlink.loadfile_private module_path
@@ -51,6 +51,8 @@ let load_plugin
 
 let do_instrumentation : bool ref = ref false
 let points_f1 : point_f1 list ref = ref []
+(* to group points that target the same address into the same list *)
+let points_f1' : point_f1 list list ref = ref []
 let points_f2 : point_f2 list ref = ref []
 
 let stub_loc : loc = {
@@ -536,21 +538,30 @@ let caller_saved_after_regs
   | VOID -> caller_saved_after instr_type
   | NOT_VOID -> caller_saved_after_ret instr_type
 
+let read_file
+    (f : string)
+  : string list =
+  let ic = open_in f in
+  let content = really_input_string ic (in_channel_length ic) in
+  let _ = close_in ic in
+  let content = List.filter (
+    fun i -> String.trim i <> ""
+  ) (String.split_on_char '\n' content) in
+  content
+
 let read_points
     ~(f : string)
   : string list =
   try
-    let ic = open_in f in
-    let content = really_input_string ic (in_channel_length ic) in
-    let _ = close_in ic in
-    let content = List.filter (
-      fun i -> i <> ""
-    ) (String.split_on_char '\n' content) in
+    let content = read_file f in
     let content_nocomments = List.mapi (
       fun i s -> remove_comment_from_point '#' s (i + 1)
     ) content in
     let content' = String.concat "\n" content_nocomments in
     let points = String.split_on_char ';' content' in
+    let points = List.filter (
+      fun i -> String.trim i <> ""
+    ) points in
     points
   with Sys_error _ -> []
 
@@ -634,6 +645,7 @@ let create_points_f1
     (linenum : string)
     (pidx : int)
     (filepath : string)
+    (main_symbol : string)
     (loc : string) 
   : unit =
   let locations : location list =
@@ -700,9 +712,13 @@ let create_points_f1
         points_f1 := p' :: !points_f1
       end
     | SYMBOL s ->
+      let s' =
+        if s = "main" then main_symbol
+        else s
+      in
       match locm with
       | Some FUNENTRY ->
-        begin match List.find_opt (fun f -> f.func_name = s) ufl with
+        begin match List.find_opt (fun f -> f.func_name = s') ufl with
         | Some s_func ->
           let p' =
             ( s_func.func_begin_addr,
@@ -721,14 +737,10 @@ let create_points_f1
         | None -> ()
         end
       | Some FUNEXIT ->
-        begin match List.find_opt (fun f -> f.func_name = s) ufl with
+        begin match List.find_opt (fun f -> f.func_name = s') ufl with
         | Some s_func ->
           let p' =
-            (* s_func.func_end_addr is the starting address of the
-             * following function so -1 is the address of ret,
-             * which is 1 byte. Therefore, we assume that the last
-             * instruction in a function is always ret *)
-            ( s_func.func_end_addr - 1,
+            ( s_func.func_end_addr,
               action,
               dir,
               stack,
@@ -744,7 +756,7 @@ let create_points_f1
         | None -> ()
         end
       | Some CALLSITE ->
-        begin match Hashtbl.find_opt fname2css s with
+        begin match Hashtbl.find_opt fname2css s' with
         | Some css ->
           List.iter ( fun addr ->
             let p' =
@@ -778,6 +790,7 @@ let process_instrument_point
     (line : string)
     (pidx : int)
     (filepath : string)
+    (main_symbol : string)
   : unit =
   let (linenum, point) = get_linenum_point line in
   if not (String.starts_with ~prefix:"user" point) &&
@@ -831,6 +844,7 @@ let process_instrument_point
           linenum
           pidx
           filepath
+          main_symbol
       ) locations;
     | _ -> failwith ("invalid instrument format at " ^ __LOC__)
   else if String.starts_with ~prefix:"INCLUDE" point then
@@ -853,7 +867,7 @@ let process_instrument_point
         ^ ".cmxs"
       in
       let dune_add =
-        "(subdir plugins\n"
+        "(subdir instr_modules\n"
         ^ "  (library\n"
         ^ "    (name " ^ module_name ^ ")\n"
         ^ "    (modules " ^ module_name ^ ")\n"
@@ -874,6 +888,7 @@ let parse_instrument_file
     ~(fbl : (string, bblock list) Hashtbl.t)
     ~(bbl : bblock list)
     ~(filepath : string)
+    ~(main_symbol : string)
   : unit =
   let filelines =
     read_points ~f:filepath
@@ -891,13 +906,30 @@ let parse_instrument_file
         l
         i
         filepath
+        main_symbol
   ) filelines;
-  points_f1 := List.sort (
-    fun
-      (addr1, _, _, _, _, _, _, _, _, _, _)
-      (addr2, _, _, _, _, _, _, _, _, _, _)
+  let sorted = List.sort (
+    fun (addr1, _, _, _, _, _, _, _, _, _, _)
+        (addr2, _, _, _, _, _, _, _, _, _, _)
     -> compare addr1 addr2
-  ) !points_f1
+  ) !points_f1 in
+  (* group consecutive elements with the same address *)
+  let rec group_by_addr acc current_group = function
+    | [] ->
+        (match current_group with
+         | [] -> List.rev acc
+         | _ -> List.rev (List.rev current_group :: acc))
+    | ((addr, _, _, _, _, _, _, _, _, _, _) as hd) :: tl ->
+        (match current_group with
+         | [] ->
+             group_by_addr acc [hd] tl
+         | (addr_prev, _, _, _, _, _, _, _, _, _, _) :: _ ->
+             if addr = addr_prev then
+               group_by_addr acc (hd :: current_group) tl
+             else
+               group_by_addr (List.rev current_group :: acc) [hd] tl)
+  in
+  points_f1' := group_by_addr [] [] sorted
 
 let parse_instrument
     ~(funcs : func list)
@@ -906,8 +938,13 @@ let parse_instrument
     ~(fbl : (string, bblock list) Hashtbl.t)
     ~(bbl : bblock list)
   : unit =
+  let main_symbol = List.hd (read_file "main.info") in
   (* points folder contains the instrumentation files *)
-  let files = Sys.readdir "points" in
+  let files = Sys.readdir "points"
+              |> Array.to_list
+              |> List.filter (fun f -> f <> ".gitignore") (* so git track the points folder *)
+              |> Array.of_list
+  in
   Array.iter (fun f ->
     let filepath = Filename.concat "points" f in
     parse_instrument_file
@@ -917,6 +954,7 @@ let parse_instrument
       ~fbl
       ~bbl
       ~filepath
+      ~main_symbol
   ) files
 
 let arg_order_64
@@ -937,22 +975,47 @@ let arg_order_64
 let set_arg
     (instr_type : string)
     (i : int) 
-    (arg : exp)
+    (arg : (string * string))
   : instr =
   let module EU = ELF_utils in
+  let _type, _value = arg in
+  let exp_type =
+    match _type with
+    | "int" ->
+      ( try Const (Normal (int_of_string _value))
+      with _ -> Label _value )
+    | "char*" | "char *" | "int*" | "int *" | "void*" | "void *" ->
+      Label _value
+    | "print-arg" ->
+      if EU.elf_32 () then
+        failwith ("for PRINTARGS 32-bits, should not reach here. Failure at "
+                  ^ __LOC__)
+      else
+        Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
+  in
+  let opcode =
+    if EU.elf_32 () then
+      Intel_OP (Intel_StackOP PUSH)
+    else
+      match _type with
+      | "void*" | "void *" ->
+        Intel_OP (Intel_CommonOP (Intel_Assign LEA))
+      | _ ->
+        Intel_OP (Intel_CommonOP (Intel_Assign MOV))
+  in
   if EU.elf_32 () then
     DoubleInstr
-      ( Intel_OP (Intel_StackOP PUSH),
-        arg,
+      ( opcode,
+        exp_type,
         stub_loc,
         None,
         (create_comment instr_type) )
   else
     let dest_arg_reg = arg_order_64 i in
     TripleInstr
-      ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+      ( opcode,
         Reg (Intel_Reg dest_arg_reg),
-        arg,
+        exp_type,
         stub_loc,
         None,
         (create_comment instr_type) )
@@ -977,31 +1040,12 @@ let add_call_seq_arg
     ~(ret_type : c_ret_type)
   : instr list =
   let module EU = ELF_utils in
-  let parse_arg arg =
-    let _type, _value = arg in
-    match _type with
-    | "int" -> 
-      ( try Const (Normal (int_of_string _value))
-      with _ -> Label _value )
-    | "char*" | "char *" | "int*" | "int *" ->
-      Label _value
-    | "print-arg" ->
-      if EU.elf_32 () then
-        failwith ("for PRINTARGS 32-bits, should not reach here. Failure at "
-                  ^ __LOC__)
-      else
-        Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
-  in
-  let args' = List.map (
-    parse_arg
-  ) args
-  in
   if EU.elf_32 () then
     List.rev
       ( (caller_saved_before_regs instr_type ret_type)
       @ List.mapi (
         set_arg instr_type
-      ) args'
+      ) args
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -1028,7 +1072,7 @@ let add_call_seq_arg
       ( (caller_saved_before_regs instr_type ret_type)
       @ List.mapi (
         set_arg instr_type
-      ) args'
+      ) args
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -1212,9 +1256,9 @@ let process_point
   if cmd = "" && code_ep = "x" && code = "x" then begin
     (* action PRINTARGS *)
     if EU.elf_32 () then
-      ignore (Sys.command ("gcc -no-pie -c ./plugins/c/lib.c -m32"))
+      ignore (Sys.command ("gcc -no-pie -c ./instr_modules/c/lib.c -m32"))
     else
-      ignore (Sys.command ("gcc -no-pie -c ./plugins/c/lib.c"));
+      ignore (Sys.command ("gcc -no-pie -c ./instr_modules/c/lib.c"));
     match stack with
     | [] ->
       failwith
@@ -1256,6 +1300,157 @@ let process_point
     ) asm
   end
 
+let instrument_at_instr
+    (instr :instr)
+    (p_list: point_f1 list)
+  : (instr list) =
+  let include_instr : bool ref = ref true in
+  let rec add
+      (p_list : point_f1 list)
+      (acc_before : instr list)
+      (acc_after : instr list)
+    : instr list =
+    match p_list with
+    | [] ->
+      if !include_instr then
+        acc_after @ [instr] @ acc_before
+      else
+        (* for actions DELETE and REPLACE *)
+        acc_after @ acc_before
+    | ph :: pt -> begin
+        let ( p_addr, p_action, p_dir, p_stack, p_cmd,
+              p_lang, p_code_ep, p_code, p_linenum, p_idx, p_fp ) = ph in
+        let comment : string = "    filename: " ^ p_fp
+                               ^ ", line: " ^ p_linenum
+                               ^ ", instrumentation point: "
+                               ^ string_of_int p_idx in
+        if p_cmd <> "" then
+          ( ignore (Sys.command (p_cmd));
+            print_endline ("^ executing command: " ^ p_cmd) );
+        match p_action with
+        | Some INSERT ->
+          let add_seq : instr list =
+            process_point
+              ~instr_type:comment
+              ~cmd:p_cmd
+              ~code_ep:p_code_ep
+              ~code:p_code
+              ~stack:[]
+              ~use_existing_arg: false
+          in
+          let acc_before' : instr list =
+            match p_dir with
+            | Some BEFORE | None -> add_seq @ acc_before
+            | Some AFTER -> acc_before
+            | Some AT ->
+              let ih_lab = get_label instr in
+              let add_seq_len = List.length add_seq in
+              let ih' = update_label instr "" in
+              let add_seq' = List.mapi (
+                fun i asi ->
+                  if i = add_seq_len - 1 then update_label asi ih_lab
+                  else asi
+              ) add_seq in
+              add_seq' @ acc_before
+          in
+          let acc_after' : instr list =
+            match p_dir with
+            | Some BEFORE | None -> acc_after
+            | Some AFTER -> add_seq @ acc_after
+            | Some AT -> acc_after
+          in
+          add pt acc_before' acc_after'
+        | Some INSERTCALL ->
+          let add_seq : instr list =
+            process_point
+              ~instr_type:comment
+              ~cmd:p_cmd
+              ~code_ep:p_code_ep
+              ~code:p_code
+              ~stack:p_stack
+              ~use_existing_arg: true
+          in
+          let acc_before' : instr list =
+            match p_dir with
+            | Some BEFORE | None -> add_seq @ acc_before
+            | Some AFTER -> acc_before
+            | Some AT ->
+              let ih_lab = get_label instr in
+              let add_seq_len = List.length add_seq in
+              let ih' = update_label instr "" in
+              let add_seq' = List.mapi (
+                fun i asi ->
+                  if i = add_seq_len - 1 then update_label asi ih_lab
+                  else asi
+              ) add_seq in
+              add_seq' @ acc_before
+          in
+          let acc_after' : instr list =
+            match p_dir with
+            | Some BEFORE | None -> acc_after
+            | Some AFTER -> add_seq @ acc_after
+            | Some AT -> acc_after
+          in
+          add pt acc_before' acc_after'
+        | Some DELETE -> begin
+            include_instr := false;
+            add pt acc_before acc_after
+          end
+        | Some REPLACE -> begin
+            let add_seq : instr list =
+              process_point
+                ~instr_type:comment
+                ~cmd:p_cmd
+                ~code_ep:p_code_ep
+                ~code:p_code
+                ~stack:[]
+                ~use_existing_arg:false
+            in
+            let ih_lab = get_label instr in
+            let add_seq_len = List.length add_seq in
+            let add_seq' = List.mapi (
+              fun i asi ->
+                if i = add_seq_len - 1 then update_label asi ih_lab
+                else asi
+            ) add_seq in
+            include_instr := false;
+            add pt (acc_before @ add_seq') acc_after
+          end
+        | Some PRINTARGS ->
+          let add_seq : instr list =
+            process_point
+              ~instr_type:comment
+              ~cmd:""
+              ~code_ep:p_code_ep
+              ~code:p_code
+              ~stack:p_stack
+              ~use_existing_arg:false
+          in
+          let acc_before' : instr list =
+            match p_dir with
+            | Some BEFORE | None -> add_seq @ acc_before
+            | Some AT ->
+              let ih_lab = get_label instr in
+              let add_seq_len = List.length add_seq in
+              let ih' = update_label instr "" in
+              let add_seq' = List.mapi (
+                fun i asi ->
+                  if i = add_seq_len - 1 then update_label asi ih_lab
+                  else asi
+              ) add_seq in
+              add_seq' @ acc_before
+            | Some AFTER ->
+              failwith
+                ("for PRINTARGS, can only insert before a call, not after."
+                  ^ " Failure at " ^ __LOC__)
+          in
+          add pt acc_before' acc_after
+        | _ ->
+          add pt acc_before acc_after
+      end
+    in
+    add p_list [] []
+
 let apply
     ~(instrs : instr list)
     ~(fbl : (string, bblock list) Hashtbl.t)
@@ -1267,133 +1462,24 @@ let apply
   parse_instrument ~funcs ~fname_callsites ~instrs ~fbl ~bbl;
   let rec add_instrumentation_f1
       (instrs : instr list)
-      (points_f1 : point_f1 list)
+      (points_f1' : point_f1 list list)
       (acc : instr list)
     : instr list =
-    match instrs, points_f1 with
+    match instrs, points_f1' with
     | ([], _) -> List.rev acc
     | (ih :: it, []) -> add_instrumentation_f1 it [] (ih :: acc)
-    | (ih :: it, ph :: pt) ->
-      begin
-        let ( p_addr, p_action, p_dir, p_stack, p_cmd,
-              p_lang, p_code_ep, p_code, p_linenum, p_idx, p_fp ) = ph in
-        let ih_loc : loc = get_loc ih in
-        let ih_addr : int = ih_loc.loc_addr in
-        let comment : string = "    filename: " ^ p_fp
-                               ^ ", line: " ^ p_linenum
-                               ^ ", instrumentation point: "
-                               ^ string_of_int p_idx in
-        if p_cmd <> "" then ignore (Sys.command (p_cmd));
-        if ih_addr = p_addr then begin
-          match p_action with
-          | Some INSERT ->
-            let add_seq : instr list =
-              process_point
-                ~instr_type:comment
-                ~cmd:p_cmd
-                ~code_ep:p_code_ep
-                ~code:p_code
-                ~stack:[]
-                ~use_existing_arg: false
-            in
-            let acc' : instr list =
-              match p_dir with
-              | Some BEFORE | None -> ih :: add_seq
-              | Some AFTER -> add_seq @ [ih]
-              | Some AT ->
-                let ih_lab = get_label ih in
-                let add_seq_len = List.length add_seq in
-                let ih' = update_label ih "" in
-                let add_seq' = List.mapi (
-                  fun i asi ->
-                    if i = add_seq_len - 1 then update_label asi ih_lab
-                    else asi
-                ) add_seq in
-                ih' :: add_seq'
-            in
-            add_instrumentation_f1 it pt (acc' @ acc)
-          | Some INSERTCALL ->
-            let add_seq : instr list =
-              process_point
-                ~instr_type:comment
-                ~cmd:p_cmd
-                ~code_ep:p_code_ep
-                ~code:p_code
-                ~stack:p_stack
-                ~use_existing_arg: true
-            in
-            let acc' : instr list =
-              match p_dir with
-              | Some BEFORE | None -> ih :: add_seq
-              | Some AFTER -> add_seq @ [ih]
-              | Some AT ->
-                let ih_lab = get_label ih in
-                let add_seq_len = List.length add_seq in
-                let ih' = update_label ih "" in
-                let add_seq' = List.mapi (
-                  fun i asi ->
-                    if i = add_seq_len - 1 then update_label asi ih_lab
-                    else asi
-                ) add_seq in
-                ih' :: add_seq'
-            in
-            add_instrumentation_f1 it pt (acc' @ acc)
-          | Some DELETE ->
-            add_instrumentation_f1 it pt acc
-          | Some REPLACE ->
-            let add_seq : instr list =
-              process_point
-                ~instr_type:comment
-                ~cmd:p_cmd
-                ~code_ep:p_code_ep
-                ~code:p_code
-                ~stack:[]
-                ~use_existing_arg:false
-            in
-            let ih_lab = get_label ih in
-            let add_seq_len = List.length add_seq in
-            let add_seq' = List.mapi (
-              fun i asi ->
-                if i = add_seq_len - 1 then update_label asi ih_lab
-                else asi
-            ) add_seq in
-            add_instrumentation_f1 it pt (add_seq' @ acc)
-          | Some PRINTARGS ->
-            let add_seq : instr list =
-              process_point
-                ~instr_type:comment
-                ~cmd:""
-                ~code_ep:p_code_ep
-                ~code:p_code
-                ~stack:p_stack
-                ~use_existing_arg:false
-            in
-            let acc' : instr list =
-              match p_dir with
-              | Some BEFORE | None -> ih :: add_seq
-              | Some AT ->
-                let ih_lab = get_label ih in
-                let add_seq_len = List.length add_seq in
-                let ih' = update_label ih "" in
-                let add_seq' = List.mapi (
-                  fun i asi ->
-                    if i = add_seq_len - 1 then update_label asi ih_lab
-                    else asi
-                ) add_seq in
-                ih' :: add_seq'
-              | Some AFTER ->
-                failwith
-                  ("for PRINTARGS, can only insert before a call, not after."
-                    ^ " Failure at " ^ __LOC__)
-            in
-            add_instrumentation_f1 it pt (acc' @ acc)
-          | _ ->
-            add_instrumentation_f1 it pt (ih :: acc)
-        end else if ih_addr > p_addr then
-          add_instrumentation_f1 instrs pt acc
-        else
-          add_instrumentation_f1 it points_f1 (ih :: acc)
-      end
+    | (ih :: it, ph_list :: pt) ->
+      let ph = List.hd ph_list in
+      let ih_loc : loc = get_loc ih in
+      let ih_addr : int = ih_loc.loc_addr in
+      let ( p_addr, _, _, _, _, _, _, _, _, _, _ ) = ph in
+      if ih_addr > p_addr then
+        add_instrumentation_f1 instrs pt acc
+      else if ih_addr < p_addr then
+        add_instrumentation_f1 it points_f1' (ih :: acc)
+      else
+        let acc_ih = instrument_at_instr ih ph_list in
+        add_instrumentation_f1 it pt (acc_ih @ acc)
   in
   let rec add_instrumentation_f2
       (instrs : instr list)
@@ -1418,7 +1504,7 @@ let apply
       add_instrumentation_f2 il pt
     end
   in
-  let il = add_instrumentation_f1 instrs !points_f1 [] in
+  let il = add_instrumentation_f1 instrs !points_f1' [] in
   let il = add_instrumentation_f2 il !points_f2 in
   (* remove modifications made to dune just for the instrumentation *)
   let _ = ignore (Sys.command ("git checkout dune")) in

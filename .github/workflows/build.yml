@@ -25,7 +25,7 @@ jobs:
 
     - name: Test
       run: |
-        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
         $(pwd)/test/test_action.sh
 
   execute-coreutils-ubuntu22:
@@ -50,7 +50,7 @@ jobs:
 
     - name: Test
       run: |
-        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
         $(pwd)/test/test_coreutils.sh
  
  
@@ -73,7 +73,7 @@ jobs:
 
     - name: Test
       run: |
-        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
         $(pwd)/test/test_action.sh
 
   execute-coreutils-ubuntu24:
@@ -98,7 +98,7 @@ jobs:
 
     - name: Test
       run: |
-        sed -i "s/^      I.apply ~instrs:il' ~funcs:ufl' ~fname_callsites:fch in$/      il' in/" $(pwd)/src/ail.ml
+        find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
         $(pwd)/test/test_coreutils.sh
 
   execute-instrument-tests:

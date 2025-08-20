@@ -1,5 +1,0 @@
-<*> : package(batteries,parmap)
-true: syntax(camlp4o)
-true: package(deriving,deriving.syntax)
-true: thread,debug,annot
-true: bin_annot

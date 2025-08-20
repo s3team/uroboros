@@ -9,6 +9,68 @@ open Cg
 open Ail_utils
 
 
+let merge_func (funcs : func list) (il : instr list) : func list =
+  let module OU = Opcode_utils in
+  let rec update funcs il acc =
+    match (funcs, il) with
+    | [], il' -> List.rev acc
+    | funcs', [] -> List.rev acc
+    | hf :: tf, hi :: ti ->
+      let f_ea = hf.func_end_addr in
+      let f_ba = hf.func_begin_addr in
+      let i_loc = get_loc hi in
+      let i_addr = i_loc.loc_addr in
+      begin
+        if i_addr = f_ba then
+          match hi with
+          | TripleInstr (p, e1, e2, _, _, _) -> (
+              match (p, e1, e2) with
+              | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
+              | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->
+                  if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then
+                    let prev_func = List.hd acc in
+                    let acc' = List.tl acc in
+                    let prev_func' = { prev_func with func_end_addr = hf.func_end_addr } in
+                    update funcs ti (prev_func' :: acc')
+                  else
+                    update funcs ti acc
+              | _ -> update funcs ti acc )
+          | _ -> update funcs ti acc
+        else if i_addr >= f_ea then
+          update tf il (hf :: acc)
+        else if i_addr < f_ba then
+          update funcs ti acc
+        else
+          update funcs ti acc
+      end
+    in
+    update funcs il []
+
+let update_func_end (funcs : func list) (il : instr list) : func list =
+  let module OU = Opcode_utils in
+  let rec update funcs il acc =
+    match (funcs, il) with
+    | [], il' -> acc
+    | funcs', [] -> acc
+    | hf :: tf, hi :: ti ->
+      let f_ea = hf.func_end_addr in
+      let f_ba = hf.func_begin_addr in
+      let i_loc = get_loc hi in
+      let i_addr = i_loc.loc_addr in
+      begin
+        if i_addr >= f_ea then
+          update tf il (hf :: acc)
+        else if i_addr < f_ba then
+          update funcs ti acc
+        else
+          if OU.is_ret_instr hi then
+            update ({ hf with func_end_addr = i_addr } :: tf) ti acc
+          else
+            update funcs ti acc
+      end
+  in
+  update funcs il []
+
 class ail =
 object (self)
   val mutable funcs : func list = []
@@ -126,7 +188,6 @@ object (self)
     ignore ( Sys.command ("cat gcc_exception_table.data >> final.s") )
 
   method post_process (f : string) (arch : string) : unit =
-    ignore ( Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch) );
     ignore ( Sys.command ("python3 post_process.py "^arch) );
     ignore ( Sys.command ("python3 post_process_lib.py") )
     (*
@@ -134,8 +195,9 @@ object (self)
     self#excpt_tbl_dump;
     *)
 
-  method pre_process : unit =
-    ignore ( Sys.command ("python3 pre_process.py") )
+  method pre_process (f : string) (arch : string) : unit =
+    ignore ( Sys.command ("python3 pre_process.py") );
+    ignore ( Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch) )
 
   method instr_process (f : string) (arch : string) : unit =
     let open Disassemble_process in
@@ -144,7 +206,8 @@ object (self)
     let module A = Analysis in
     let module S = Symbol_table_get in
     let module I = Instrumentation in
-    let _ = self#pre_process in
+    let module EU = ELF_utils in
+    let _ = self#pre_process f arch in
     (* .text section is in instrs.info *)
     let il, fl, re = D.disassemble f funcs secs arch in
 
@@ -153,6 +216,14 @@ object (self)
     let fbl, bbl, cfg_t, cg, il', re, ufl = A.analyze_one il fl re in
 
     let il', ufl', fch = S.apply il' ufl f in
+
+    let ufl' =
+      if EU.elf_32 () then
+        merge_func ufl' il'
+      else
+        ufl'
+    in
+    let ufl' = update_func_end ufl' il' in
 
     let instrumented_il : instr list =
       I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch

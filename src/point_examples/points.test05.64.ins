@@ -1,0 +1,11 @@
+INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c ./instr_modules/c/fun.c" C before_print_info ./instr_modules/c/fun.c; # insert before any call to function print_info with call to before_print_info defined in fun.c
+INSERT AFTER [print_info] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c; # insert before memory addresses 0x4011b5 and 0x401188 with call to log_execution_times defined in fun.c
+INSERT BEFORE [print_info] FUNEXIT [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c; # insert before memory addresses 0x4011b5 and 0x401188 with call to log_execution_times defined in fun.c
+INSERT AFTER [print_info] FUNENTRY [] "" asm x
+"xor %eax, %eax
+xor %ebx, %ebx
+xor %ecx, %ecx"; # insert after the function entry of print_info with the three xor instructions
+INSERT BEFORE [print_info] FUNEXIT [] "" asm x
+"xor %eax, %eax
+xor %ebx, %ebx
+xor %ecx, %ecx"; # insert before the function exit of print_info (i.e., before the ret instruction in print_info) with the three xor instructions
