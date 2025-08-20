@@ -402,7 +402,7 @@ class datahandler
       (* add labels in data, rodata sections to support check jmp table *)
       self#add_data_label;
 
-      data_list <- List.rev (traverse [] data_list 0x080500c4 ".data");
+      data_list <- List.rev (traverse [] data_list 0x0 ".data");
       rodata_list <- List.rev (traverse [] rodata_list 0x0 ".rodata");
       data_rel_ro_list <- List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
       rodata_cst32_list <- List.rev (traverse [] rodata_cst32_list 0x0 "rodata.cst32");
@@ -2292,6 +2292,74 @@ class reassemble =
             end
           | _ -> ();
           i1 :: rewrite3 (List.tl instrs')
+        end
+        | rest -> rest
+      in
+      rewrite3 instrs
+
+    method jmp_table_rewrite64 (instrs: instr list) : instr list =
+      (*let _ = print_endline "~ calling jmp_table_rewrite64" in*)
+      let rec rewrite3 instrs =
+        match instrs with
+        | i0 :: i1 :: i2 :: i3 :: x as instrs' when List.length instrs' >= 4 -> begin
+          match i0, i1, i2, i3 with
+          | TripleInstr
+              ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
+                Reg dest_reg_i0,
+                Ptr (BinOP_PLUS (reg2_i0, base_addr_i0)),
+                loc_i0,
+                prefix_i0,
+                tags_i0 ),
+            TripleInstr
+              ( Intel_OP (Intel_CommonOP (Intel_Assign MOVSLQ)),
+                Reg dest_reg_i1,
+                Ptr (ThreeOP (reg2_1_i1, reg2_2_i1, 4)),
+                loc_i1,
+                prefix_i1,
+                tags_i1 ),
+            TripleInstr
+              ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
+                Reg dest_reg_i2,
+                Ptr (ThreeOP (reg2_1_i2, reg2_2_i2, 1)),
+                loc_i2,
+                prefix_i2,
+                tags_i2 ),
+            DoubleInstr
+              ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
+                Symbol (StarDes (Reg dest_reg_i3)),
+                loc_i3,
+                prefix_i3,
+                tags_i3 )
+            when ((p_reg dest_reg_i1 = p_reg reg2_1_i2) || (p_reg dest_reg_i1 = p_reg reg2_2_i2))
+              && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
+            begin
+              (*
+              Printf.printf "^^^ %s @ %s @ %s @ %s\n"
+              (pp_print_instr' i0)
+              (pp_print_instr' i1)
+              (pp_print_instr' i2)
+              (pp_print_instr' i3);
+              *)
+              match (self#check_sec base_addr_i0) with
+              | Some s when s.sec_name = ".rodata" ->
+                (* jump table constants are stored in a table (base_addr_il)
+                 * which is located in .rodata *)
+                begin
+                  let i1' =
+                    TripleInstr
+                      ( Intel_OP (Intel_CommonOP (Intel_Assign MOVSLQ)),
+                        Reg dest_reg_i3,  (* make sure dest reg is same as indirect jmp's reg *)
+                        Ptr (ThreeOP (reg2_1_i1, reg2_2_i1, 4)),
+                        loc_i1,
+                        prefix_i1,
+                        tags_i1 )
+                  in
+                  i0 :: i1' :: rewrite3 (List.tl (List.tl (List.tl instrs')))
+                end
+              | None -> i0 :: rewrite3 (List.tl instrs')
+            end
+          | _ -> ();
+          i0 :: rewrite3 (List.tl instrs')
         end
         | rest -> rest
       in

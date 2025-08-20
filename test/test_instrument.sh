@@ -237,8 +237,7 @@ fi
 ############
 # simul_io #
 ############
-echo ">>> simul_io"
-
+echo ">>> 32-bit simul_io"
 pushd $(pwd)/src
 cp ../test/simul_io/points.float_capture.32.ins points/
 cp ../test/simul_io/capture.c capture.c
@@ -258,81 +257,141 @@ rm -rf points
 mkdir points
 popd
 
-#pushd $(pwd)/src
-#cp ../test/simul_io/points.float_capture.64.ins points/
-#cp ../test/simul_io/capture.c capture.c
-#tmpfile=$(mktemp)
-#python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
-#$(pwd)/a.out &> "$tmpfile"
-#
-#if [[ "$expected_simul_io_64" != $(cat "$tmpfile") ]]; then
-#  echo "##### expected output for simul_io.64 not matching #####"
-#  echo "~ actual:"
-#  cat "$tmpfile"
-#  has_failed="true"
-#fi
-#rm "$tmpfile"
-#rm capture.c
-#rm -rf points
-#mkdir points
-#popd
-#
+echo ">>> 64-bit simul_io"
+pushd $(pwd)/src
+cp ../test/simul_io/points.float_capture.64.ins points/
+cp ../test/simul_io/capture.c capture.c
+tmpfile=$(mktemp)
+python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
+$(pwd)/a.out &> "$tmpfile"
+
+if [[ "$expected_simul_io_64" != $(cat "$tmpfile") ]]; then
+  echo "##### expected output for simul_io.64 not matching #####"
+  echo "~ actual:"
+  cat "$tmpfile"
+  has_failed="true"
+fi
+rm "$tmpfile"
+rm capture.c
+rm -rf points
+mkdir points
+popd
+
 ###################
-## rware (64-bit) #
+## rware (32-bit then 64-bit) #
 ###################
-#echo ">>> rware"
-#
-#rware_dir=$(pwd)/test/rware
-#pushd ${rware_dir}
-#make
-#popd
-#pushd $(pwd)/src
-#cp ${rware_dir}/points.getrandom.64.ins points/
-#tmpfile=$(mktemp)
-#python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
-#$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
-#
-#if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
-#  echo "##### expected output for rware.64 not matching #####"
-#  echo "~ actual:"
-#  cat "$tmpfile"
-#  has_failed="true"
-#fi
-#rm "$tmpfile"
-#rm -rf ${rware_dir}/hello
-#cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
-#popd
-#pushd ${rware_dir}
-#make clean
-#rm -rf points
-#mkdir points
-#popd
-#
-#echo ">>> genecdh"
-#
-#rware_dir=$(pwd)/test/rware
-#pushd ${rware_dir}
-#make
-#popd
-#pushd $(pwd)/src
-#cp ${rware_dir}/points.getrandom.64.ins points/
-#tmpfile=$(mktemp)
-#python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
-#$(pwd)/a.out genkey &> "$tmpfile"
-#
-#if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
-#  echo "##### expected output for genecdh.64 not matching #####"
-#  echo "~ actual:"
-#  cat "$tmpfile"
-#  has_failed="true"
-#fi
-#rm "$tmpfile"
-#rm -rf points
-#mkdir points
-#popd
-#pushd ${rware_dir}
-#make clean
-#popd
+echo ">>> 32-bit rware"
+
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make
+popd
+pushd $(pwd)/src
+cp ${rware_dir}/points.rware.32.ins points/
+tmpfile=$(mktemp)
+python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
+$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+
+if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
+  echo "##### expected output for rware.32 not matching #####"
+  echo "~ actual:"
+  cat "$tmpfile"
+  has_failed="true"
+fi
+rm "$tmpfile"
+rm -rf ${rware_dir}/hello
+cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
+popd
+pushd ${rware_dir}
+make clean
+rm -rf points
+mkdir points
+popd
+
+echo ">>> 64-bit rware"
+
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make -f Makefile64
+popd
+pushd $(pwd)/src
+cp ${rware_dir}/points.rware.64.ins points/
+tmpfile=$(mktemp)
+python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
+$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+
+if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
+  echo "##### expected output for rware.64 not matching #####"
+  echo "~ actual:"
+  cat "$tmpfile"
+  has_failed="true"
+fi
+rm "$tmpfile"
+rm -rf ${rware_dir}/hello
+cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
+popd
+pushd ${rware_dir}
+make clean
+rm -rf points
+mkdir points
+popd
+
+
+#####################
+## genecdh (32-bit then 64-bit) #
+#####################
+echo ">>> 32-bit genecdh"
+
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make
+popd
+pushd $(pwd)/src
+cp ${rware_dir}/points.genecdh.32.ins points/
+tmpfile=$(mktemp)
+python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
+$(pwd)/a.out genkey &> "$tmpfile"
+
+if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
+  echo "##### expected output for genecdh.32 not matching #####"
+  echo "~ actual:"
+  cat "$tmpfile"
+  has_failed="true"
+fi
+rm "$tmpfile"
+rm -rf points
+mkdir points
+popd
+pushd ${rware_dir}
+make clean
+popd
+
+echo ">>> 64-bit genecdh"
+
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make -f Makefile64
+popd
+pushd $(pwd)/src
+cp ${rware_dir}/points.genecdh.64.ins points/
+tmpfile=$(mktemp)
+python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
+$(pwd)/a.out genkey &> "$tmpfile"
+
+if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
+  echo "##### expected output for genecdh.64 not matching #####"
+  echo "~ actual:"
+  cat "$tmpfile"
+  has_failed="true"
+fi
+rm "$tmpfile"
+rm -rf points
+mkdir points
+popd
+pushd ${rware_dir}
+make clean
+popd
+
 
 ###########
 # closing #

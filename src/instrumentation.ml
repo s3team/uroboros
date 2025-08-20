@@ -875,6 +875,7 @@ let parse_instrument_file
     ~(bbl : bblock list)
     ~(filepath : string)
   : unit =
+  let _ = print_endline ("_____ " ^ filepath) in
   let filelines =
     read_points ~f:filepath
     |> List.filter (fun s -> not (String.trim s = ""))
@@ -907,7 +908,11 @@ let parse_instrument
     ~(bbl : bblock list)
   : unit =
   (* points folder contains the instrumentation files *)
-  let files = Sys.readdir "points" in
+  let files = Sys.readdir "points"
+              |> Array.to_list
+              |> List.filter (fun f -> f <> ".gitignore") (* so git track the points folder *)
+              |> Array.of_list
+  in
   Array.iter (fun f ->
     let filepath = Filename.concat "points" f in
     parse_instrument_file
@@ -1283,8 +1288,10 @@ let apply
                                ^ ", line: " ^ p_linenum
                                ^ ", instrumentation point: "
                                ^ string_of_int p_idx in
-        if p_cmd <> "" then ignore (Sys.command (p_cmd));
         if ih_addr = p_addr then begin
+          if p_cmd <> "" then
+            ( ignore (Sys.command (p_cmd));
+              print_endline ("^ executing command: " ^ p_cmd) );
           match p_action with
           | Some INSERT ->
             let add_seq : instr list =

@@ -121,9 +121,7 @@ module Disam = struct
 
       let il_init =
         if EU.elf_32 () && arch <> "arm" then
-          let _ = print_endline "calling adjust_esp" in
-          (*adjust_esp (ail_parser#get_instrs)*)
-          ail_parser#get_instrs
+          adjust_esp ail_parser#get_instrs
         else
           ail_parser#get_instrs
       in
@@ -170,7 +168,8 @@ module Disam = struct
           (*|> (fun il -> FnU.replace_got_ref (got_rewrite il) @@ il )*)
           |> re#visit_heuristic_analysis
         else
-          ( re#visit_heuristic_analysis @@ il_init )
+          re#jmp_table_rewrite64 @@ il_init
+          |> re#visit_heuristic_analysis
           |> re#adjust_loclabel |> re#adjust_jmpref
           |> re#add_func_label @@ get_userfuncs fl
           |> dis_valid#visit;

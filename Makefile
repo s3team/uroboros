@@ -3,13 +3,16 @@
 all:
 	test/test_all.py -a -c
 	test/test_instrument.sh 2>&1 | tee test.instrument
-	rm src/points/* src/fun.o || true
+	rm src/fun.o || true
+	find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 	test/test_action.sh 2>&1 | tee test.all
 	test/test_coreutils.sh 2>&1 | tee test.coreutils
 
 clean:
 	rm src/fl_calls || true
 	rm src/fl || true
+	rm src/faddr.txt.0 || true
+	rm src/faddr_old.txt.0 || true
 	find . -type f -name "*.help" -delete
 	find . -type f -name "*.res" -delete
 	find . -type f -name "*.out" -delete

@@ -1,7 +1,7 @@
 #:Compiler and flags
 CC = gcc
-CFLAGS = -O3 -no-pie -static -m32 -I./tiny-AES-c -I./tiny-ECDH-c
-#CFLAGS = -O3 -no-pie -static -I./tiny-AES-c -I./tiny-ECDH-c
+#CFLAGS = -O3 -no-pie -static -m32 -I./tiny-AES-c -I./tiny-ECDH-c
+CFLAGS = -O3 -no-pie -static -I./tiny-AES-c -I./tiny-ECDH-c
 
 # Source files
 GENECDH_SRC = src/genecdh.c tiny-ECDH-c/ecdh.c

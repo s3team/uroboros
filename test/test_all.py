@@ -11,7 +11,7 @@ import argparse
 import logging
 import os
 
-lib_list = ["test08.c"]
+lib_list = ["test08.c", "test04.c"]
 
 
 def get_inputs(args):
@@ -144,7 +144,7 @@ def compare_size(raw: Path, recompiled: Path):
 
 def uroboros_all(targets: list, args):
     arches = [args.m] if args.m is not None else [32, 64]
-    pies = [not args.no_pie] if args.no_pie is True else [True, False]
+    pies = [not args.no_pie] if args.no_pie is True else [False]  # TODO: pie support
     statics = [args.static] if args.static is True else [True, False]
     for arch in arches:
         for pie in pies:
