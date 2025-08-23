@@ -1786,7 +1786,7 @@ class arm_reassemble =
       match c with
       | Point s -> "=S_" ^ dec_hex s
       | Normal s -> "=S_" ^ dec_hex s
-      | Immediate s -> "=S_" ^ dec_hex s
+      | Immediate s -> "#" ^ dec_hex s
 
     method build_plt_symbol c =
       let dec_hex (s : int) : string = Printf.sprintf "0x%x" s in

@@ -358,6 +358,7 @@ and arm_arithmop =
   | SMUSDX | SSAT | SSAT16 | SSAX | SSUB16 | SSUB8
   | SUB | SUBS | SUBW
   | SXTAB | SXTAB16 | SXTAH | SXTB
+  | MAR | MRA
   | NEGS
   | SXTB16 | SXTH | UADD16 | UADD8 | UASX | UDIV | UHADD16
   | UHADD8 | UHASX | UHSAX | UHSUB16 | UHSUB8 | UMAAL
@@ -410,6 +411,7 @@ and arm_otherop = NOP | HLT | NOPW | NOPL | UD2
 and arm_condsuff =
   | EQ | NE | CS | CC | MI | PL | VS | VC | LO
   | HI | LS | GE | LT | GT | LE | AL | HS
+  | UND (* <und> by objdump *)
 and arm_opqualifier =
   | W | N | F32 | F64 | U8 | U16 | U32 | S8 | S16 | S32 | I16
   | I8 (* not sure if I8 or 8 *)
@@ -697,6 +699,7 @@ let show_intel_reg = function
             | SXTAB -> "sxtab" | SXTAB16 -> "sxtab16"
             | SXTH -> "sxth"
             | SXTAH -> "sxtah" | SXTB -> "sxtb"
+            | MAR -> "mar" | MRA -> "mra"
             | NEGS -> "negs"
             | SXTB16 -> "sxtb16"
             | UADD16 -> "uadd16" | UADD8 -> "uadd8" | UASX -> "uasx" | UDIV -> "udiv" | UHADD16 -> "uhadd16"
@@ -804,6 +807,7 @@ let show_intel_reg = function
   let show_arm_condsuff = function
     | EQ -> "eq" | NE -> "ne" | CS -> "cs" | CC -> "cc" | MI -> "mi" | PL -> "pl" | VS -> "vs" | VC -> "vc"
     | LO -> "lo" | HI -> "hi" | LS -> "ls" | GE -> "ge" | LT -> "lt" | GT -> "gt" | LE -> "le" | AL -> "al" | HS -> "hs"
+    | UND -> "<und>"
     | _ -> failwith "Unknown ARM condsuff"
 
   let show_arm_reg = function

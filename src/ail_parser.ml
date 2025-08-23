@@ -220,19 +220,52 @@ object (self)
         | Reg (Arm_Reg (Arm_LinkReg LR)) -> true
         | _ -> false
     in
-    let is_func_start (i : instr) (idx : int) =
-      match get_op i with
-      | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i -> true
-      | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
-      | Arm_OP (Arm_StackOP PUSH, _, _) -> begin
-          let next_instr = List.nth ordered_il (idx + 1) in
-          let next_op = get_op next_instr in
-          match next_op with
-          | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr -> true
-          | _ -> false
-        end
-      | Arm_OP (Arm_StackOP op, _, _) when is_push op && (has_lr_reg i || has_fp_reg i) -> true
+    let is_movs (op : op) : bool = match op with
+      | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _) -> true
       | _ -> false
+    in
+    let check_if_common_reg (e : exp) : bool =
+      match e with
+      | Reg (Arm_Reg (Arm_CommonReg _)) -> true
+      | _ -> false
+    in
+    let is_func_start (i : instr) (idx : int) =
+      let is_special_case () =
+        let n_instr = List.nth ordered_il (idx + 1) in
+        let n_op = get_op n_instr in
+        match get_op i with
+        | Arm_OP (Arm_StackOP PUSH, _, _)
+          when ((idx + 1) < List.length ordered_il
+                && is_movs n_op
+                && check_if_common_reg (get_exp_1 n_instr)
+                && check_if_common_reg (get_exp_2 n_instr)) -> begin
+          (* Not to classify the following pattern as func start:
+           * In Coreutils ginstall,
+           * 0x145D6: pop {r4,r5,r7,pc} / pop: true
+           * 0x145D8: push {r1,r3,r5,r6,r7} / pop: false
+           * 0x145DA: movs r2,r0 / pop: false
+           * 0x145DC: push {r2,r5,r6,r7} / pop: false
+           * 0x145DE: movs r2,r0 / pop: false
+           *)
+           true
+          end
+          | _ -> false
+        in
+      if (idx + 1) < List.length ordered_il && is_special_case () then false
+      else begin
+        match get_op i with
+        | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i -> true
+        | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
+        | Arm_OP (Arm_StackOP PUSH, _, _) -> begin
+            let next_instr = List.nth ordered_il (idx + 1) in
+            let next_op = get_op next_instr in
+            match next_op with
+            | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr -> true
+            | _ -> false
+          end
+        | Arm_OP (Arm_StackOP op, _, _) when is_push op && (has_lr_reg i || has_fp_reg i) -> true
+        | _ -> false
+      end
     in
     let is_func_end (i : instr) =
       match get_op i with
@@ -294,7 +327,7 @@ object (self)
             instrs_after_pop := [];
           end
           else begin
-          instrs_after_pop := [];
+            instrs_after_pop := [];
           end;
           false
         end
@@ -304,7 +337,7 @@ object (self)
         pop_detected := true;
         false
       end
-    else false
+      else false
     in
     let rec aux acc index = function
       | [] -> begin
@@ -649,7 +682,6 @@ object (self)
     aux [] false false 0 ordered_il
 
   method remove_literal_pools_after_functions (instr_list : instr list) : instr list =
-    let _ = Printf.printf "remove_literal_pools_after_functions\n" in
     let func_name_list = [
         "__stack_chk_fail";
       ]
@@ -660,7 +692,6 @@ object (self)
       | instr :: t -> begin
         match instr with
         | DoubleInstr (Arm_OP (Arm_ControlOP BLX, _, _), Label label, _, _, _) -> begin
-          let _ = Printf.printf "label: %s\n" label in
           aux (instr :: acc) false (idx + 1) t
         end
         | _ ->
@@ -676,6 +707,7 @@ object (self)
       let check_illegal (i : instr) : bool =
         match get_op i with
         | Arm_OP (Arm_SystemOP PLDW, _, _) -> true
+        | Arm_OP (Arm_CommonOP (Arm_Arithm VHADD), _, _) -> true
         | _ -> false
       in
       let rec help acc = function
@@ -699,18 +731,41 @@ object (self)
     instrs <- self#remove_literal_pools_after_functions instrs;
     instrs <- self#remove_illegal_instructions instrs arch;
 
-  method change_instructions (instr_list : instr list) : instr list =
+  method convert_instructions (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
     let rec aux acc = function
       | [] -> acc
       | instr :: t ->
         begin
           match instr with
-          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some VS, width), exp, loc, prefix, tag) ->
-            let new_instr = DoubleInstr (Arm_OP (Arm_StackOP PUSH, None, width), exp, loc, prefix, tag) in
+          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some VS, width), _, _, _, _) ->
+            let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, width)) in
+            aux (new_instr :: acc) t
+          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some LS, width), _, _, _, _) ->
+            let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, width)) in
+            aux (new_instr :: acc) t
+          | DoubleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _) ->
+            let new_instr = change_op instr (Arm_OP (Arm_StackOP STMDB, None, width)) in
+            aux (new_instr :: acc) t
+          | DoubleInstr (Arm_OP (Arm_ControlOP BLXNS, condsuff, width), exp, loc, prefix, tag) ->
+            (* In ginstall, 47c4 is incorrectly disassembled into `blxns r8`
+             * It should be `stm r4!, {r0, r1, r2, r6}` *)
+            let label1 = Label "{r0,r1,r2,r6}" in
+            let label2 = Label "r4!" in
+            let new_instr = TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign STM), None, None), label1, label2, loc, prefix, tag) in
             aux (new_instr :: acc) t
           | _ ->
-            aux (instr :: acc) t
+            match get_op instr with
+            | Arm_OP (Arm_CommonOP Arm_Assign MOV, Some UND, _) ->
+              let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, None)) in
+              aux (new_instr :: acc) t
+            | Arm_OP (Arm_StackOP PUSH, Some UND, _) ->
+              let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, None)) in
+              aux (new_instr :: acc) t
+            | Arm_OP (Arm_CommonOP Arm_Arithm SUB, Some UND, _) ->
+              let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, None)) in
+              aux (new_instr :: acc) t
+            | _ -> aux (instr :: acc) t
         end
     in
     aux [] ordered_il
@@ -738,7 +793,7 @@ object (self)
       let illegal_instrs = [
         "illegal"; "??";"cdp"; "cdp2"; "mrc"; "mrc2"; "ldc2l"; "stc"; "stc2l";
         "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"; "mcr";
-        "vld4"; "<und>"; "vld1.8"]
+        "vld4"; "vld1.8"]
       in
       let rec has_illegal_instr instr' = function
         | [] -> false
@@ -761,7 +816,9 @@ object (self)
     if arch = "arm" || arch = "thumb" then begin
       self#remove_literal_pools instrs;
       instrs <- self#adjust_width_specifier instrs;
-      instrs <- self#change_instructions instrs;
+    end;
+    if arch = "thumb" then begin
+      instrs <- self#convert_instructions instrs;
     end;
 
     (* giyeol: for debugging *)

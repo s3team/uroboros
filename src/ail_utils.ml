@@ -166,6 +166,19 @@ let get_op i =
   | FourInstr (p, _, _, _, _, _, _, _) -> p
   | FifInstr (p, _, _, _, _, _, _, _, _) -> p
 
+let change_op i new_op =
+  match i with
+  | SingleInstr (p, l, pre, tag) ->
+    SingleInstr (new_op, l, pre, tag)
+  | DoubleInstr (p, e, l, pre, tag) ->
+    DoubleInstr (new_op, e, l, pre, tag)
+  | TripleInstr (p, e1, e2, l, pre, tag) ->
+    TripleInstr (new_op, e1, e2, l, pre, tag)
+  | FourInstr (p, e1, e2, e3, l, pre, tag) ->
+    FourInstr (new_op, e1, e2, e3, l, pre, tag)
+  | FifInstr (p, e1, e2, e3, e4, l, pre, tag) ->
+    FifInstr (new_op, e1, e2, e3, e4, l, pre, tag)
+
 let get_cf_des i =
   match i with
   | DoubleInstr (_, e, _, _, _, _) -> Some e

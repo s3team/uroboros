@@ -25,6 +25,7 @@ class arm_parse =
     | "eq" -> EQ | "ne" -> NE | "cs" -> CS | "cc" -> CC | "mi" -> MI | "pl" -> PL
     | "vs" -> VS | "vc" -> VC | "lo" -> LO | "hi" -> HI | "ls" -> LS | "ge" -> GE
     | "lt" -> LT | "gt" -> GT | "le" -> LE | "al" -> AL | "hs" -> HS
+    | "<und>" -> UND
     | _ -> raise ParseError
 
   and commonreg_symb = function
@@ -260,6 +261,7 @@ class arm_parse =
     | "sxth" -> SXTH
     | "sxtah" -> SXTAH
     | "sxtb" -> SXTB
+    | "mar" -> MAR | "mra" -> MRA
     | "negs" -> NEGS
     | "sxtb16" -> SXTB16 | "uadd16" -> UADD16 | "uadd8" -> UADD8 | "uasx" -> UASX | "udiv" -> UDIV | "uhadd16" -> UHADD16
     | "uhadd8" -> UHADD8 | "uhasx" -> UHASX | "uhsax" -> UHSAX | "uhsub16" -> UHSUB16 | "uhsub8" -> UHSUB8 | "umaal" -> UMAAL
@@ -378,17 +380,23 @@ class arm_parse =
   let op_cond_symb (s : string) (is_special : bool) =
     try (op_symb s is_special, None)
     with _ ->
-      (* raise ParseError *)
       try
-      (* get last two characters *)
-      let len = String.length s in
-      if len < 2 then raise ParseError
-      else
-        let cond_str = String.sub s (len-2) 2 in
-        let op_str = String.sub s 0 (len-2) in
-        let op = op_symb op_str is_special in
-        let cond = condsuff_symb cond_str in
-        (op, Some cond)
+        (* get last two characters *)
+        let len = String.length s in
+        if len < 2 then raise ParseError
+        else
+          if contains s "<und>" then
+            let cond_str = String.sub s (len-5) 5 in
+            let op_str = String.sub s 0 (len-5) in
+            let op = op_symb op_str is_special in
+            let cond = condsuff_symb cond_str in
+            (op, Some cond)
+          else
+            let cond_str = String.sub s (len-2) 2 in
+            let op_str = String.sub s 0 (len-2) in
+            let op = op_symb op_str is_special in
+            let cond = condsuff_symb cond_str in
+            (op, Some cond)
       with _ -> raise ParseError in
 
   let unptr_symb s =

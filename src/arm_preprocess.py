@@ -527,6 +527,96 @@ def adjust_floating_point_instructions(fn):
         f.writelines(new_content)
 
 
+def remove_literal_pools(fn):
+    """
+    Remove literal pools from the disassembled file.
+
+    e.g., Coreutils factor
+    1e566:	bd80      	pop	{r7, pc}
+    1e568:	f340 0000 	sbfx	r0, r0, #0, #1
+    1e56c:	ec48 0000 	mar	acc0, r0, r8
+    1e570:	ecd4 0000 	ldcl	0, cr0, [r4], {0}
+    1e574:	f326 0000 	ssat16	r0, #1, r6
+    1e578:	ec2e 0000 	stc	0, cr0, [lr], #-0
+    1e57c:	ed26 0000 	stc	0, cr0, [r6, #-0]
+    1e580:	f30c 0000 	ssat	r0, #1, ip
+    1e584:	ec14 0000 	ldc	0, cr0, [r4], {-0}
+    1e588:	ed18 0000 	ldc	0, cr0, [r8, #-0]
+    1e58c:	b580      	push	{r7, lr}
+
+
+    Note: This function should only be used for instructions
+    that cannot be handled by ail_parser.ml#process_instrs.
+    """
+
+    def check_if_push(line):
+        if "push" in line and "lr" in line:
+            return True
+
+        if "stmdb" in line and "sp!" in line:
+            return True
+
+        return False
+
+    def check_if_pop(line):
+        if "pop" in line and "pc" in line:
+            return True
+
+        if "ldmia" in line and "sp!" in line:
+            return True
+
+        return False
+
+    def check_exception(line):
+        excpetion_list = [
+            "mov.w",
+            "adc.w",
+        ]
+        for exception in excpetion_list:
+            if exception in line:
+                return True
+        return False
+
+    disas_file_name = f"{fn}.temp"
+    new_content = []
+    is_literal_pool = False
+    with open(disas_file_name, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            if check_if_pop(line):
+                is_literal_pool = True
+                new_content.append(line)
+                continue
+
+            if check_if_push(line):
+                # End of literal pool
+                is_literal_pool = False
+                new_content.append(line)
+                continue
+
+            if is_literal_pool:
+                arr = line.split("\t")
+                if len(arr) < 2:
+                    new_content.append(line)
+                    continue
+
+                hex_code = arr[1].strip()
+                if len(hex_code) < 9:
+                    # f340 0000
+                    new_content.append(line)
+                    continue
+
+                lower_hex = hex_code[5:9]
+                if lower_hex == "0000" and not check_exception(line):
+                    # This is a literal pool instruction, skip it
+                    continue
+            else:
+                new_content.append(line)
+
+    with open(disas_file_name, "w") as f:
+        f.writelines(new_content)
+
+
 if __name__ == "__main__":
     filename = sys.argv[1]
     arch = sys.argv[2]
@@ -538,3 +628,4 @@ if __name__ == "__main__":
     disassemble_text_section_as_data(filename)
     disassemble_got_section_as_data(filename)
     adjust_floating_point_instructions(filename)
+    # remove_literal_pools(filename)
