@@ -100,41 +100,60 @@ let check_if_common_reg (e : exp) : bool =
 in
 
 let is_func_start (instrs : instr list) (i : instr) (idx : int) =
-  let is_special_case () =
-    let n_instr = List.nth instrs (idx + 1) in
-    let n_op = get_op n_instr in
+  let not_func_start () =
+    let next_instr = List.nth instrs (idx + 1) in
+    let next_op = get_op next_instr in
     match get_op i with
     | Arm_OP (Arm_StackOP PUSH, _, _)
-      when ((idx + 1) < List.length instrs
-            && is_movs n_op
-            && check_if_common_reg (get_exp_1 n_instr)
-            && check_if_common_reg (get_exp_2 n_instr)) -> begin
-      (* Not to classify the following pattern as func start:
-        * In Coreutils ginstall,
-        * 0x145D6: pop {r4,r5,r7,pc} / pop: true
-        * 0x145D8: push {r1,r3,r5,r6,r7} / pop: false
-        * 0x145DA: movs r2,r0 / pop: false
-        * 0x145DC: push {r2,r5,r6,r7} / pop: false
-        * 0x145DE: movs r2,r0 / pop: false
-        *)
+      when idx + 1 < List.length instrs
+           && is_movs next_op
+           && check_if_common_reg (get_exp_1 next_instr)
+           && check_if_common_reg (get_exp_2 next_instr) -> begin
+        (* Not to classify the following pattern as func start:
+         * In Coreutils ginstall,
+         * 0x145D6: pop {r4,r5,r7,pc} / pop: true
+         * 0x145D8: push {r1,r3,r5,r6,r7} / pop: false
+         * 0x145DA: movs r2,r0 / pop: false
+         * 0x145DC: push {r2,r5,r6,r7} / pop: false
+         * 0x145DE: movs r2,r0 / pop: false
+         *)
         true
       end
-      | _ -> false
-    in
-  if (idx + 1) < List.length instrs && is_special_case () then false
+    | _ -> false
+  in
+  if idx + 1 < List.length instrs && not_func_start () then false
   else begin
-    match get_op i with
-    | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i -> true
-    | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
-    | Arm_OP (Arm_StackOP PUSH, _, _) -> begin
+    match i with
+    | TripleInstr
+        (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), _, _), _, exp2, _, _, _)
+      when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) -> begin
+        (* In Coreutils stat,
+         * 14004:	b082      	sub	sp, #8 ;; func start
+         * 14006:	b490      	push	{r4, r7}
+         *)
         let next_instr = List.nth instrs (idx + 1) in
         let next_op = get_op next_instr in
         match next_op with
-        | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr -> true
+        | Arm_OP (Arm_StackOP op, _, _) when is_push op -> true
         | _ -> false
       end
-    | Arm_OP (Arm_StackOP op, _, _) when is_push op && (has_lr_reg i || has_fp_reg i) -> true
-    | _ -> false
+    | _ -> begin
+        match get_op i with
+        | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i ->
+            true
+        | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
+        | Arm_OP (Arm_StackOP PUSH, _, _) -> begin
+            let next_instr = List.nth instrs (idx + 1) in
+            let next_op = get_op next_instr in
+            match next_op with
+            | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr -> true
+            | _ -> false
+          end
+        | Arm_OP (Arm_StackOP op, _, _)
+          when is_push op && (has_lr_reg i || has_fp_reg i) ->
+            true
+        | _ -> false
+      end
   end
 in
 
