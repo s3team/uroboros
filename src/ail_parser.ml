@@ -681,6 +681,7 @@ object (self)
     in
     aux [] false false 0 ordered_il
 
+  (** TODO: Check if this function is necessary *)
   method remove_literal_pools_after_functions (instr_list : instr list) : instr list =
     let func_name_list = [
         "__stack_chk_fail";
@@ -728,7 +729,7 @@ object (self)
     (* instrs <- self#remove_literal_pools_v2 instrs; *)
     instrs <- self#remove_literal_pools_after_branch instrs;
     instrs <- self#remove_literal_pools_after_nop instrs;
-    instrs <- self#remove_literal_pools_after_functions instrs;
+    (* instrs <- self#remove_literal_pools_after_functions instrs; *)
     instrs <- self#remove_illegal_instructions instrs arch;
 
   method convert_instructions (instr_list : instr list) : instr list =
@@ -747,12 +748,20 @@ object (self)
           | DoubleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _) ->
             let new_instr = change_op instr (Arm_OP (Arm_StackOP STMDB, None, width)) in
             aux (new_instr :: acc) t
+          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some LT, width), Label label, _, _, _)
+              when contains label "lr" ->
+            let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, width)) in
+            aux (new_instr :: acc) t
           | DoubleInstr (Arm_OP (Arm_ControlOP BLXNS, condsuff, width), exp, loc, prefix, tag) ->
             (* In ginstall, 47c4 is incorrectly disassembled into `blxns r8`
              * It should be `stm r4!, {r0, r1, r2, r6}` *)
             let label1 = Label "{r0,r1,r2,r6}" in
             let label2 = Label "r4!" in
             let new_instr = TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign STM), None, None), label1, label2, loc, prefix, tag) in
+            aux (new_instr :: acc) t
+          | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some LT, width), _, exp2, _, _, _)
+              when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) ->
+            let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, width)) in
             aux (new_instr :: acc) t
           | _ ->
             match get_op instr with
@@ -774,7 +783,39 @@ object (self)
     let cat_tail s =
       match s with
       | [] -> "" (* this will never happen*)
-      | h::t -> String.trim (String.concat ":" t) in
+      | h::t -> String.trim (String.concat ":" t)
+    in
+    let is_illegal_instr (instr : string) : bool =
+      (* If there is an "illegal" instruction in the Thumb objdump result,
+       * the instruction is a literal pool in most cases.
+       * Therefore, we can skip the instruction.
+       * See [text_as_data] in [arm_reassemble_symbol_get.ml#v_exp2] *)
+      let illegal_instrs = [
+        "illegal"; "??";"cdp"; "cdp2"; "mrc"; "mrc2"; "ldc2l"; "stc"; "stc2l";
+        "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"; "mcr";
+        "vld4"; "vld1.8"; "bfcsel";]
+      in
+      let illegal_opcodes = [
+        "bfl";
+      ]
+      in
+      let rec has_illegal_instr instr' = function
+        | [] -> false
+        | illegal_instr :: t ->
+          if contains instr' illegal_instr then true
+          else has_illegal_instr instr' t
+      in
+      let rec has_illegal_opcode instr' = function
+      | [] -> false
+      | illegal_opcode :: t ->
+        (* split using \t or " " as delimeters *)
+        let items = Str.split (Str.regexp "[\t ]+") instr' in
+        let opcode = List.nth items 0 in
+        if contains opcode illegal_opcode then true
+        else has_illegal_opcode instr' t
+      in
+      has_illegal_instr instr illegal_instrs || has_illegal_opcode instr illegal_opcodes
+    in
     (* make a branch here to split Intel and ARM parsers using inheritance *)
     let p = self#create_parser arch in
     let _ = p#set_funclist(funcs)
@@ -784,24 +825,7 @@ object (self)
                  fun i ->
                  let items = split i in
                  let len = List.length items in
-                 len > 1 ) l in
-    let is_illegal_instr (instr : string) =
-      (* If there is an "illegal" instruction in the Thumb objdump result,
-       * the instruction is a literal pool in most cases.
-       * Therefore, we can skip the instruction.
-       * See [text_as_data] in [arm_reassemble_symbol_get.ml#v_exp2] *)
-      let illegal_instrs = [
-        "illegal"; "??";"cdp"; "cdp2"; "mrc"; "mrc2"; "ldc2l"; "stc"; "stc2l";
-        "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"; "mcr";
-        "vld4"; "vld1.8"]
-      in
-      let rec has_illegal_instr instr' = function
-        | [] -> false
-        | illegal_instr :: t ->
-          if contains instr' illegal_instr then true
-          else has_illegal_instr instr' t
-      in
-      has_illegal_instr instr illegal_instrs
+                 len > 1 ) l
     in
     let help i =
       let items = split i in

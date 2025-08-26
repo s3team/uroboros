@@ -18,6 +18,7 @@ class arm_parse =
   let opqualifier_symb = function
     | "w" -> W | "n" -> N | "f32" -> F32 | "f64" -> F64 | "u8" -> U8 | "u16" -> U16
     | "u32" -> U32 | "s8" -> S8 | "s16" -> S16 | "s32" -> S32 | "i16" -> I16| "i8" -> I8
+    | "s64" -> S64 | "u64" -> U64
     | "8" -> SIZE 8 | "16" -> SIZE 16 | "32" -> SIZE 32 | "64" -> SIZE 64
     | _ -> raise ParseError
 
@@ -285,6 +286,7 @@ class arm_parse =
     | "asr" -> ASR | "asrs" -> ASRS | "lsl" -> LSL | "lsls" -> LSLS | "lsr" -> LSR | "lsrs" -> LSRS | "ror" -> ROR
     | "rors" -> RORS | "rrx" -> RRX | "rrxs" -> RRXS
     | "vqrshl" -> VQRSHL
+    | "vshl" -> VSHL | "vshr" -> VSHR
     | _ -> raise ParseError
   and assignop_symb = function
     | "bfc" -> BFC | "bfi" -> BFI | "cpy" -> CPY | "ldm" -> LDM
@@ -304,6 +306,8 @@ class arm_parse =
     | "vld4" -> VLD4 | "vstmia" -> VSTMIA | "vldmia" -> VLDMIA | "vmrs" -> VMRS
     | "stp" -> STP | "ldp" -> LDP
     | "vext" -> VEXT
+    | "vrev16" -> VREV16 | "vrev32" -> VREV32|  "vrev64" -> VREV64
+    | "vswp" -> VSWP
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmn" -> CMN | "cmp" -> CMP | "it" -> IT
@@ -316,6 +320,7 @@ class arm_parse =
     | _ -> raise ParseError
   and otherop_symb = function
     | "nop" -> NOP | "hlt" -> HLT | "nopw" -> NOPW | "nopl" -> NOPL | "ud2" -> UD2
+    | "setend" -> SETEND | "vsli" -> VSLI
     | _ -> raise ParseError
   and stackop_symb = function
     | "push" -> PUSH | "pop" -> POP | "vpush" -> VPUSH | "vpop" -> VPOP

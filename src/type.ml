@@ -380,6 +380,7 @@ and arm_logicop =
 and arm_rolop =
   | ASR | ASRS | LSL | LSLS | LSR | LSRS | ROR | RORS | RRX | RRXS
   | VQRSHL
+  | VSHL | VSHR
 and arm_assignop =
   | BFC | BFI | CPY | LDM
   | STM | STMDA | STMED
@@ -397,6 +398,8 @@ and arm_assignop =
   | VSTM | VSTMDB | VPUSH | VLDR | VLDM | VLDMDB
   | VLD4 | VSTMIA | VLDMIA | VMRS
   | VEXT
+  | VREV16 | VREV32 | VREV64
+  | VSWP
   (* AArch64 *)
   | STP | LDP
 and arm_compareop =
@@ -407,7 +410,7 @@ and arm_compareop =
   | ITE | ITT
   | ITTT | ITTE | ITEE | ITET | ITTTT | ITTTE | ITTET | ITTEE
   | ITETT | ITETE | ITEET | ITEEE
-and arm_otherop = NOP | HLT | NOPW | NOPL | UD2
+and arm_otherop = NOP | HLT | NOPW | NOPL | UD2 | SETEND | VSLI
 and arm_condsuff =
   | EQ | NE | CS | CC | MI | PL | VS | VC | LO
   | HI | LS | GE | LT | GT | LE | AL | HS
@@ -415,6 +418,7 @@ and arm_condsuff =
 and arm_opqualifier =
   | W | N | F32 | F64 | U8 | U16 | U32 | S8 | S16 | S32 | I16
   | I8 (* not sure if I8 or 8 *)
+  | S64 | U64
   | SIZE of int (* 8, 16, 32, 64 *)
 (* and arm_suffix =
   | Arm_Condsuff of arm_condsuff *)
@@ -727,6 +731,7 @@ let show_intel_reg = function
             match acommon_rol with
             | ASR -> "asr" | ASRS -> "asrs" | LSL -> "lsl" | LSLS -> "lsls" | LSR -> "lsr" | LSRS -> "lsrs" | ROR -> "ror" | RORS -> "rors" | RRX -> "rrx" | RRXS -> "rrxs"
             | VQRSHL -> "vqrshl"
+            | VSHL -> "vshl" | VSHR -> "vshr"
           end
         | Arm_Assign acommon_assign ->
           begin
@@ -747,6 +752,8 @@ let show_intel_reg = function
             | VSTM -> "vstm" | VSTMDB -> "vstmdb" | VPUSH -> "vpush" | VLDR -> "vldr" | VLDM -> "vldm" | VLDMDB -> "vldmdb"
             | VLD4 -> "vld4" | VSTMIA -> "vstmia" | VLDMIA -> "vldmia" | VMRS -> "vmrs"
             | VEXT -> "vext"
+            | VREV16 -> "vrev16" | VREV32 -> "vrev32" | VREV64 -> "vrev64"
+            | VSWP -> "vswp"
             | STP -> "stp" | LDP -> "ldp"
           end
         | Arm_Compare acommon_compare ->
@@ -764,6 +771,8 @@ let show_intel_reg = function
           begin
             match acommon_other with
             | NOP -> "nop" | HLT -> "hlt" | NOPW -> "nopw" | NOPL -> "nopl" | UD2 -> "ud2"
+            | SETEND -> "setend"
+            | VSLI -> "vsli"
           end
       end
     | Arm_StackOP astack ->
@@ -802,6 +811,7 @@ let show_intel_reg = function
   let show_arm_opqualifier = function
     | W -> "w" | N -> "n" | F32 -> "f32" | F64 -> "f64" | U8 -> "u8" | U16 -> "u16" | U32 -> "u32" | S8 -> "s8" | S16 -> "s16"
     | S32 -> "s32" | I16 -> "i16" | I8 -> "i8"
+    | S64 -> "s64" | U64 -> "u64"
     | SIZE s -> string_of_int s
 
   let show_arm_condsuff = function
