@@ -505,6 +505,7 @@ object (self)
               | _ -> aux (instr :: acc) false false false (idx + 1) t
             end
           | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier W))
+          | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier N))
           | Arm_OP (Arm_ControlOP BLX, _, _)
             when (not is_literal_pool) && idx + 3 < List.length ordered_il ->
             begin
@@ -590,10 +591,7 @@ object (self)
       | instr :: t ->
         begin
           match instr with
-          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some VS, width), _, _, _, _) ->
-            let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, width)) in
-            aux (new_instr :: acc) t
-          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some LS, width), _, _, _, _) ->
+          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _) ->
             let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, width)) in
             aux (new_instr :: acc) t
           | DoubleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _) ->
@@ -610,7 +608,7 @@ object (self)
             let label2 = Label "r4!" in
             let new_instr = TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign STM), None, None), label1, label2, loc, prefix, tag) in
             aux (new_instr :: acc) t
-          | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some LT, width), _, exp2, _, _, _)
+          | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some _, width), _, exp2, _, _, _)
               when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) ->
             let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, width)) in
             aux (new_instr :: acc) t
@@ -618,9 +616,6 @@ object (self)
             match get_op instr with
             | Arm_OP (Arm_CommonOP Arm_Assign MOV, Some UND, _) ->
               let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, None)) in
-              aux (new_instr :: acc) t
-            | Arm_OP (Arm_StackOP PUSH, Some UND, _) ->
-              let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, None)) in
               aux (new_instr :: acc) t
             | Arm_OP (Arm_CommonOP Arm_Arithm SUB, Some UND, _) ->
               let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, None)) in
