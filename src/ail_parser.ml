@@ -12,6 +12,7 @@ open Common_func_slicer
 open Tag_utils
 
 class ailParser =
+  let addr_hexcode_map : (int, string) Hashtbl.t = Hashtbl.create 200 in
 
 let check_if_common_reg (e : exp) : bool =
   match e with
@@ -24,9 +25,23 @@ let is_movs (op : op) : bool = match op with
   | _ -> false
 in
 
-let is_nop (op : op) : bool = match op with
-  | Arm_OP (Arm_CommonOP Arm_Other NOP, _, _) -> true
-  | _ -> false
+let is_nop (i : instr) : bool =
+  match i with
+  | TripleInstr (op, exp1, exp2, _, _, _)
+    when is_movs op
+         && exp1 = Reg (Arm_Reg (Arm_CommonReg R0))
+         && exp2 = Reg (Arm_Reg (Arm_CommonReg R0)) ->
+      true
+  | TripleInstr (op, exp1, exp2, _, _, _)
+    when is_movs op
+         && exp1 = Reg (Arm_Reg (Arm_CommonReg R8))
+         && exp2 = Reg (Arm_Reg (Arm_CommonReg R8)) ->
+      true
+  | _ -> begin
+      match get_op i with
+      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) -> true
+      | _ -> false
+    end
 in
 
 let is_pop arm_stackop = match arm_stackop with
@@ -328,21 +343,6 @@ object (self)
      * because they might not be literal pools.
      *)
     let ordered_il = List.rev instr_list in
-    let collect_branch_targets (instrs : instr list) =
-      List.fold_left (
-        fun acc i ->
-          match get_op i with
-          | Arm_OP (Arm_ControlOP aco, _, _) -> begin
-            let exp = get_exp_1 i in
-            match exp with
-            | Symbol (JumpDes j) ->
-              j :: acc
-            | _ -> acc
-          end
-          | _ -> acc
-      ) [] instrs
-    in
-
     let branch_target_addrs = ref [] in
     let newnew = ref [] in
     let instrs_after_pop = ref [] in
@@ -376,6 +376,7 @@ object (self)
         ) !instrs_after_pop
         in
         if c2c_symbol_detected then begin
+            (* keep instructions *)
             newnew := !instrs_after_pop @ !newnew;
             instrs_after_pop := [];
             true
@@ -388,10 +389,19 @@ object (self)
               107ea:	e92d 43b0 	stmdb	sp!, {r4, r5, r7, r8, r9, lr}
            *)
           if List.length !instrs_after_pop = 1 then begin
+            (* keep the instruction *)
             newnew := !instrs_after_pop @ !newnew;
             instrs_after_pop := [];
           end
           else begin
+            (* remove instructions *)
+            List.iter (fun i ->
+              (* print b instructions *)
+              match get_op i with
+              | Arm_OP (Arm_ControlOP B, _, _) ->
+                Printf.printf "Removing branch instruction: %s\n" (pp_print_instr' i)
+              | _ -> ()
+            ) !instrs_after_pop;
             instrs_after_pop := [];
           end;
           false
@@ -511,7 +521,7 @@ object (self)
             begin
               (* check if the next instruction is nop or not *)
               let n_instr = List.nth ordered_il (idx + 1) in
-              let nop_detected = is_nop (get_op n_instr) in
+              let nop_detected = is_nop n_instr in
               let nn_offset = if nop_detected then 3 else 2 in
               let nn_instr = List.nth ordered_il (idx + nn_offset) in
               match get_op nn_instr with
@@ -625,6 +635,20 @@ object (self)
     in
     aux [] ordered_il
 
+  method build_address_hex_map () =
+    let lines = read_file "hexcode.info" in
+    List.iter (fun line ->
+      let trimmed_line = String.trim line in
+      match Str.split (Str.regexp ":") trimmed_line with
+      | addr :: hex :: _ ->
+        let addr' = "0x"^addr in
+        let trimmed_hex = String.trim hex in
+        (* Printf.printf "addr: %d, hex: %s\n" (int_of_string addr') trimmed_hex; *)
+        Hashtbl.replace addr_hexcode_map (int_of_string addr') trimmed_hex
+      | _ -> ()
+    ) lines;
+    ()
+
   method process_instrs (l : string list) (arch : string) =
     let cat_tail s =
       match s with
@@ -684,6 +708,7 @@ object (self)
     in
     List.iter help l';
     if arch = "arm" || arch = "thumb" then begin
+      self#build_address_hex_map ();
       self#remove_literal_pools instrs;
       instrs <- self#adjust_width_specifier instrs;
     end;

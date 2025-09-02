@@ -142,6 +142,8 @@ object (self)
       else failwith "unsupported architecture for fields" in
     ignore (Sys.command("cat "^f^".disassemble | grep \"^ \" | cut -f"^fields^" \
                         > instrs.info"));
+    (* print addresses and hex code *)
+    ignore(Sys.command("cat "^f^".disassemble | grep \"^ \" | cut -f1,2 > hexcode.info"));
     let module EU = ELF_utils in
     if EU.elf_static () then
       ( ignore (Sys.command("cat plt_whole.info | grep \"^ \" | cut -f1,3 \
