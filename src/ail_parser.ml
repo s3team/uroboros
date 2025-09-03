@@ -25,28 +25,22 @@ let is_movs (op : op) : bool = match op with
   | _ -> false
 in
 
-let is_nop (i : instr) : bool =
-  match i with
+let is_nop (op : op) : bool = match op with
+  | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) -> true
+  | _ -> false
+in
+
+let is_movs_r0_r0 (i : instr) : bool = match i with
   | TripleInstr (op, exp1, exp2, _, _, _)
     when is_movs op
          && exp1 = Reg (Arm_Reg (Arm_CommonReg R0))
-         && exp2 = Reg (Arm_Reg (Arm_CommonReg R0)) ->
-      true
-  | TripleInstr (op, exp1, exp2, _, _, _)
-    when is_movs op
-         && exp1 = Reg (Arm_Reg (Arm_CommonReg R8))
-         && exp2 = Reg (Arm_Reg (Arm_CommonReg R8)) ->
-      true
-  | _ -> begin
-      match get_op i with
-      | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) -> true
-      | _ -> false
-    end
+         && exp2 = Reg (Arm_Reg (Arm_CommonReg R0)) -> true
+  | _ -> false
 in
 
 let is_pop arm_stackop = match arm_stackop with
-      | POP | VPOP | LDMIA -> true
-      | _ -> false
+  | POP | VPOP | LDMIA -> true
+  | _ -> false
 in
 
 let is_push arm_stackop = match arm_stackop with
@@ -105,6 +99,11 @@ in
 
 let is_movs (op : op) : bool = match op with
   | Arm_OP (Arm_CommonOP Arm_Assign MOVS, _, _) -> true
+  | _ -> false
+in
+
+let is_simple_branch (op : op) : bool = match op with
+  | Arm_OP (Arm_ControlOP B, _, _) -> true
   | _ -> false
 in
 
@@ -394,14 +393,14 @@ object (self)
             instrs_after_pop := [];
           end
           else begin
-            (* remove instructions *)
-            List.iter (fun i ->
+            (* List.iter (fun i ->
               (* print b instructions *)
               match get_op i with
               | Arm_OP (Arm_ControlOP B, _, _) ->
                 Printf.printf "Removing branch instruction: %s\n" (pp_print_instr' i)
               | _ -> ()
-            ) !instrs_after_pop;
+            ) !instrs_after_pop; *)
+            (* remove instructions *)
             instrs_after_pop := [];
           end;
           false
@@ -521,7 +520,7 @@ object (self)
             begin
               (* check if the next instruction is nop or not *)
               let n_instr = List.nth ordered_il (idx + 1) in
-              let nop_detected = is_nop n_instr in
+              let nop_detected = is_nop (get_op n_instr) in
               let nn_offset = if nop_detected then 3 else 2 in
               let nn_instr = List.nth ordered_il (idx + nn_offset) in
               match get_op nn_instr with
@@ -566,6 +565,29 @@ object (self)
     in
     aux [] false false false 0 ordered_il
 
+  (** Remove padding patterns *)
+  method remove_inline_paddings (instr_list : instr list) : instr list =
+    (* e.g., In Coreutils printf,
+     * 1ceb0:	0000      	movs	r0, r0
+     * 1ceb2:	0000      	movs	r0, r0
+     * 1ceb4:	0000      	movs	r0, r0
+     * 1ceb6:	3fb0      	subs	r7, #176	; 0xb0
+
+     * The last opcode can be lsrs, rors, subs and so on
+     *)
+    let ordered_il = List.rev instr_list in
+    let rec aux acc idx = function
+      | [] -> acc
+      | instr :: n_instr :: nn_instr :: nnn_instr :: t
+        when is_movs_r0_r0 instr && is_movs_r0_r0 n_instr && is_movs_r0_r0 nn_instr ->
+        begin
+          (* skip four instructions *)
+          aux acc (idx + 4) t
+        end
+      | instr :: t -> aux (instr :: acc) (idx + 1) t
+    in
+    aux [] 0 ordered_il
+
   method remove_illegal_instructions (instr_list : instr list) (arch : string) : instr list =
     let ordered_il = List.rev instr_list in
     match arch with
@@ -590,6 +612,8 @@ object (self)
     | _ -> instr_list
 
   method remove_literal_pools (instr_list : instr list) =
+    (* Function call order matters *)
+    instrs <- self#remove_inline_paddings instrs;
     instrs <- self#remove_literal_pools_v1 instrs;
     instrs <- self#remove_literal_pools_with_movs instrs;
     instrs <- self#remove_illegal_instructions instrs arch;
