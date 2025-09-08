@@ -103,6 +103,7 @@ and tag =
   | Del (* Delete *)
   | Sym of int (* Symbolization of taget addr *)
   | Deref (* Dereference *)
+  | Pad (* Padding *)
 and tags_val =
   | Str of string
   | Exp of exp

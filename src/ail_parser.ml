@@ -540,6 +540,11 @@ object (self)
               aux acc true false false (idx + 1) t
             end
           | _ -> begin
+              let tag = get_tag instr in
+              if is_literal_pool && tag = Some Pad then begin
+                (* keep this padding instruction and continue *)
+                aux (instr :: acc) true false false (idx + 1) t
+              end else
               if is_literal_pool && idx + 1 < List.length ordered_il then begin
                 let n_instr = List.nth ordered_il (idx + 1) in
                 let cur_op = get_op instr in
@@ -565,6 +570,53 @@ object (self)
     in
     aux [] false false false 0 ordered_il
 
+  (* Remove instructions after branch opcodes unless they are pointed by other instructions *)
+  method remove_literal_pools_after_branch (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let branch_target_addrs = ref [] in
+    let collect_branch_target_addr (i : instr) =
+      match get_op i with
+      | Arm_OP (Arm_ControlOP aco, _, _) -> begin
+        let exp = get_exp_1 i in
+        match exp with
+        | Symbol (JumpDes j) ->
+          branch_target_addrs := j :: !branch_target_addrs;
+        | _ -> ()
+      end
+      | _ -> ()
+    in
+    let check_if_target_in_branch_target_addrs (addr_list : int list) (i : instr) : bool =
+      let loc = get_loc i in
+      List.exists (fun addr -> addr = loc.loc_addr) addr_list
+    in
+    let rec aux acc is_literal_pool idx = function
+      | [] -> acc
+      | [instr] -> instr :: acc
+      | instr :: n_instr :: t' -> begin
+        let t = n_instr :: t' in
+        collect_branch_target_addr instr;
+        if is_literal_pool then begin
+            let pointed = check_if_target_in_branch_target_addrs !branch_target_addrs instr in
+            (* The check for whether an instruction is "pointed" to is not perfect:
+             * later instructions can point back to earlier ones (e.g., backward branches). *)
+            if pointed then
+              aux (instr :: acc) false (idx + 1) t
+            else
+              (* remove the instruction *)
+              (* let _ = Printf.printf "Removing instruction: %s\n" (pp_print_instr' instr) in *)
+              aux acc true (idx + 1) t
+          end
+        else begin
+          match get_op instr with
+          | Arm_OP (Arm_ControlOP B, None, _) when is_nop (get_op n_instr) ->
+              (* let _ = Printf.printf "nopnop: %s\n" (pp_print_instr' instr) in *)
+              aux (instr :: acc) true (idx + 1) t
+          | _ -> aux (instr :: acc) false (idx + 1) t
+        end
+      end
+    in
+    aux [] false 0 ordered_il
+
   (** Remove padding patterns *)
   method remove_inline_paddings (instr_list : instr list) : instr list =
     (* e.g., In Coreutils printf,
@@ -583,6 +635,23 @@ object (self)
         begin
           (* skip four instructions *)
           aux acc (idx + 4) t
+        end
+      | instr :: t -> aux (instr :: acc) (idx + 1) t
+    in
+    aux [] 0 ordered_il
+
+  method tag_inline_paddings (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let rec aux acc idx = function
+      | [] -> acc
+      | instr :: n_instr :: nn_instr :: nnn_instr :: t
+        when is_movs_r0_r0 instr && is_movs_r0_r0 n_instr && is_movs_r0_r0 nn_instr ->
+        begin
+          let tagged_instr = TagUtils.replace_tag instr (Some Pad) in
+          let tagged_n_instr = TagUtils.replace_tag n_instr (Some Pad) in
+          let tagged_nn_instr = TagUtils.replace_tag nn_instr (Some Pad) in
+          let tagged_nnn_instr = TagUtils.replace_tag nnn_instr (Some Pad) in
+          aux (tagged_nnn_instr :: tagged_nn_instr :: tagged_n_instr :: tagged_instr :: acc) (idx + 4) t
         end
       | instr :: t -> aux (instr :: acc) (idx + 1) t
     in
@@ -613,9 +682,11 @@ object (self)
 
   method remove_literal_pools (instr_list : instr list) =
     (* Function call order matters *)
-    instrs <- self#remove_inline_paddings instrs;
+    (* instrs <- self#remove_inline_paddings instrs; *)
+    instrs <- self#tag_inline_paddings instrs;
     instrs <- self#remove_literal_pools_v1 instrs;
     instrs <- self#remove_literal_pools_with_movs instrs;
+    instrs <- self#remove_literal_pools_after_branch instrs;
     instrs <- self#remove_illegal_instructions instrs arch;
 
   method convert_instructions (instr_list : instr list) : instr list =
