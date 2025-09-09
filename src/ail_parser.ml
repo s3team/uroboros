@@ -495,6 +495,21 @@ object (self)
       12f1e:	0000      	movs	r0, r0
       12f20:	7698      	strb	r0, [r3, #26]
       12f22:	0001      	movs	r1, r0
+
+      There could be undefined instructions in literal pools:
+      e.g., In Coreutils mv,
+      1a332:	e36e      	b.n	1aa12 <putc_unlocked@plt+0x882e>
+      1a334:	49a6      	ldr	r1, [pc, #664]	; (1a5d0 <putc_unlocked@plt+0x83ec>)
+      1a336:	0001      	movs	r1, r0
+      1a338:	48c8      	ldr	r0, [pc, #800]	; (1a65c <putc_unlocked@plt+0x8478>)
+      1a33a:	0001      	movs	r1, r0
+      1a33c:	44b4      	add	ip, r6
+      1a33e:	0001      	movs	r1, r0
+      1a340:	47f2      			; <UNDEFINED> instruction: 0x47f2
+      1a342:	0001      	movs	r1, r0
+      1a344:	476c      	bxns	sp
+      1a346:	0001      	movs	r1, r0
+      See Also: arm_parser.ml#push_stack
     *)
     let ordered_il = List.rev instr_list in
     let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx = function
@@ -699,6 +714,13 @@ object (self)
     end
     | _ -> instr_list
 
+  method remove_undefined_instructions (instr_list : instr list) : instr list =
+    List.filter (fun i ->
+      match get_op i with
+      | Undefined_OP -> false
+      | _ -> true
+    ) instr_list
+
   method remove_literal_pools (instr_list : instr list) =
     (* Function call order matters *)
     (* instrs <- self#remove_inline_paddings instrs; *)
@@ -708,6 +730,7 @@ object (self)
     instrs <- self#remove_literal_pools_with_movs instrs;
     instrs <- self#remove_literal_pools_after_branch instrs;
     instrs <- self#remove_illegal_instructions instrs arch;
+    instrs <- self#remove_undefined_instructions instrs;
 
   method convert_instructions (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
@@ -781,10 +804,10 @@ object (self)
       let illegal_instrs = [
         "illegal"; "??";"cdp"; "cdp2"; "mrc"; "mrc2"; "ldc2l"; "stc"; "stc2l";
         "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"; "mcr";
-        "vld4"; "vld1.8"; "bfcsel"; "vrhadd";]
+        "vld4"; "vld1.8"; "bfcsel";]
       in
       let illegal_opcodes = [
-        "bfl";
+        "bfl"; "vrhadd";
       ]
       in
       let rec has_illegal_instr instr' = function
@@ -809,11 +832,17 @@ object (self)
     let _ = p#set_funclist(funcs)
     and _ = p#set_seclist(secs)
     and split = Str.split (Str.regexp_string ":") in
-    let l' = List.filter (
-                 fun i ->
-                 let items = split i in
-                 let len = List.length items in
-                 len > 1 ) l
+
+    (* change empty instruction to "undefined" string *)
+    let l' =
+      List.map
+        (fun i ->
+          let items = split i in
+          let len = List.length items in
+          if len > 1 then i
+          else
+            let loc = List.nth items 0 in
+            loc ^ ":\tundefined") l
     in
     let help i =
       let items = split i in

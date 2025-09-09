@@ -108,6 +108,7 @@ class dis_validator =
               | Arm_ErrorOP _ -> true
               | _ -> false
             end
+          | _ -> failwith "invalid_opcode: Undefined_OP"
         end
       | _ -> false
 

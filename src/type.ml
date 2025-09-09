@@ -40,6 +40,7 @@ and calldes = func
 and op =
   | Intel_OP of intel_op
   | Arm_OP of (arm_op * arm_condsuff option * arm_widthsuff option)
+  | Undefined_OP
 and intel_arm_reg =
 | Intel_Reg of intel_reg
 | Arm_Reg of arm_reg

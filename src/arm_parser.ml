@@ -603,7 +603,10 @@ class arm_parse =
     match lex with
     | Lop s ->
       let str_list = Str.split (Str.regexp_string ".") in
-      if (List.length (str_list s)) = 2 then
+      if contains s "undefined" then
+        Op (Undefined_OP)
+      else
+        if (List.length (str_list s)) = 2 then
         let op_str = List.nth (str_list s) 0 in
         let widthsuff_str = List.nth (str_list s) 1 in
         let widthsuff = widthsuff_symb widthsuff_str in
