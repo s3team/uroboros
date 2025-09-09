@@ -69,47 +69,68 @@ def disassemble_arm_thumb_binary(filename, output_dir):
     os.system(
         f"arm-linux-gnueabihf-objdump -Dr -j .text -M force-thumb {filename} > {filename}.temp.thumb"
     )
-    result_lines = []
 
-    def pattern_found(line1, line2, line3, line4=None):
-        if "movs" in line1 and ("movs" in line2 or "lsls" in line2) and "movs" in line3:
-            if line4 is None:
-                return True
-            elif "adds" in line4:
-                return True
-            else:
+    call_weak_fn_pattern = [
+        "adds",
+        "b.n",
+        "movs",
+        "b.n",
+        "adds",
+        "b.n",
+        "movs",
+        "b.n",
+        "movs",
+        "b.n",
+        "vrhadd.u16",
+    ]
+
+    def check_call_weak_fn_pattern(lines):
+        for i, opcode in enumerate(call_weak_fn_pattern):
+            if opcode not in lines[i]:
                 return False
+        return True
 
+    result_lines = []
+    call_weak_fn_lines_from_thumb = []
     with open(f"{filename}.temp.thumb") as f:
-        is_going_through_call_weak_fn = False
+        is_going_through_call_weak_fn = None
         is_call_weak_fn_already_passed = False
         lines = f.readlines()
         for i, line in enumerate(lines):
             if (
                 not is_call_weak_fn_already_passed
                 and i > 2
-                and pattern_found(lines[i - 3], lines[i - 2], lines[i - 1], lines[i])
+                # check lines i from i  + 15
+                and check_call_weak_fn_pattern(lines[i : i + 11])
             ):
-                # Find the start of call_weak_fn pattern in thumb mode:
-                # movs	r1, r0
-                # movs	r0, r4
-                # movs	r0, r0
-                # adds	r0, #20 // call_weak_fn starts here
-                is_going_through_call_weak_fn = True
+                # Skip the next 15 lines (the length of call_weak_fn pattern in thumb mode)
+                is_going_through_call_weak_fn = 15
+                # For debugging
+                call_weak_fn_lines_from_thumb.append(lines[i - 3])
+                call_weak_fn_lines_from_thumb.append(lines[i - 2])
+                call_weak_fn_lines_from_thumb.append(lines[i - 1])
+                call_weak_fn_lines_from_thumb.append("Pattern starts here\n")
 
             # Collect instructions, excluding those in call_weak_fn in thumb mode
             if not is_going_through_call_weak_fn:
                 result_lines.append(line)
+            else:
+                is_going_through_call_weak_fn -= 1
+                # For debugging
+                call_weak_fn_lines_from_thumb.append(line)
 
-            if is_going_through_call_weak_fn and pattern_found(
-                lines[i - 2], lines[i - 1], lines[i]
-            ):
+            if is_going_through_call_weak_fn == 0:
                 # End of call_weak_fn
                 is_going_through_call_weak_fn = False
                 # Prevent misdetection of similar patterns after collecting call_weak_fn
                 is_call_weak_fn_already_passed = True
                 result_lines.extend(call_weak_fn_lines_from_arm32)
 
+    # For debugging
+    with open(f"{filename}.call_weak_fn.thumb.debug", "w") as f:
+        f.writelines(call_weak_fn_lines_from_thumb)
+
+    # Print the result to a file
     output_path = None
     if not output_dir:
         output_path = f"{filename}.temp"
@@ -119,6 +140,12 @@ def disassemble_arm_thumb_binary(filename, output_dir):
 
     with open(f"{output_path}", "w") as f:
         f.writelines(result_lines)
+
+    os.system(f"rm {filename}.thumb.temp")
+    if is_call_weak_fn_already_passed is False:
+        # Terminate the entire program
+        print(f"[Error] call_weak_fn pattern not found in {filename}.")
+        exit(1)
 
 
 def get_call_weak_fn_pattern_addr(filename):
