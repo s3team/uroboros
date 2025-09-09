@@ -19,6 +19,10 @@ class arm_func_slicer instrs funcs =
         let has_lr = String.exists lab "lr" in
         has_brackets && has_lr
       in
+      let has_sp_reg (lab : label) : bool =
+        let has_sp = String.exists lab "sp" in
+        has_sp
+      in
       let has_lsls_opcode (inst : instr) : bool =
         let op_str = pp_print_instr' inst in
         let op_str = String.lowercase_ascii op_str in
@@ -30,13 +34,11 @@ class arm_func_slicer instrs funcs =
         String.exists op_str "lsrs"
       in
       let get_loc_addr (l : loc) : int = l.loc_addr in
-      let is_push (op : arm_stackop) : bool = match op with
-        | PUSH | VPUSH | STMDB -> true
-        | _ -> false
+      let is_push (op : arm_stackop) : bool =
+        match op with PUSH | VPUSH | STMDB -> true | _ -> false
       in
-      let is_pop (op : arm_stackop) : bool = match op with
-        | POP | VPOP | LDMIA -> true
-        | _ -> false
+      let is_pop (op : arm_stackop) : bool =
+        match op with POP | VPOP | LDMIA -> true | _ -> false
       in
       let rec help (inst : instr) =
         match inst with
@@ -58,7 +60,12 @@ class arm_func_slicer instrs funcs =
             last_ret <- false;
             last_special <- false
         (* pop {r7, pc} *)
-        | DoubleInstr (Arm_OP (Arm_ControlOP BX, _, _), Reg ( Arm_Reg (Arm_LinkReg LR)), _, _, _) ->
+        | DoubleInstr
+            ( Arm_OP (Arm_ControlOP BX, _, _),
+              Reg (Arm_Reg (Arm_LinkReg LR)),
+              _,
+              _,
+              _ ) ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -79,30 +86,14 @@ class arm_func_slicer instrs funcs =
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* add a function *)
-        (* last_pop but not lsls opcode *)
-        (* | _
-          when last_pop
-               && (not (has_lsls_opcode inst))
-               && not (has_lsrs_opcode inst) ->
-            (* [has_lsls_opcode] function was introduced to avoid misclassifying
-            the instruction, which is actually data, as a function begin.
-            pop {r7,pc}
-            BB_21:
-            lsls r6,r5,#0x2 *)
-            (* There is a potential issue here — this region might be continuous data, *)
-            (* so it might be inappropriate to classify it as a function. *)
-            (* Therefore, we need to explicitly specify func_begins using different criteria. *)
-            (* However, if we classify a function beginning only when a push instruction appears, *)
-            (* we may fail to detect certain init functions. *)
-            (* It would be better to classify the start of a function only when a specific init function pattern *)
-            (* is present together with a push instruction. *)
+        | TripleInstr (_, _, _, _, _, _) when last_nop ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- false;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins *)
-        (* add a function *)
-        | TripleInstr (_, _, _, _, _, _, _) when last_nop ->
+            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+        | TripleInstr (Arm_OP (Arm_StackOP STMDB, _, _), _, Label lab, _, _, _, _)
+          when has_sp_reg lab ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;

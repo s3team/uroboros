@@ -454,7 +454,7 @@ object (self)
         FifInstr (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, exp3, exp4, loc, pre, tag)
       | _ -> failwith "Unsupported instruction type"
     in
-    let distance_limit = 128 in
+    (* let distance_limit = 128 in *)
     List.map (
       fun i ->
         match get_op i with
@@ -471,7 +471,7 @@ object (self)
             else
               i
           end else i *)
-        | Arm_OP (Arm_ControlOP B, Some condsuff, Some (Arm_Opqualifier N)) ->
+        | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier N)) ->
           change_width_specifier i None
         | _ -> i
     ) instrs
@@ -536,8 +536,9 @@ object (self)
             end
           | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) when is_nop_after_blx ->
             begin
-              (* skip nop instruction located right after blx *)
-              aux acc true false false (idx + 1) t
+              (* keep nop instruction located right after blx
+               * to prevent the "undefined reference" issue *)
+              aux (instr :: acc) true false false (idx + 1) t
             end
           | _ -> begin
               let tag = get_tag instr in
@@ -589,12 +590,13 @@ object (self)
       let loc = get_loc i in
       List.exists (fun addr -> addr = loc.loc_addr) addr_list
     in
+    let _ = List.iter (fun i -> collect_branch_target_addr i) instrs in
     let rec aux acc is_literal_pool idx = function
       | [] -> acc
       | [instr] -> instr :: acc
       | instr :: n_instr :: t' -> begin
         let t = n_instr :: t' in
-        collect_branch_target_addr instr;
+        (* collect_branch_target_addr instr; *)
         if is_literal_pool then begin
             let pointed = check_if_target_in_branch_target_addrs !branch_target_addrs instr in
             (* The check for whether an instruction is "pointed" to is not perfect:
@@ -609,8 +611,8 @@ object (self)
         else begin
           match get_op instr with
           | Arm_OP (Arm_ControlOP B, None, _) when is_nop (get_op n_instr) ->
-              (* let _ = Printf.printf "nopnop: %s\n" (pp_print_instr' instr) in *)
-              aux (instr :: acc) true (idx + 1) t
+              (* keep the nop instruction to prevent the "undefined reference" issue *)
+              aux (n_instr :: instr :: acc) true (idx + 2) t
           | _ -> aux (instr :: acc) false (idx + 1) t
         end
       end
@@ -657,6 +659,23 @@ object (self)
     in
     aux [] 0 ordered_il
 
+  method tag_branch_islands (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let rec aux acc idx = function
+      | [] -> acc
+      | instr :: n_instr :: nn_instr :: nnn_instr :: t
+        when is_movs_r0_r0 instr && is_movs_r0_r0 n_instr && is_movs_r0_r0 nn_instr ->
+        begin
+          let tagged_instr = TagUtils.replace_tag instr (Some Pad) in
+          let tagged_n_instr = TagUtils.replace_tag n_instr (Some Pad) in
+          let tagged_nn_instr = TagUtils.replace_tag nn_instr (Some Pad) in
+          let tagged_nnn_instr = TagUtils.replace_tag nnn_instr (Some Pad) in
+          aux (tagged_nnn_instr :: tagged_nn_instr :: tagged_n_instr :: tagged_instr :: acc) (idx + 4) t
+        end
+      | instr :: t -> aux (instr :: acc) (idx + 1) t
+    in
+    aux [] 0 ordered_il
+
   method remove_illegal_instructions (instr_list : instr list) (arch : string) : instr list =
     let ordered_il = List.rev instr_list in
     match arch with
@@ -684,6 +703,7 @@ object (self)
     (* Function call order matters *)
     (* instrs <- self#remove_inline_paddings instrs; *)
     instrs <- self#tag_inline_paddings instrs;
+    instrs <- self#tag_branch_islands instrs;
     instrs <- self#remove_literal_pools_v1 instrs;
     instrs <- self#remove_literal_pools_with_movs instrs;
     instrs <- self#remove_literal_pools_after_branch instrs;
@@ -712,6 +732,9 @@ object (self)
             let label1 = Label "{r0,r1,r2,r6}" in
             let label2 = Label "r4!" in
             let new_instr = TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign STM), None, None), label1, label2, loc, prefix, tag) in
+            aux (new_instr :: acc) t
+          | TripleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _) ->
+            let new_instr = change_op instr (Arm_OP (Arm_StackOP STMDB, None, width)) in
             aux (new_instr :: acc) t
           | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some _, width), _, exp2, _, _, _)
               when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) ->
@@ -758,7 +781,7 @@ object (self)
       let illegal_instrs = [
         "illegal"; "??";"cdp"; "cdp2"; "mrc"; "mrc2"; "ldc2l"; "stc"; "stc2l";
         "ltc2l"; "vst1"; "ldc"; "ldcl"; "mrrc"; "mcr2"; "mcrr"; "mcr";
-        "vld4"; "vld1.8"; "bfcsel";]
+        "vld4"; "vld1.8"; "bfcsel"; "vrhadd";]
       in
       let illegal_opcodes = [
         "bfl";
@@ -810,34 +833,6 @@ object (self)
     if arch = "thumb" then begin
       instrs <- self#convert_instructions instrs;
     end;
-
-    (* giyeol: for debugging *)
-    (* List.iter (fun i -> Printf.printf "giyeol: reversed?: %s\n" (pp_print_instr' i)) (List.rev instrs); *)
-    (* let is_branch_instr (i : instr) =
-      match get_op i with
-      | Arm_OP (Arm_ControlOP B, _, _)
-      | Arm_OP (Arm_ControlOP BL, _, _)
-      | Arm_OP (Arm_ControlOP BX, _, _)
-      | Arm_OP (Arm_ControlOP BLX, _, _)
-        -> true
-      | _ -> false
-    in
-    List.iter (fun i -> match get_op i with
-      | Arm_OP (Arm_ControlOP aco, Some condsuff, Some (Arm_Opqualifier N))
-        when is_branch_instr i ->
-          let target_addr = match get_exp_1 i with
-            | Symbol (JumpDes j) -> j
-            | _ -> 0
-          in
-          let instr_addr = (get_loc i).loc_addr in
-          if target_addr < instr_addr then begin
-              let addr_diff = instr_addr - target_addr in
-              (* Printf.printf "branch instr with condsuff: %s\n" (pp_print_instr' i); *)
-              Printf.printf "\tdiff: %d(0x%x)\n" addr_diff addr_diff;
-            end
-      | _ -> ()
-    ) (List.rev instrs); *)
-    (* giyeol: for debugging end *)
     funcs <- p#get_funclist;
 
   method p_instrs =

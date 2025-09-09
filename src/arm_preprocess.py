@@ -71,12 +71,14 @@ def disassemble_arm_thumb_binary(filename, output_dir):
     )
     result_lines = []
 
-    def pattern_found(prev_prev_line, prev_line, line):
-        return (
-            "movs" in prev_prev_line
-            and ("movs" in prev_line or "lsls" in prev_line)
-            and "movs" in line
-        )
+    def pattern_found(line1, line2, line3, line4=None):
+        if "movs" in line1 and ("movs" in line2 or "lsls" in line2) and "movs" in line3:
+            if line4 is None:
+                return True
+            elif "adds" in line4:
+                return True
+            else:
+                return False
 
     with open(f"{filename}.temp.thumb") as f:
         is_going_through_call_weak_fn = False
@@ -86,7 +88,7 @@ def disassemble_arm_thumb_binary(filename, output_dir):
             if (
                 not is_call_weak_fn_already_passed
                 and i > 2
-                and pattern_found(lines[i - 3], lines[i - 2], lines[i - 1])
+                and pattern_found(lines[i - 3], lines[i - 2], lines[i - 1], lines[i])
             ):
                 # Find the start of call_weak_fn pattern in thumb mode:
                 # movs	r1, r0
