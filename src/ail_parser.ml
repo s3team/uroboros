@@ -1,6 +1,7 @@
 open Batteries
 
 open Ail_utils
+open Arm_utils
 
 open Type
 open Common_parser
@@ -404,13 +405,6 @@ object (self)
             | _ -> instrs_after_pop := [];
           end
           else begin
-            (* List.iter (fun i ->
-              (* print b instructions *)
-              match get_op i with
-              | Arm_OP (Arm_ControlOP B, _, _) ->
-                Printf.printf "Removing branch instruction: %s\n" (pp_print_instr' i)
-              | _ -> ()
-            ) !instrs_after_pop; *)
             (* remove instructions *)
             instrs_after_pop := [];
           end;
@@ -686,6 +680,39 @@ object (self)
     in
     aux [] 0 ordered_il
 
+  (** Remove instructions pointed to by PC-relative loads *)
+  method remove_literal_pools_by_pc_relative_load (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let pc_relative_addrs = ref [] in
+    let rec aux acc = function
+      | [] -> acc
+      | instr :: t ->
+        begin
+          if List.exists (fun addr -> addr = (get_loc instr).loc_addr) !pc_relative_addrs then
+            (* skip this instruction *)
+            (* let _ = Printf.printf "Removing instruction: %s\n" (pp_print_instr' instr) in *)
+            aux acc t
+          else
+            begin
+              match instr with
+              | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _), Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)), Reg (Arm_Reg (Arm_CommonReg _)), loc, _, _)
+                when offset mod 2 = 0 ->
+                begin
+                  let module AU = ArmUtils in
+                  let pc_addr = AU.get_pc_relative_addr "thumb" instr in
+                  pc_relative_addrs := pc_addr :: !pc_relative_addrs;
+                  aux (instr :: acc) t
+                end
+              | _ ->
+                begin
+                  aux (instr :: acc) t
+                end
+            end
+        end
+    in
+    aux [] ordered_il
+
+  (** Tag inline paddings to preserve them *)
   method tag_inline_paddings (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
     let rec aux acc idx = function
@@ -703,6 +730,7 @@ object (self)
     in
     aux [] 0 ordered_il
 
+  (** Tag branch islands to preserve them *)
   method tag_branch_islands (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
     let rec aux acc idx = function
@@ -758,6 +786,7 @@ object (self)
     instrs <- self#remove_literal_pools_v1 instrs;
     instrs <- self#remove_literal_pools_with_movs instrs;
     instrs <- self#remove_literal_pools_after_branch instrs;
+    instrs <- self#remove_literal_pools_by_pc_relative_load instrs;
     instrs <- self#remove_illegal_instructions instrs arch;
     instrs <- self#remove_undefined_instructions instrs;
 
