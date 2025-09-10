@@ -395,9 +395,13 @@ object (self)
               107ea:	e92d 43b0 	stmdb	sp!, {r4, r5, r7, r8, r9, lr}
            *)
           if List.length !instrs_after_pop = 1 then begin
-            (* keep the instruction *)
-            newnew := !instrs_after_pop @ !newnew;
-            instrs_after_pop := [];
+            let ii =  List.hd !instrs_after_pop in
+            match get_op ii with
+            | Arm_OP (Arm_ControlOP BX, _, _) ->
+              (* keep the branch instruction *)
+              newnew := !instrs_after_pop @ !newnew;
+              instrs_after_pop := [];
+            | _ -> instrs_after_pop := [];
           end
           else begin
             (* List.iter (fun i ->
