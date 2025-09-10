@@ -12,7 +12,14 @@ open Common_func_slicer
 open Tag_utils
 
 class ailParser =
-  let addr_hexcode_map : (int, string) Hashtbl.t = Hashtbl.create 200 in
+let addr_hexcode_map : (int, string) Hashtbl.t = Hashtbl.create 200 in
+
+let get_hexcode (instr : instr) : string=
+  let loc = get_loc instr in
+  try
+    Hashtbl.find addr_hexcode_map loc.loc_addr
+  with Not_found -> ""
+in
 
 let check_if_common_reg (e : exp) : bool =
   match e with
@@ -478,39 +485,39 @@ object (self)
 
   method remove_literal_pools_with_movs (instr_list : instr list) : instr list =
     (* Find nop/blx and movs opcodes patterns like below and remove the literal pool instructions
-     * that follow the blx instruction:
-      blx abort
-      cbnz r4,S_0x114C2
-      movs r1,r0
-      lsls r0,r3,#0x5
-      movs r0,r0
+      * that follow the blx instruction:
+        blx abort
+        cbnz r4,S_0x114C2
+        movs r1,r0
+        lsls r0,r3,#0x5
+        movs r0,r0
 
-      Note that there could be a nop instruction after the the blx instruction.
+        Note that there could be a nop instruction after the the blx instruction.
 
-      12f0c:	f3af 8000 	nop.w
-       ...
-      12f18:	0001      	movs	r1, r0
-      12f1a:	0000      	movs	r0, r0
-      12f1c:	0000      	movs	r0, r0
-      12f1e:	0000      	movs	r0, r0
-      12f20:	7698      	strb	r0, [r3, #26]
-      12f22:	0001      	movs	r1, r0
+        12f0c:	f3af 8000 	nop.w
+        ...
+        12f18:	0001      	movs	r1, r0
+        12f1a:	0000      	movs	r0, r0
+        12f1c:	0000      	movs	r0, r0
+        12f1e:	0000      	movs	r0, r0
+        12f20:	7698      	strb	r0, [r3, #26]
+        12f22:	0001      	movs	r1, r0
 
-      There could be undefined instructions in literal pools:
-      e.g., In Coreutils mv,
-      1a332:	e36e      	b.n	1aa12 <putc_unlocked@plt+0x882e>
-      1a334:	49a6      	ldr	r1, [pc, #664]	; (1a5d0 <putc_unlocked@plt+0x83ec>)
-      1a336:	0001      	movs	r1, r0
-      1a338:	48c8      	ldr	r0, [pc, #800]	; (1a65c <putc_unlocked@plt+0x8478>)
-      1a33a:	0001      	movs	r1, r0
-      1a33c:	44b4      	add	ip, r6
-      1a33e:	0001      	movs	r1, r0
-      1a340:	47f2      			; <UNDEFINED> instruction: 0x47f2
-      1a342:	0001      	movs	r1, r0
-      1a344:	476c      	bxns	sp
-      1a346:	0001      	movs	r1, r0
-      See Also: arm_parser.ml#push_stack
-    *)
+        There could be undefined instructions in literal pools:
+        e.g., In Coreutils mv,
+        1a332:	e36e      	b.n	1aa12 <putc_unlocked@plt+0x882e>
+        1a334:	49a6      	ldr	r1, [pc, #664]	; (1a5d0 <putc_unlocked@plt+0x83ec>)
+        1a336:	0001      	movs	r1, r0
+        1a338:	48c8      	ldr	r0, [pc, #800]	; (1a65c <putc_unlocked@plt+0x8478>)
+        1a33a:	0001      	movs	r1, r0
+        1a33c:	44b4      	add	ip, r6
+        1a33e:	0001      	movs	r1, r0
+        1a340:	47f2      			; <UNDEFINED> instruction: 0x47f2
+        1a342:	0001      	movs	r1, r0
+        1a344:	476c      	bxns	sp
+        1a346:	0001      	movs	r1, r0
+        See Also: arm_parser.ml#push_stack
+      *)
     let ordered_il = List.rev instr_list in
     let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx = function
       | [] -> acc
@@ -552,7 +559,7 @@ object (self)
           | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) when is_nop_after_blx ->
             begin
               (* keep nop instruction located right after blx
-               * to prevent the "undefined reference" issue *)
+              * to prevent the "undefined reference" issue *)
               aux (instr :: acc) true false false (idx + 1) t
             end
           | _ -> begin
@@ -560,31 +567,49 @@ object (self)
               if is_literal_pool && tag = Some Pad then begin
                 (* keep this padding instruction and continue *)
                 aux (instr :: acc) true false false (idx + 1) t
-              end else
-              if is_literal_pool && idx + 1 < List.length ordered_il then begin
-                let n_instr = List.nth ordered_il (idx + 1) in
-                let cur_op = get_op instr in
-                let next_op = get_op n_instr in
-                if (not is_second_movs) && is_movs next_op then begin
-                  (* skip this instruction *)
-                  aux acc true false true (idx + 1) t
+              end
+              else
+                let hexcode = get_hexcode instr in
+                if is_literal_pool && String.length hexcode = 9 then begin
+                  let upper_half = String.sub hexcode 5 4 in
+                  if
+                    upper_half = "0000" || upper_half = "0001"
+                    || upper_half = "0002"
+                  then begin
+                    (* skip this instruction *)
+                    aux acc true false false (idx + 1) t
+                  end
+                  else begin
+                    (* stop skipping instructions *)
+                    aux (instr :: acc) false false false (idx + 1) t
+                  end
                 end
-                else if is_second_movs && is_movs cur_op then begin
-                  (* skip this instruction *)
-                  aux acc true false false (idx + 1) t
+                else if is_literal_pool && idx + 1 < List.length ordered_il then begin
+                  let n_instr = List.nth ordered_il (idx + 1) in
+                  let cur_op = get_op instr in
+                  let next_op = get_op n_instr in
+                  if (not is_second_movs) && is_movs next_op then begin
+                    (* skip this instruction *)
+                    aux acc true false true (idx + 1) t
+                  end
+                  else if is_second_movs && is_movs cur_op then begin
+                    (* skip this instruction *)
+                    aux acc true false false (idx + 1) t
+                  end
+                  else begin
+                    (* stop skipping instructions *)
+                    aux (instr :: acc) false false false (idx + 1) t
+                  end
                 end
                 else begin
-                  (* stop skipping instructions *)
+                  (* last instruction *)
                   aux (instr :: acc) false false false (idx + 1) t
                 end
-              end
-              else begin
-                aux (instr :: acc) false false false (idx + 1) t
-              end
             end
         end
     in
     aux [] false false false 0 ordered_il
+
 
   (* Remove instructions after branch opcodes unless they are pointed by other instructions *)
   method remove_literal_pools_after_branch (instr_list : instr list) : instr list =
