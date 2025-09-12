@@ -1786,7 +1786,10 @@ class arm_reassemble =
       match c with
       | Point s -> "=S_" ^ dec_hex s
       | Normal s -> "=S_" ^ dec_hex s
-      | Immediate s -> "#" ^ dec_hex s
+      | Immediate s -> begin
+          failwith "build_symbol: check immediate value"
+          (* "=S_" ^ dec_hex s *)
+        end
 
     method build_plt_symbol c =
       let dec_hex (s : int) : string = Printf.sprintf "0x%x" s in
@@ -1880,15 +1883,21 @@ class arm_reassemble =
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                   Label s_label
                 end
-                else begin
+                else
+                  (* To avoid symbolizing the below cases:
+                   * mov.w	r2, #131072	; 0x20000
+                   * cmp.w	r3, #131072	; 0x20000
+                   *)
+                  e
+                (* else begin
                   Hashtbl.replace text_set l' "";
-                  let _ = print_endline "giyeol: build symbol with text_set" in
+                  (* let _ = print_endline "giyeol: build symbol with text_set" in *)
                   let s_label = self#build_symbol l in
                   deslist <- s_label :: deslist;
                   let loc' = get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                   Label s_label
-                end
+                end *)
               else
                 let module
                   (* in dynamically-linked binaries, call to library functions are replaced with their name *)
@@ -1919,7 +1928,6 @@ class arm_reassemble =
                 else begin
                   Hashtbl.replace text_set l "";
                   let s_label = "S_" ^ dec_hex l in
-                  (* let _ = print_endline "giyeol: jumpdes false" in *)
                   deslist <- s_label :: deslist;
                   Label s_label
                 end
@@ -2273,12 +2281,6 @@ class arm_reassemble =
           deslist
       in
       symbol_list <- List.rev_append (List.rev tl1) symbol_list;
-      (* giyeol: *)
-      (* List.iter (fun symbol -> Printf.printf "symbol_list: 0x%x\n" symbol) symbol_list; *)
-      Hashtbl.iter
-        (fun k v ->
-          Printf.printf "literal_pool_candidates: %s\n" (pp_print_instr' v))
-        literal_pool_candidates;
       tl
     (* self#add_del_to_literal_pool_candidates tl; *)
 

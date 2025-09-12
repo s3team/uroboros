@@ -645,11 +645,9 @@ object (self)
             (* The check for whether an instruction is "pointed" to is not perfect:
              * later instructions can point back to earlier ones (e.g., backward branches). *)
             if pointed then
-              let _ = Printf.printf "pointed. stop removing: %s\n" (pp_print_instr' instr) in
               aux (instr :: acc) false (idx + 1) t
             else
               (* remove the instruction *)
-              let _ = Printf.printf "removing instruction: %s\n" (pp_print_instr' instr) in
               aux acc true (idx + 1) t
           end
         else begin

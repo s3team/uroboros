@@ -40,7 +40,8 @@ class arm_func_slicer instrs funcs =
       let is_pop (op : arm_stackop) : bool =
         match op with POP | VPOP | LDMIA -> true | _ -> false
       in
-      let rec help (inst : instr) =
+      let ordered_il = List.rev instrs in
+      let rec help (idx : int) (inst : instr) =
         match inst with
         (* ARM Thumb *)
         | SingleInstr (Arm_OP (Arm_CommonOP (Arm_Other NOP), _), _, _, _, _) ->
@@ -85,6 +86,22 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+        (* add a function *)
+        (* push	{r7}
+         * sub	sp, #12
+         *)
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
+          when not (has_lr_reg lab) -> begin
+              let next_instr = List.nth ordered_il (idx + 1) in
+              match next_instr with
+              | TripleInstr (op, Const (Immediate _), Reg (Arm_Reg (Arm_StackReg SP)), l, _, _) ->
+                  last_nop <- false;
+                  last_ret <- false;
+                  last_special <- false;
+                  last_pop <- false;
+                  func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+              | _ -> ()
+            end
         (* add a function *)
         | TripleInstr (_, _, _, _, _, _) when last_nop ->
             last_nop <- false;
@@ -140,5 +157,5 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false
       in
-      List.iter help (List.rev instrs)
+      List.iteri (fun idx instr -> help idx instr) ordered_il;
   end
