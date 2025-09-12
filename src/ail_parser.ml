@@ -38,6 +38,11 @@ let is_nop (op : op) : bool = match op with
   | _ -> false
 in
 
+let is_control_op (op : op) : bool = match op with
+  | Arm_OP (Arm_ControlOP _, _, _) -> true
+  | _ -> false
+in
+
 let is_movs_r0_r0 (i : instr) : bool = match i with
   | TripleInstr (op, exp1, exp2, _, _, _)
     when is_movs op
@@ -640,10 +645,11 @@ object (self)
             (* The check for whether an instruction is "pointed" to is not perfect:
              * later instructions can point back to earlier ones (e.g., backward branches). *)
             if pointed then
+              let _ = Printf.printf "pointed. stop removing: %s\n" (pp_print_instr' instr) in
               aux (instr :: acc) false (idx + 1) t
             else
               (* remove the instruction *)
-              (* let _ = Printf.printf "Removing instruction: %s\n" (pp_print_instr' instr) in *)
+              let _ = Printf.printf "removing instruction: %s\n" (pp_print_instr' instr) in
               aux acc true (idx + 1) t
           end
         else begin
@@ -651,6 +657,8 @@ object (self)
           | Arm_OP (Arm_ControlOP B, None, _) when is_nop (get_op n_instr) ->
               (* keep the nop instruction to prevent the "undefined reference" issue *)
               aux (n_instr :: instr :: acc) true (idx + 2) t
+          | Arm_OP (Arm_ControlOP B, None, _) ->
+              aux (instr :: acc) true (idx + 1) t
           | _ -> aux (instr :: acc) false (idx + 1) t
         end
       end
@@ -792,47 +800,105 @@ object (self)
 
   method convert_instructions (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
-    let rec aux acc = function
+    let rec aux acc idx = function
       | [] -> acc
-      | instr :: t ->
-        begin
+      | instr :: t -> begin
           match instr with
           | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _) ->
-            let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, width)) in
-            aux (new_instr :: acc) t
-          | DoubleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _) ->
-            let new_instr = change_op instr (Arm_OP (Arm_StackOP STMDB, None, width)) in
-            aux (new_instr :: acc) t
-          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some LT, width), Label label, _, _, _)
-              when contains label "lr" ->
-            let new_instr = change_op instr (Arm_OP (Arm_StackOP PUSH, None, width)) in
-            aux (new_instr :: acc) t
-          | DoubleInstr (Arm_OP (Arm_ControlOP BLXNS, condsuff, width), exp, loc, prefix, tag) ->
-            (* In ginstall, 47c4 is incorrectly disassembled into `blxns r8`
-             * It should be `stm r4!, {r0, r1, r2, r6}` *)
-            let label1 = Label "{r0,r1,r2,r6}" in
-            let label2 = Label "r4!" in
-            let new_instr = TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign STM), None, None), label1, label2, loc, prefix, tag) in
-            aux (new_instr :: acc) t
-          | TripleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _) ->
-            let new_instr = change_op instr (Arm_OP (Arm_StackOP STMDB, None, width)) in
-            aux (new_instr :: acc) t
-          | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some _, width), _, exp2, _, _, _)
-              when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) ->
-            let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, width)) in
-            aux (new_instr :: acc) t
-          | _ ->
-            match get_op instr with
-            | Arm_OP (Arm_CommonOP Arm_Assign MOV, Some UND, _) ->
-              let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, None)) in
-              aux (new_instr :: acc) t
-            | Arm_OP (Arm_CommonOP Arm_Arithm SUB, Some UND, _) ->
-              let new_instr = change_op instr (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, None)) in
-              aux (new_instr :: acc) t
-            | _ -> aux (instr :: acc) t
+              let new_instr =
+                change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
+              in
+              aux (new_instr :: acc) (idx + 1) t
+          | DoubleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _)
+            ->
+              let new_instr =
+                change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
+              in
+              aux (new_instr :: acc) (idx + 1) t
+          | DoubleInstr
+              (Arm_OP (Arm_StackOP PUSH, Some LT, width), Label label, _, _, _)
+            when contains label "lr" ->
+              let new_instr =
+                change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
+              in
+              aux (new_instr :: acc) (idx + 1) t
+          | DoubleInstr (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _) ->
+              let new_instr =
+                change_op instr (Arm_OP (Arm_ControlOP BL, None, None))
+              in
+              aux (new_instr :: acc) (idx + 1) t
+          | TripleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _)
+            ->
+              let new_instr =
+                change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
+              in
+              aux (new_instr :: acc) (idx + 1) t
+          | TripleInstr
+              ( Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some _, width),
+                _,
+                exp2,
+                _,
+                _,
+                _ )
+            when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) ->
+              let new_instr =
+                change_op instr
+                  (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, width))
+              in
+              aux (new_instr :: acc) (idx + 1) t
+          | _ -> (
+              match get_op instr with
+              | Arm_OP (Arm_CommonOP (Arm_Assign MOV), Some UND, _) ->
+                  let new_instr =
+                    change_op instr
+                      (Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, None))
+                  in
+                  aux (new_instr :: acc) (idx + 1) t
+              | Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some UND, _) ->
+                  let new_instr =
+                    change_op instr
+                      (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, None))
+                  in
+                  aux (new_instr :: acc) (idx + 1) t
+              (* except ControlOP *)
+              | Arm_OP (aop, Some cond, width) as op
+                when idx - 4 >= 0 && not (is_control_op op) ->
+                  let p_instr = List.nth ordered_il (idx - 1) in
+                  let pp_instr = List.nth ordered_il (idx - 2) in
+                  let ppp_instr = List.nth ordered_il (idx - 3) in
+                  let pppp_instr = List.nth ordered_il (idx - 4) in
+                  let is_it_range (src_instr : instr) (idx_diff : int) : bool =
+                    (* check if target_instr is in the range of src_instr *)
+                    match get_op src_instr with
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = IT ->
+                        if idx_diff = 1 then true else false
+                    | Arm_OP (Arm_Condition it_op, _, _)
+                      when it_op = ITE || it_op = ITT ->
+                        if idx_diff <= 2 then true else false
+                    | Arm_OP (Arm_Condition it_op, _, _)
+                      when it_op = ITTT || it_op = ITTE || it_op = ITEE
+                          || it_op = ITET ->
+                        if idx_diff <= 3 then true else false
+                    | Arm_OP (Arm_Condition it_op, _, _)
+                      when it_op = ITTTT || it_op = ITTTE || it_op = ITTET
+                          || it_op = ITTEE || it_op = ITETT || it_op = ITETE
+                          || it_op = ITEET || it_op = ITEEE ->
+                        if idx_diff <= 4 then true else false
+                    | _ -> false
+                  in
+                  if
+                    is_it_range p_instr 1 || is_it_range pp_instr 2
+                    || is_it_range ppp_instr 3 || is_it_range pppp_instr 4
+                  then
+                    (* do not change the instruction if it is in the range of IT block *)
+                    aux (instr :: acc) (idx + 1) t
+                  else
+                    let new_instr = change_op instr (Arm_OP (aop, None, width)) in
+                    aux (new_instr :: acc) (idx + 1) t
+              | _ -> aux (instr :: acc) (idx + 1) t)
         end
     in
-    aux [] ordered_il
+    aux [] 0 ordered_il
 
   method build_address_hex_map () =
     let lines = read_file "hexcode.info" in
@@ -846,7 +912,6 @@ object (self)
         Hashtbl.replace addr_hexcode_map (int_of_string addr') trimmed_hex
       | _ -> ()
     ) lines;
-    ()
 
   method process_instrs (l : string list) (arch : string) =
     let cat_tail s =

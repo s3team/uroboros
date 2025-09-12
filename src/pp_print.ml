@@ -8,6 +8,7 @@ let rec last_ele = (function
 | [] -> failwith "error in last_ele")
 
 let p_op p = match p with
+  | Undefined_OP -> "undefined op" (* only for debugging messages *)
   | Intel_OP ip ->
     show_intel_op ip
   | Arm_OP (ap, condsuff, widthsuff) ->

@@ -308,6 +308,7 @@ and arm_op =
   | Arm_StackOP of arm_stackop
   | Arm_ControlOP of arm_controlop
   | Arm_SystemOP of arm_systemop
+  | Arm_Condition of arm_conditionop
   | Arm_ErrorOP of arm_errorop
 and arm_errorop = BAD
 and arm_commonop =
@@ -405,12 +406,15 @@ and arm_assignop =
   (* AArch64 *)
   | STP | LDP
 and arm_compareop =
-  | CMN | CMP | IT
+  | CMN | CMP
   | TEQ
   | TST | VCMPE | VCMP
   | CMEQ
+and arm_conditionop =
+  | IT
   | ITE | ITT
-  | ITTT | ITTE | ITEE | ITET | ITTTT | ITTTE | ITTET | ITTEE
+  | ITTT | ITTE | ITEE | ITET
+  | ITTTT | ITTTE | ITTET | ITTEE
   | ITETT | ITETE | ITEET | ITEEE
 and arm_otherop = NOP | HLT | NOPW | NOPL | UD2 | SETEND | VSLI
 and arm_condsuff =
@@ -761,13 +765,10 @@ let show_intel_reg = function
         | Arm_Compare acommon_compare ->
           begin
             match acommon_compare with
-            | CMN -> "cmn" | CMP -> "cmp" | IT -> "it"
+            | CMN -> "cmn" | CMP -> "cmp"
             | TEQ -> "teq"
             | TST -> "tst" | VCMPE -> "vcmpe" | VCMP -> "vcmp"
             | CMEQ -> "cmeq"
-            | ITE -> "ite" | ITT -> "itt"
-            | ITTT -> "ittt" | ITTE -> "itte" | ITEE -> "itee" | ITET -> "itet" | ITTTT -> "itttt" | ITTTE -> "ittte" | ITTET -> "ittet" | ITTEE -> "ittee"
-            | ITETT -> "itett" | ITETE -> "itete" | ITEET -> "iteet" | ITEEE -> "iteee"
           end
         | Arm_Other acommon_other ->
           begin
@@ -791,6 +792,14 @@ let show_intel_reg = function
         | BXNS -> "bxns" | BLXNS -> "blxns"
         | RET -> "ret" | RETAA -> "retaa" | RETAB -> "retab" | RETAASPPC -> "retaasppc" | RETABSPPC -> "retabsppc"
         | RETAASPPCR -> "retaasppcr" | RETABSPPCR -> "retabsppcr"
+      end
+    | Arm_Condition acondition ->
+      begin
+        match acondition with
+          | IT -> "it" | ITE -> "ite" | ITT -> "itt"
+          | ITTT -> "ittt" | ITTE -> "itte" | ITEE -> "itee" | ITET -> "itet"
+          | ITTTT -> "itttt" | ITTTE -> "ittte" | ITTET -> "ittet" | ITTEE -> "ittee"
+          | ITETT -> "itett" | ITETE -> "itete" | ITEET -> "iteet" | ITEEE -> "iteee"
       end
     | Arm_SystemOP asystem ->
       begin

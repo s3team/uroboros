@@ -310,12 +310,15 @@ class arm_parse =
     | "vswp" -> VSWP
     | _ -> raise ParseError
   and compareop_symb = function
-    | "cmn" -> CMN | "cmp" -> CMP | "it" -> IT
+    | "cmn" -> CMN | "cmp" -> CMP
     | "teq" -> TEQ
     | "tst" -> TST | "vcmpe" -> VCMPE | "vcmp" -> VCMP
     | "cmeq" -> CMEQ
-    | "ite" -> ITE | "itt" -> ITT
-    | "ittt" -> ITTT | "itte" -> ITTE | "itee" -> ITEE | "itet" -> ITET | "itttt" -> ITTTT | "ittte" -> ITTTE | "ittet" -> ITTET | "ittee" -> ITTEE
+    | _ -> raise ParseError
+  and conditionop_symb = function
+    | "it" -> IT | "ite" -> ITE | "itt" -> ITT
+    | "ittt" -> ITTT | "itte" -> ITTE | "itee" -> ITEE | "itet" -> ITET
+    | "itttt" -> ITTTT | "ittte" -> ITTTE | "ittet" -> ITTET | "ittee" -> ITTEE
     | "iteet" -> ITEET | "iteee" -> ITEEE
     | _ -> raise ParseError
   and otherop_symb = function
@@ -379,8 +382,10 @@ class arm_parse =
         with _ ->
           try Arm_ControlOP (controlop_symb s)
           with _ ->
-            try Arm_SystemOP (systemop_symb s)
-            with _ -> raise ParseError in
+            try Arm_Condition (conditionop_symb s)
+            with _ ->
+              try Arm_SystemOP (systemop_symb s)
+              with _ -> raise ParseError in
 
   let op_cond_symb (s : string) (is_special : bool) =
     try (op_symb s is_special, None)
