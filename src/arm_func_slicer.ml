@@ -43,30 +43,13 @@ class arm_func_slicer instrs funcs =
       let ordered_il = List.rev instrs in
       let rec help (idx : int) (inst : instr) =
         match inst with
-        (* ARM Thumb *)
-        | SingleInstr (Arm_OP (Arm_CommonOP (Arm_Other NOP), _), _, _, _, _) ->
-            last_nop <- true;
-            last_ret <- false;
-            last_special <- false
-        (* movs r0, r0 *)
-        | TripleInstr
-            ( Arm_OP (Arm_CommonOP (Arm_Assign MOV), _),
-              Reg (Arm_Reg (Arm_CommonReg R0)),
-              Reg (Arm_Reg (Arm_CommonReg R0)),
-              l,
-              _,
-              _,
-              _ ) ->
-            last_nop <- true;
-            last_ret <- false;
-            last_special <- false
         (* pop {r7, pc} *)
         | DoubleInstr
             ( Arm_OP (Arm_ControlOP BX, _, _),
               Reg (Arm_Reg (Arm_LinkReg LR)),
               _,
               _,
-              _ ) ->
+              _, _) ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -103,12 +86,6 @@ class arm_func_slicer instrs funcs =
               | _ -> ()
             end
         (* add a function *)
-        | TripleInstr (_, _, _, _, _, _) when last_nop ->
-            last_nop <- false;
-            last_ret <- false;
-            last_special <- false;
-            last_pop <- false;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         | TripleInstr (Arm_OP (Arm_StackOP STMDB, _, _), _, Label lab, _, _, _, _)
           when has_sp_reg lab ->
             last_nop <- false;
@@ -117,12 +94,6 @@ class arm_func_slicer instrs funcs =
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* add a function *)
-        | FourInstr (_, _, _, _, _, _, _, _) when last_nop ->
-            last_nop <- false;
-            last_ret <- false;
-            last_special <- false;
-            last_pop <- false;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* AArch64 *)
         | SingleInstr (Arm_OP (Arm_ControlOP RET, _), _, _, _, _) ->
             last_nop <- false;
