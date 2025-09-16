@@ -78,22 +78,25 @@ def insert_ltorg_directive(filename):
     """
 
     section_counter = 0
+    main_detected = False
     new_content = []
+    ltorg_line = ".ltorg\n"
     with open(filename, "r") as f:
         lines = f.readlines()
         for line in lines:
             if ".section" in line:
                 section_counter += 1
 
-            # if (
-            #     section_counter < 2
-            #     and "pop" in line
-            #     and "{" in line
-            #     and "}" in line
-            #     and "pc" in line
-            # ):
+            if ".globl main" in line:
+                main_detected = True
+                new_content.append(ltorg_line)
+
             if "S_" in line and ":" in line:
-                new_content.append(".ltorg\n")
+                if main_detected:
+                    # do not add ltorg again
+                    main_detected = False
+                else:
+                    new_content.append(ltorg_line)
             new_content.append(line)
 
     with open(filename, "w") as f:
