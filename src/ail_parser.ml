@@ -526,7 +526,7 @@ object (self)
       | [] -> acc
       | instr :: t -> begin
           match get_op instr with
-          | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _)
+          (* | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _)
             when idx + 2 < List.length ordered_il -> begin
               let nn_instr = List.nth ordered_il (idx + 2) in
               match get_op nn_instr with
@@ -537,7 +537,7 @@ object (self)
                   aux acc true false false (idx + 1) t
                 end
               | _ -> aux (instr :: acc) false false false (idx + 1) t
-            end
+            end *)
           | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier W))
           | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier N))
           | Arm_OP (Arm_ControlOP BLX, _, _)
