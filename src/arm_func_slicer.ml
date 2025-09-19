@@ -75,16 +75,22 @@ class arm_func_slicer instrs funcs =
          *)
         | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
           when not (has_lr_reg lab) -> begin
-              let next_instr = List.nth ordered_il (idx + 1) in
-              match next_instr with
-              | TripleInstr (op, Const (Immediate _), Reg (Arm_Reg (Arm_StackReg SP)), l, _, _) ->
-                  last_nop <- false;
-                  last_ret <- false;
-                  last_special <- false;
-                  last_pop <- false;
-                  func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
-              | _ -> ()
-            end
+            let next_instr = List.nth ordered_il (idx + 1) in
+            match next_instr with
+            | TripleInstr
+                ( op,
+                  Const (Immediate _),
+                  Reg (Arm_Reg (Arm_StackReg SP)),
+                  l,
+                  _,
+                  _ ) ->
+                last_nop <- false;
+                last_ret <- false;
+                last_special <- false;
+                last_pop <- false;
+                func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+            | _ -> ()
+          end
         (* add a function *)
         | TripleInstr (Arm_OP (Arm_StackOP STMDB, _, _), _, Label lab, _, _, _, _)
           when has_sp_reg lab ->
@@ -93,6 +99,51 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+        (* S_0x14FB4:
+         * ldr r3,[pc, #0x8]
+         * movs r1,#0x0
+         * add r3,pc
+         * ldr r2,[r3, #0x0]
+         * b.w __cxa_atexit *)
+        | TripleInstr
+            ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
+              Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)),
+              exp2,
+              loc,
+              _,
+              _ )
+          when List.length ordered_il > idx + 5 ->
+            let n_inst = List.nth ordered_il (idx + 1) in
+            let nn_inst = List.nth ordered_il (idx + 2) in
+            let nnn_inst = List.nth ordered_il (idx + 3) in
+            let nnnn_inst = List.nth ordered_il (idx + 4) in
+            let is_atexit_pattern () =
+              let op = get_op inst in
+              let n_op = get_op n_inst in
+              let nn_op = get_op nn_inst in
+              let nnn_op = get_op nnn_inst in
+              match (n_op, nn_op, nnn_op, nnnn_inst) with
+              | ( Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _),
+                  Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
+                  Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
+                  DoubleInstr
+                    ( Arm_OP (Arm_ControlOP B, _, _),
+                      Symbol (CallDes func),
+                      _,
+                      _,
+                      _ ) )
+                when contains func.func_name "__cxa_atexit" ->
+                  true
+              | _ -> false
+            in
+            if is_atexit_pattern () then begin
+              last_nop <- false;
+              last_ret <- false;
+              last_special <- false;
+              last_pop <- false;
+              func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+            end
+            else ()
         (* add a function *)
         (* AArch64 *)
         | SingleInstr (Arm_OP (Arm_ControlOP RET, _), _, _, _, _) ->
@@ -128,5 +179,5 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false
       in
-      List.iteri (fun idx instr -> help idx instr) ordered_il;
+      List.iteri (fun idx instr -> help idx instr) ordered_il
   end

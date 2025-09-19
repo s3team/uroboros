@@ -614,7 +614,7 @@ object (self)
     aux [] false false false 0 ordered_il
 
 
-  (* Remove instructions after branch opcodes unless they are pointed by other instructions *)
+  (** Remove instructions after branch opcodes unless they are pointed by other instructions *)
   method remove_literal_pools_after_branch (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
     let branch_target_addrs = ref [] in
@@ -634,9 +634,10 @@ object (self)
       List.exists (fun addr -> addr = loc.loc_addr) addr_list
     in
     let _ = List.iter (fun i -> collect_branch_target_addr i) instrs in
-    let rec aux acc is_literal_pool idx = function
+    (** [instr_buffer] is for temporarily keeping literal pools until another function begins *)
+    let rec aux acc instr_buffer is_literal_pool idx = function
       | [] -> acc
-      | [instr] -> instr :: acc
+      | [instr] -> instr :: instr_buffer @ acc
       | instr :: n_instr :: t' -> begin
         let t = n_instr :: t' in
         (* collect_branch_target_addr instr; *)
@@ -645,23 +646,23 @@ object (self)
             (* The check for whether an instruction is "pointed" to is not perfect:
              * later instructions can point back to earlier ones (e.g., backward branches). *)
             if pointed then
-              aux (instr :: acc) false (idx + 1) t
+              aux (instr :: acc) [] false (idx + 1) t
             else
               (* remove the instruction *)
-              aux acc true (idx + 1) t
+              aux acc (instr :: instr_buffer) true (idx + 1) t
           end
         else begin
           match get_op instr with
           | Arm_OP (Arm_ControlOP B, None, _) when is_nop (get_op n_instr) ->
               (* keep the nop instruction to prevent the "undefined reference" issue *)
-              aux (n_instr :: instr :: acc) true (idx + 2) t
+              aux (n_instr :: instr :: acc) [] true (idx + 2) t
           | Arm_OP (Arm_ControlOP B, None, _) ->
-              aux (instr :: acc) true (idx + 1) t
-          | _ -> aux (instr :: acc) false (idx + 1) t
+              aux (instr :: acc) [] true (idx + 1) t
+          | _ -> aux (instr :: acc) [] false (idx + 1) t
         end
       end
     in
-    aux [] false 0 ordered_il
+    aux [] [] false 0 ordered_il
 
   (** Remove padding patterns *)
   method remove_inline_paddings (instr_list : instr list) : instr list =
@@ -690,14 +691,16 @@ object (self)
   method remove_literal_pools_by_pc_relative_load (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
     let pc_relative_addrs = ref [] in
-    let rec aux acc = function
+    (** [instr_buffer] is for temporarily keeping literal pools until another function begins *)
+    let rec aux acc instr_buffer = function
       | [] -> acc
+      | instr :: [] -> instr :: instr_buffer @ acc
       | instr :: t ->
         begin
           if List.exists (fun addr -> addr = (get_loc instr).loc_addr) !pc_relative_addrs then
             (* skip this instruction *)
             (* let _ = Printf.printf "Removing instruction: %s\n" (pp_print_instr' instr) in *)
-            aux acc t
+            aux acc (instr :: instr_buffer) t
           else
             begin
               match instr with
@@ -707,16 +710,16 @@ object (self)
                   let module AU = ArmUtils in
                   let pc_addr = AU.get_pc_relative_addr "thumb" instr in
                   pc_relative_addrs := pc_addr :: !pc_relative_addrs;
-                  aux (instr :: acc) t
+                  aux (instr :: acc) [] t
                 end
               | _ ->
                 begin
-                  aux (instr :: acc) t
+                  aux (instr :: acc) [] t
                 end
             end
         end
     in
-    aux [] ordered_il
+    aux [] [] ordered_il
 
   (** Tag inline paddings to preserve them *)
   method tag_inline_paddings (instr_list : instr list) : instr list =

@@ -124,8 +124,8 @@ module Disam = struct
       ail_parser#process_instrs instr_list arch;
       re#instr_addrs_collect ail_parser#get_instrs;
 
-      let fl = ail_parser#get_funcs in
-      print_endline "2: disassembly validates";
+      let fl = ail_parser#get_funcs in (* func_slicing *)
+      print_endline "2: disassembly validates -->";
 
       (*let _ = List.iter (
         fun f ->
