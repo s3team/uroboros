@@ -416,11 +416,18 @@ class arm_parse =
       let s' = String.sub s 1 (l-2) in
       reg_symb s' in
 
-  let unptr_symb_wb s =
+  let unptr_wb_symb s =
     let len = String.length s in
     if s.[len-1] <> '!' then raise ParseError
     else
       let s' = String.sub s 1 (len-3) in
+      reg_symb s' in
+
+  let simple_wb_symb s =
+    let len = String.length s in
+    if s.[len-1] <> '!' then raise ParseError
+    else
+      let s' = String.sub s 0 (len-1) in
       reg_symb s' in
 
   object (self) inherit common_parser
@@ -443,7 +450,7 @@ class arm_parse =
     try UnOP (Arm_Reg (unptr_symb s))
     with _ ->
       (* ARM-specific write-back syntax *)
-      try UnOP_WB (unptr_symb_wb s)
+      try UnOP_WB (unptr_wb_symb s)
       with _ ->
         try
           let r, i = binptr_p_symb s in
@@ -477,6 +484,10 @@ class arm_parse =
       with Not_found -> false in
     if ((has s "[")&&(has s "]")) then  (* then it should be ptr *)
       self#ptraddr_symb s
+    else if ((String.length s) > 2) && (s.[(String.length s)-1] = '!') then
+      (* ldmia r5!, {r0, r1, r2, r3}
+       * treat is as a pointer until other cases are found *)
+      WB (simple_wb_symb s)
     else raise ParseError
 
   (* this might be another approach, currently abandoned*)
@@ -597,8 +608,6 @@ class arm_parse =
           with _ ->
             try Symbol (self#symbol_symb s)
             with _ ->
-              (* giyeol: *)
-              (* let _ = Printf.printf "exp_symb: Label\n" in *)
               try Label (s)   (* we just consider these as labels *)
               with _ ->
                 raise ParseError

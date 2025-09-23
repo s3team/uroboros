@@ -47,6 +47,7 @@ and intel_arm_reg =
 and ptraddr =
   | UnOP of intel_arm_reg
   (* mov (%eax) ,%eax *)
+  | WB of arm_reg
   | UnOP_WB of arm_reg
   | BinOP_PLUS of (intel_arm_reg * int)
   | BinOP_PLUS_R of (arm_reg * arm_reg)
