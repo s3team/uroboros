@@ -152,7 +152,7 @@ def main(argv):
     remove_unused_literal_pools_in_data(assembly_path)
     remove_caret(assembly_path)
     insert_ltorg_directive(assembly_path)
-    remove_invalid_d2c_labels(assembly_path)
+    # remove_invalid_d2c_labels(assembly_path)
 
 
 if __name__ == "__main__":
