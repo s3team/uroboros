@@ -91,7 +91,7 @@ def reassemble(assembly_file, arch):
             compile_option += "-m64 -lcrypto -lselinux -lgmp "
     elif arch == "thumb":
         compiler = "arm-linux-gnueabihf-gcc"
-        compile_option += "-march=armv7-a -mthumb -mfpu=vfpv3-d16 -mfloat-abi=hard"
+        compile_option += "-march=armv7-a -mthumb -mfpu=vfpv3-d16 -mfloat-abi=hard "
     elif arch == "arm":
         if is_32bit_binary:
             compiler = "arm-linux-gnueabihf-gcc"

@@ -456,7 +456,9 @@ class datahandler (label' : (string * int) list) =
           let v = int_of_string vs in
           Printf.sprintf "%X" v
         in
-        let aux v = Printf.sprintf "%X" v in
+        let aux v is_odd =
+          if is_odd then Printf.sprintf "%X + 1" v else Printf.sprintf "%X" v
+        in
 
         match l with
         | [] -> acc
@@ -471,7 +473,16 @@ class datahandler (label' : (string * int) list) =
             Buffer.add_string b (get_v v2);
             Buffer.add_string b (get_v v1);
             let v_str = Buffer.contents b in
-            match string_to_int32 v_str with
+            (* For ARM Thumb, d2c references might be odd numbers *)
+            let v_str_num = string_to_int32 v_str in
+            let is_odd =
+              match v_str_num with Some n -> n mod 2 = 1 | None -> false
+            in
+            let v_str_num' =
+              if is_odd then Option.map (fun n -> n - 1) v_str_num
+              else v_str_num
+            in
+            match v_str_num' with
             | Some v -> begin
                 match self#check_sec v with
                 | Some s ->
@@ -483,7 +494,7 @@ class datahandler (label' : (string * int) list) =
                         t (addr + 4) sec
                     end
                     else
-                      let v_str' = aux v in
+                      let v_str' = aux v is_odd in
                       data_labels <- (s.sec_name, v) :: data_labels;
                       data_labels_reloc <- addr :: data_labels_reloc;
                       traverse
@@ -512,7 +523,7 @@ class datahandler (label' : (string * int) list) =
                           else begin
                             in_jmptable <- true;
                             cur_func_name <- self#fn_byloc v;
-                            let v_str' = aux v in
+                            let v_str' = aux v is_odd in
                             (* text_labels <- v::text_labels;
                                 text_labels_reloc <- addr::text_labels_reloc; *)
                             traverse
@@ -528,7 +539,7 @@ class datahandler (label' : (string * int) list) =
                             in_jmptable <- true;
                             cur_func_name <- self#fn_byloc v
                           end;
-                          let v_str' = aux v in
+                          let v_str' = aux v is_odd in
                           text_labels <- v :: text_labels;
                           text_labels_reloc <- addr :: text_labels_reloc;
                           traverse
@@ -542,7 +553,7 @@ class datahandler (label' : (string * int) list) =
                         | Some v ->
                             in_jmptable <- true;
                             cur_func_name <- self#fn_byloc v;
-                            let v_str' = aux v in
+                            let v_str' = aux v is_odd in
                             text_labels <- v :: text_labels;
                             text_labels_reloc <- addr :: text_labels_reloc;
                             traverse
@@ -575,8 +586,9 @@ class datahandler (label' : (string * int) list) =
       (* add labels in data, rodata sections to support check jmp table*)
       self#add_data_label;
 
-      data_list <- List.rev (traverse [] data_list 0x082f3110 ".data");
-      rodata_list <- List.rev (traverse [] rodata_list 0x08288680 ".rodata");
+      data_list <- List.rev (traverse [] data_list 0x0 ".data");
+      rodata_list <- List.rev (traverse [] rodata_list 0x0 ".rodata");
+      got_list <- List.rev (traverse [] got_list 0x0 ".got");
       data_rel_ro_list <-
         List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
       let module EU = ELF_utils in
@@ -1787,8 +1799,7 @@ class arm_reassemble =
       | Point s -> "=S_" ^ dec_hex s
       | Normal s -> "=S_" ^ dec_hex s
       | Immediate s -> begin
-          failwith "build_symbol: check immediate value"
-          (* "=S_" ^ dec_hex s *)
+          failwith "build_symbol: check immediate value" (* "=S_" ^ dec_hex s *)
         end
 
     method build_plt_symbol c =
@@ -1889,7 +1900,7 @@ class arm_reassemble =
                    * cmp.w	r3, #131072	; 0x20000
                    *)
                   e
-                (* else begin
+                  (* else begin
                   Hashtbl.replace text_set l' "";
                   (* let _ = print_endline "giyeol: build symbol with text_set" in *)
                   let s_label = self#build_symbol l in
@@ -2161,7 +2172,7 @@ class arm_reassemble =
         end
       | _ -> e
 
-    method vinst2 (f : instr -> bool) (i : instr) : instr =
+    method vinst2 (arch : string) (f : instr -> bool) (i : instr) : instr =
       let tag' = get_tag i in
       if tag' = Some Del then i
       else
@@ -2202,7 +2213,18 @@ class arm_reassemble =
                       | Some deref_s ->
                           if deref_s.sec_name = ".data.rel.ro" then deref_instr
                           else pointer_instr
-                      | None -> pointer_instr
+                      | None -> begin
+                          if arch = "thumb" then begin
+                            (* got-to-text references are odd numbers in ARM Thumb mode *)
+                            let deref_value' =
+                              if deref_value mod 2 = 1 then deref_value - 1
+                              else deref_value
+                            in
+                            if self#check_text deref_value' then deref_instr
+                            else pointer_instr
+                          end
+                          else pointer_instr
+                        end
                     end
                   | None -> pointer_instr
                 end
@@ -2257,8 +2279,7 @@ class arm_reassemble =
         self#check_text l.loc_addr
       in
       instr_list <- instrs;
-      let tl' = List.map (self#vinst2 func) instrs in
-      let tl = List.map (self#vinst_symbol func) tl' in
+      let tl = List.map (self#vinst2 arch func) instrs in
       let module EU = ELF_utils in
       let addr_len =
         match (EU.elf_32 (), EU.elf_exe ()) with
@@ -2288,7 +2309,7 @@ class arm_reassemble =
       (*let's do type inference analysis on suspicious concerete value*)
       let func (i : instr) : bool = true in
       instr_list <- instrs;
-      List.map (self#vinst2 func) instrs
+      List.map (self#vinst2 arch func) instrs
 
     (* check whether it is a library or executable *)
     method check_32 =

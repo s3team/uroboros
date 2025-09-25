@@ -142,10 +142,10 @@ def disassemble_arm_thumb_binary(filename, output_dir):
         f.writelines(result_lines)
 
     os.system(f"rm {filename}.thumb.temp")
-    if is_call_weak_fn_already_passed is False:
-        # Terminate the entire program
-        print(f"[Error] call_weak_fn pattern not found in {filename}.")
-        exit(1)
+    # if is_call_weak_fn_already_passed is False:
+    #     # Terminate the entire program
+    #     print(f"[Error] call_weak_fn pattern not found in {filename}.")
+    #     exit(1)
 
 
 def get_call_weak_fn_pattern_addr(filename):
@@ -482,7 +482,7 @@ def disassemble_text_section_as_data(fn):
                 f.write(f"{hex_addr}:{ordered_data}\n")
                 offset += 4
 
-    os.system("rm text_section_as_data.temp")
+    # os.system("rm text_section_as_data.temp")
 
 
 def disassemble_got_section_as_data(fn):

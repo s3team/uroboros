@@ -199,7 +199,11 @@ module ArmGotAbs : DfaAbs = struct
                   let sec = arm_reassemble#check_sec addr in
                   match sec with
                   | Some s ->
-                      if s.sec_name = ".rodata" then
+                      if
+                        s.sec_name = ".rodata" || s.sec_name = ".bss"
+                        || s.sec_name = ".data.rel.ro"
+                        || s.sec_name = ".data"
+                      then
                         let tag = Some (Sym addr) in
                         let ldr_op =
                           Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
@@ -298,6 +302,18 @@ module ArmGotAbs : DfaAbs = struct
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             let src1_name = p_arm_reg (Arm_CommonReg src1) in
             let src2_name = p_arm_reg (Arm_CommonReg src2) in
+            (* debug *)
+            (* let src1_value = get_register_value src1_name in
+            let src2_value = get_register_value src2_name in
+            let print_reg_values () =
+              let _ = Printf.printf "%s\n" (pp_print_instr' i) in
+              let _ = Printf.printf "src1: %s, src2: %s\n" src1_name src2_name in
+              match (src1_value, src2_value) with
+              | (Some src1_val, Some src2_val) ->
+                Printf.printf "src1: %x, src2: %x\n\n" src1_val src2_val
+              | _ -> Printf.printf "none\n\n"
+            in
+            let _ = print_reg_values () in *)
             if has_got_addr src1_name || has_got_addr src2_name then begin
               let sym_addr =
                 if has_got_addr src1_name then

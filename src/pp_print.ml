@@ -132,6 +132,7 @@ and p_hex s =
     "0x"^(Printf.sprintf "%x" s)
 
 let p_ptraddr = function
+  | WB r -> (p_arm_reg r)^"!"
   | UnOP r ->
     begin
       match r with

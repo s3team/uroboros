@@ -77,21 +77,24 @@ def insert_ltorg_directive(filename):
     Add .ltorg directive right before "S_:" labels in the text section.
     """
 
-    section_counter = 0
+    is_text_section = False
     main_detected = False
     new_content = []
     ltorg_line = ".ltorg\n"
     with open(filename, "r") as f:
         lines = f.readlines()
         for line in lines:
-            if ".section" in line:
-                section_counter += 1
+            # detect text section
+            if ".section" in line and ".text" in line:
+                is_text_section = True
+            elif is_text_section and ".section" in line:
+                is_text_section = False
 
             if ".globl main" in line:
                 main_detected = True
                 new_content.append(ltorg_line)
 
-            if "S_" in line and ":" in line:
+            if is_text_section and "S_" in line and ":" in line:
                 if main_detected:
                     # do not add ltorg again
                     main_detected = False
