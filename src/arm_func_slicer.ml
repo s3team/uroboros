@@ -92,8 +92,14 @@ class arm_func_slicer instrs funcs =
             | _ -> ()
           end
         (* add a function *)
-        | TripleInstr (Arm_OP (Arm_StackOP STMDB, _, _), _, Label lab, _, _, _, _)
-          when has_sp_reg lab ->
+        | TripleInstr
+            ( Arm_OP (Arm_StackOP STMDB, _, _),
+              _,
+              Ptr (WB (Arm_StackReg SP)),
+              _,
+              _,
+              _,
+              _ ) ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
