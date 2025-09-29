@@ -2592,7 +2592,7 @@ class arm_reassemble =
             let iloc = get_loc hi in
             if hf.func_begin_addr = iloc.loc_addr then
               let iloc' =
-                { iloc with loc_label = hf.func_name ^ ":\n" ^ iloc.loc_label }
+                { iloc with loc_label = ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label }
               in
               let hi' = set_loc hi iloc' in
               help acc tf (hi' :: ti)

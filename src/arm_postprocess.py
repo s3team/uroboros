@@ -74,7 +74,7 @@ def remove_caret(filename):
 
 def insert_ltorg_directive(filename):
     """
-    Add .ltorg directive right before "S_:" labels in the text section.
+    Add .ltorg directive right after "b.w S_:" labels in the text section.
     """
 
     is_text_section = False
@@ -90,17 +90,22 @@ def insert_ltorg_directive(filename):
             elif is_text_section and ".section" in line:
                 is_text_section = False
 
-            if ".globl main" in line:
-                main_detected = True
-                new_content.append(ltorg_line)
+            # if ".globl main" in line:
+            #     main_detected = True
+            #     new_content.append(ltorg_line)
 
-            if is_text_section and "S_" in line and ":" in line:
-                if main_detected:
-                    # do not add ltorg again
-                    main_detected = False
-                else:
-                    new_content.append(ltorg_line)
-            new_content.append(line)
+            # if is_text_section and "S_" in line and ":" in line and "b.w" in line:
+            #     if main_detected:
+            #         # do not add ltorg again
+            #         main_detected = False
+            #     else:
+            #         new_content.append(ltorg_line)
+
+            if is_text_section and "S_" in line and "b.w" in line:
+                new_content.append(line)
+                new_content.append(ltorg_line)
+            else:
+                new_content.append(line)
 
     with open(filename, "w") as f:
         f.writelines(new_content)
