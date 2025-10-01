@@ -7,6 +7,14 @@ let rec last_ele = (function
 | h::t -> last_ele t
 | [] -> failwith "error in last_ele")
 
+let p_condsuff condsuff = match condsuff with
+  | None -> ""
+  | Some cs ->
+    show_arm_condsuff cs
+    |> Str.split (Str.regexp " +")
+    |> last_ele
+    |> String.lowercase_ascii
+
 let p_op p = match p with
   | Undefined_OP -> "undefined op" (* only for debugging messages *)
   | Intel_OP ip ->
@@ -14,14 +22,7 @@ let p_op p = match p with
   | Arm_OP (ap, condsuff, widthsuff) ->
     (* concatenate ap, condsuff, widthsuff *)
     let ap_str = show_arm_op ap in
-    let condsuff_str = match condsuff with
-      | None -> ""
-      | Some cs ->
-        show_arm_condsuff cs
-        |> Str.split (Str.regexp " +")
-        |> last_ele
-        |> String.lowercase_ascii
-      in
+    let condsuff_str = p_condsuff condsuff in
     let widthsuff_str = match widthsuff with
       | None -> ""
       | Some Arm_Opqualifier ao ->

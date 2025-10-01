@@ -805,7 +805,8 @@ object (self)
       | [] -> acc
       | instr :: t -> begin
           match instr with
-          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _) ->
+          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _)
+            ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
               in
@@ -823,13 +824,14 @@ object (self)
                 change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
               in
               aux (new_instr :: acc) (idx + 1) t
-          | DoubleInstr (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _) ->
+          | DoubleInstr (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _)
+            ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_ControlOP BL, None, None))
               in
               aux (new_instr :: acc) (idx + 1) t
-          | TripleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _)
-            ->
+          | TripleInstr
+              (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _) ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
               in
@@ -861,45 +863,180 @@ object (self)
                       (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, None))
                   in
                   aux (new_instr :: acc) (idx + 1) t
-              (* except ControlOP *)
-              | Arm_OP (aop, Some cond, width) as op
-                when idx - 4 >= 0 && not (is_control_op op) ->
-                  let p_instr = List.nth ordered_il (idx - 1) in
-                  let pp_instr = List.nth ordered_il (idx - 2) in
-                  let ppp_instr = List.nth ordered_il (idx - 3) in
-                  let pppp_instr = List.nth ordered_il (idx - 4) in
-                  let is_it_range (src_instr : instr) (idx_diff : int) : bool =
-                    (* check if target_instr is in the range of src_instr *)
-                    match get_op src_instr with
-                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = IT ->
-                        if idx_diff = 1 then true else false
-                    | Arm_OP (Arm_Condition it_op, _, _)
-                      when it_op = ITE || it_op = ITT ->
-                        if idx_diff <= 2 then true else false
-                    | Arm_OP (Arm_Condition it_op, _, _)
-                      when it_op = ITTT || it_op = ITTE || it_op = ITEE
-                          || it_op = ITET ->
-                        if idx_diff <= 3 then true else false
-                    | Arm_OP (Arm_Condition it_op, _, _)
-                      when it_op = ITTTT || it_op = ITTTE || it_op = ITTET
-                          || it_op = ITTEE || it_op = ITETT || it_op = ITETE
-                          || it_op = ITEET || it_op = ITEEE ->
-                        if idx_diff <= 4 then true else false
-                    | _ -> false
+              | Arm_OP
+                  ( Arm_CommonOP (Arm_Assign MOVS),
+                    None,
+                    Some (Arm_Opqualifier W) ) ->
+                  let new_instr =
+                    change_op instr
+                      (Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, None))
                   in
-                  if
-                    is_it_range p_instr 1 || is_it_range pp_instr 2
-                    || is_it_range ppp_instr 3 || is_it_range pppp_instr 4
-                  then
-                    (* do not change the instruction if it is in the range of IT block *)
-                    aux (instr :: acc) (idx + 1) t
-                  else
-                    let new_instr = change_op instr (Arm_OP (aop, None, width)) in
-                    aux (new_instr :: acc) (idx + 1) t
+                  aux (new_instr :: acc) (idx + 1) t
               | _ -> aux (instr :: acc) (idx + 1) t)
         end
     in
     aux [] 0 ordered_il
+
+  method remove_it_sequence (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let rec aux acc skip_count idx = function
+      | [] -> acc
+      | instr :: t -> begin
+          match get_op instr with
+          | Arm_OP (Arm_Condition it_op, _, _) ->
+              let it_cond_length = match it_op with
+                | IT -> 1
+                | ITE -> 2
+                | ITT -> 2
+                | ITTT -> 3
+                | ITTE -> 3
+                | ITEE -> 3
+                | ITET -> 3
+                | ITTTT -> 4
+                | ITTTE -> 4
+                | ITTET -> 4
+                | ITTEE -> 4
+                | ITETT -> 4
+                | ITETE -> 4
+                | ITEET -> 4
+                | ITEEE -> 4
+                | _ -> failwith "unsupported IT opcode"
+              in
+              (* Check for the instructions within the length.
+               * If there is at least one instruction that does not have condition suffix,
+               * then it is likely literal pools.
+               * Thus, we remove the IT instruction and the following instructions within the length.
+               *)
+              let has_condsuff (instr : instr) : bool =
+                match get_op instr with
+                | Arm_OP (_, Some _, _) -> true
+                | _ -> false
+              in
+              let rec count_condsuff count n =
+                match n with
+                | 0 -> count
+                | _ -> begin
+                  let target_instr = List.nth ordered_il (idx + n) in
+                  if has_condsuff target_instr then
+                    count_condsuff (count + 1) (n - 1)
+                  else
+                    count_condsuff count (n - 1)
+                end
+              in
+              let cond_count = count_condsuff 0 it_cond_length in
+              if cond_count < it_cond_length then
+                aux acc cond_count (idx + 1) t
+              else
+                aux (instr :: acc) 0 (idx + 1) t
+          | _ ->
+            if skip_count > 0 then
+              aux acc (skip_count - 1) (idx + 1) t
+            else
+             aux (instr :: acc) 0 (idx + 1) t
+        end
+    in
+    aux [] 0 0 ordered_il
+
+  (** Currently, disabled. Check IT condition suffixes and correct them if necessary. *)
+  method convert_it_condsuff (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let rec aux acc replacement_instrs idx = function
+      | [] -> acc
+      | instr :: t -> begin
+          match replacement_instrs with
+          | r_instr :: r_t -> aux (r_instr :: acc) r_t (idx + 1) t
+          | [] -> begin
+              match get_op instr with
+              | Arm_OP (Arm_Condition it_op, Some cond, width) as op
+                when idx + 4 < List.length ordered_il ->
+                  let get_it_cond_arr (it_instr : instr) : bool list =
+                    match get_op it_instr with
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = IT ->
+                        [ true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITE ->
+                        [ false; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITT ->
+                        [ true; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITTT ->
+                        [ true; true; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITTE ->
+                        [ true; true; false ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITEE ->
+                        [ true; false; false ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITET ->
+                        [ true; false; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITTTT ->
+                        [ true; true; true; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITTTE ->
+                        [ true; true; true; false ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITTET ->
+                        [ true; true; false; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITTEE ->
+                        [ true; true; false; false ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITETT ->
+                        [ true; false; true; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITETE ->
+                        [ true; false; true; false ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITEET ->
+                        [ true; false; false; true ]
+                    | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITEEE ->
+                        [ true; false; false; false ]
+                    | _ -> []
+                  in
+                  let it_instr = instr in
+                  let cond_arr = get_it_cond_arr instr in
+                  let check_if_label (e : exp) : bool =
+                    match e with Label l -> true | _ -> false
+                  in
+                  if check_if_label (get_exp_1 it_instr) = false then
+                    failwith
+                      (Printf.sprintf
+                         "Error: The operand of IT instruction must be a \
+                          label: %s\n"
+                         (pp_print_instr' it_instr));
+
+                  let new_instrs = ref [] in
+                  List.iteri
+                    (fun i it_cond ->
+                      let offset = i + 1 in
+                      let target_instr = List.nth ordered_il (idx + offset) in
+                      let target_op = get_op target_instr in
+                      let (Label it_label) = get_exp_1 it_instr in
+                      let new_target_condsuff =
+                        if it_cond then Arm_parser.condsuff_symb it_label
+                        else if it_label = "eq" then NE
+                        else if it_label = "ne" then EQ
+                        else if it_label = "hs" then LO
+                        else if it_label = "lo" then HS
+                        else if it_label = "cs" then CC
+                        else if it_label = "cc" then CS
+                        else if it_label = "mi" then PL
+                        else if it_label = "pl" then MI
+                        else if it_label = "vs" then VC
+                        else if it_label = "vc" then VS
+                        else if it_label = "hi" then LS
+                        else if it_label = "ls" then HI
+                        else if it_label = "ge" then LT
+                        else if it_label = "lt" then GE
+                        else if it_label = "gt" then LE
+                        else if it_label = "le" then GT
+                        else
+                          failwith
+                            (Printf.sprintf
+                               "Error: Unexpected condition suffix: %s\n"
+                               it_label)
+                      in
+                      let new_instr =
+                        change_condsuff target_instr (Some new_target_condsuff)
+                      in
+                      new_instrs := !new_instrs @ [ new_instr ])
+                    cond_arr;
+                  aux (instr :: acc) (List.rev !new_instrs) (idx + 1) t
+              | _ -> aux (instr :: acc) [] (idx + 1) t
+          end
+        end
+    in
+    aux [] [] 0 ordered_il
 
   method build_address_hex_map () =
     let lines = read_file "hexcode.info" in
@@ -984,6 +1121,7 @@ object (self)
       instrs <- self#adjust_width_specifier instrs;
     end;
     if arch = "thumb" then begin
+      instrs <- self#remove_it_sequence instrs;
       instrs <- self#convert_instructions instrs;
     end;
     funcs <- p#get_funclist;

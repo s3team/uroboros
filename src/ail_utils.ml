@@ -179,6 +179,14 @@ let change_op i new_op =
   | FifInstr (p, e1, e2, e3, e4, l, pre, tag) ->
     FifInstr (new_op, e1, e2, e3, e4, l, pre, tag)
 
+let change_condsuff i new_condsuff =
+  let op = get_op i in
+  match op with
+  | Arm_OP (aop, _, width) ->
+    let new_op = Arm_OP (aop, new_condsuff, width) in
+    change_op i new_op
+  | _ -> failwith "unsupported opcode"
+
 let get_cf_des i =
   match i with
   | DoubleInstr (_, e, _, _, _, _) -> Some e

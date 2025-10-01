@@ -1,6 +1,8 @@
 import os
 import sys
 
+disassemble_option = "-Dr"
+
 
 def get_call_weak_fn_lines_from_arm32(filename) -> list[str]:
     """
@@ -14,7 +16,7 @@ def get_call_weak_fn_lines_from_arm32(filename) -> list[str]:
     """
 
     os.system(
-        f"arm-linux-gnueabihf-objdump -Dr -j .text {filename} > {filename}.temp.arm32"
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp.arm32"
     )
     # Find call_weak_fn pattern in arm32 mode,
     # then replace the call_weak_fn in thumb mode with the one in arm32 mode.
@@ -67,7 +69,7 @@ def disassemble_arm_thumb_binary(filename, output_dir):
     # call_weak_fn_lines_from_arm32 = get_call_weak_fn_lines_from_arm32(filename)
 
     os.system(
-        f"arm-linux-gnueabihf-objdump -Dr -j .text -M force-thumb {filename} > {filename}.temp.thumb"
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp.thumb"
     )
 
     call_weak_fn_pattern = [
@@ -371,9 +373,9 @@ def disassemble_arm32_binary(filename, output_dir):
     Disassemble ARM32 binary and remove functions added by gcc compiler.
     """
 
-    os.system(f"arm-linux-gnueabihf-objdump -Dr -j .text {filename} > {filename}.temp")
+    os.system(f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp")
     os.system(
-        f"arm-linux-gnueabihf-objdump -Dr -j .text -M force-thumb {filename} > {filename}.temp.thumb"
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp.thumb"
     )
 
     call_weak_fn_addrs = get_call_weak_fn_pattern_addr(filename)
@@ -487,7 +489,7 @@ def disassemble_text_section_as_data(fn):
 
 def disassemble_got_section_as_data(fn):
     os.system(
-        f"arm-linux-gnueabihf-objdump -Dr -j .got {fn} > got_section_as_data.temp"
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .got {fn} > got_section_as_data.temp"
     )
     lines = []
     with open("got_section_as_data.temp", "r") as f:

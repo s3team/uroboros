@@ -35,6 +35,9 @@ class ArmConcreteEval(object):
                     got_size = size
                     break
 
+        if got_start_addr is None or got_size is None:
+            return
+
         with open("got_split.info", "r") as f:
             lines = f.readlines()
             lines.reverse()

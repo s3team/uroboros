@@ -12,6 +12,13 @@ type stack_type = Op of op
                 | Exp of exp
                 | Loc of loc
 
+let condsuff_symb = function
+  | "eq" -> EQ | "ne" -> NE | "cs" -> CS | "cc" -> CC | "mi" -> MI | "pl" -> PL
+  | "vs" -> VS | "vc" -> VC | "lo" -> LO | "hi" -> HI | "ls" -> LS | "ge" -> GE
+  | "lt" -> LT | "gt" -> GT | "le" -> LE | "al" -> AL | "hs" -> HS
+  | "<und>" -> UND
+  | _ -> raise ParseError
+
 class arm_parse =
   let call_des = ref false in
 
@@ -20,13 +27,6 @@ class arm_parse =
     | "u32" -> U32 | "s8" -> S8 | "s16" -> S16 | "s32" -> S32 | "i16" -> I16| "i8" -> I8
     | "s64" -> S64 | "u64" -> U64
     | "8" -> SIZE 8 | "16" -> SIZE 16 | "32" -> SIZE 32 | "64" -> SIZE 64
-    | _ -> raise ParseError
-
-  and condsuff_symb = function
-    | "eq" -> EQ | "ne" -> NE | "cs" -> CS | "cc" -> CC | "mi" -> MI | "pl" -> PL
-    | "vs" -> VS | "vc" -> VC | "lo" -> LO | "hi" -> HI | "ls" -> LS | "ge" -> GE
-    | "lt" -> LT | "gt" -> GT | "le" -> LE | "al" -> AL | "hs" -> HS
-    | "<und>" -> UND
     | _ -> raise ParseError
 
   and commonreg_symb = function
