@@ -540,7 +540,6 @@ object (self)
             end *)
           | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier W))
           | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier N))
-          | Arm_OP (Arm_ControlOP BLX, _, _)
             when (not is_literal_pool) && idx + 3 < List.length ordered_il ->
             begin
               (* check if the next instruction is nop or not *)
