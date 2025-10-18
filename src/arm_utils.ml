@@ -43,4 +43,7 @@ module ArmUtils = struct
         | _ -> failwith "Only takes label as operand in Arm_Assign"
       end
     | _ -> failwith "Unhandled instruction type in get_pc_relative_addr"
+
+  let to_signed_int (n : int) : int =
+    if n land (1 lsl 31) <> 0 then n - (1 lsl 32) else n
 end

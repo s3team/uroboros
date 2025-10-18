@@ -213,11 +213,28 @@ module ArmGotAbs : DfaAbs = struct
                             (ldr_op, Const (Point addr), e2, loc, prefix, None, Hashtbl.create 0)
                         in
                         Hashtbl.replace result loc.loc_addr new_instr
-                  | None -> ()
+                  | None ->
+                      if arm_reassemble#check_text addr then
+                        (* e.g., store a function pointer:
+                         * ldr r3,[pc, #0x9c]
+                         * add r3,pc
+                         * str r3,[sp, #0x8]
+                         *)
+                        let tag = Some (Sym addr) in
+                        let ldr_op =
+                          Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
+                        in
+                        let new_instr =
+                          TripleInstr
+                            (ldr_op, Const (Point addr), e2, loc, prefix, None)
+                        in
+                        Hashtbl.replace result loc.loc_addr new_instr
+                      else ()
                 in
                 (* update the register value *)
                 let pc = loc.loc_addr + 4 in
-                let sum = pc + dst_reg_value in
+                let dst_reg_value' = AU.to_signed_int dst_reg_value in
+                let sum = pc + dst_reg_value' in
                 let mod_sum = sum - (sum mod 4) in
                 let _ = update_registers dst_reg_name mod_sum in
                 let _ = help mod_sum in

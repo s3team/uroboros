@@ -7,6 +7,7 @@ module Disam = struct
     open Semantic_analysis
     open Common_reassemble_symbol_get
     open Arm_reassemble_symbol_get
+    open Arm_postprocess
     open Flow_insensitive_analysis
     open Reassemble_symbol_get
     open Visit
@@ -116,6 +117,7 @@ module Disam = struct
       let module AGA = ArmGotAbs in
       let module AD = DFA(AGA) in
       let module TU = TagUtils in
+      let module AP = ArmPostprocess in
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
       ail_parser#set_arch arch;
@@ -196,6 +198,12 @@ module Disam = struct
           re#jmp_table_rewrite64 @@ il_init
         else begin
             FnU.replace_got_ref AGA.result @@ ail_parser#get_instrs
+            (* The postprocess should be executed after symbolization completed.
+             * Note that the symbolization-related functions such as vinst2 and v_exp2
+             * are called by visit_type_infer_analysis and visit_heuristic_analysis.
+             * If something wrong happens, AP functions might need to be moved to [ail.ml#post_process].
+             *)
+            |> AP.adjust_thumb_function_pointer
           end
           |> TU.process_tags
           |> re#visit_heuristic_analysis
