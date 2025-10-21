@@ -698,7 +698,7 @@ class arm_parse =
 
   method parse_instr instr loc (arch : string) =
     (* giyeol: *)
-    let _ = Printf.printf "parse_instr: %s\n" instr in
+    (* let _ = Printf.printf "parse_instr: %s\n" instr in *)
     self#init_process;
     let compact (instr : string) =
       (* See [arm_postprocess.py#remove_caret] *)

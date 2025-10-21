@@ -2193,7 +2193,33 @@ class arm_reassemble =
         | SingleInstr (p, l, pre, _, _) -> i
         | DoubleInstr (p, e, l, pre, tag, tags) ->
             DoubleInstr (p, self#v_exp2 e i f false, l, pre, tag, tags)
+        | TripleInstr
+            ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
+              Const (Point odd_addr),
+              Reg (Arm_Reg (Arm_CommonReg reg)),
+              l,
+              pre,
+              tag,
+              tags )
+          when odd_addr mod 2 = 1 && self#check_text (odd_addr - 1) ->
+            (* To handle odd addresses in Thumb mode *)
+            let s_label = self#build_symbol (Point (odd_addr - 1)) in
+            TripleInstr
+              ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None),
+                Label s_label,
+                Reg (Arm_Reg (Arm_CommonReg reg)),
+                l,
+                pre,
+                tag,
+                tags )
         | TripleInstr (p, e1, e2, l, pre, Some (Sym value), tags) -> begin
+            (* The following patterns should not be handled here.
+             * They might be converted into library calls.
+             * For example:
+             * ldr r3,=0x27110
+             * will be converted into
+             * ldr r3,=__stack_chk_guard
+             *)
             (* `Point value` will be symbolized
              * when vinst2 is called by visit_type_infer_analysis *)
             let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None) in
@@ -2592,7 +2618,10 @@ class arm_reassemble =
             let iloc = get_loc hi in
             if hf.func_begin_addr = iloc.loc_addr then
               let iloc' =
-                { iloc with loc_label = ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label }
+                {
+                  iloc with
+                  loc_label = ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label;
+                }
               in
               let hi' = set_loc hi iloc' in
               help acc tf (hi' :: ti)

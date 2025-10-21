@@ -235,10 +235,16 @@ module ArmGotAbs : DfaAbs = struct
                 let pc = loc.loc_addr + 4 in
                 let dst_reg_value' = AU.to_signed_int dst_reg_value in
                 let sum = pc + dst_reg_value' in
-                let mod_sum = sum - (sum mod 4) in
-                let _ = update_registers dst_reg_name mod_sum in
-                let _ = help mod_sum in
-                if mod_sum = !got_addr then
+
+                (* When code pointer addresses are calculated, they are odd numbers.
+                 * So, we need to align them to the nearest even number.
+                 * And they will be symbolized and added by 1 later.
+                 * See Also: arm_postprocess.ml.
+                 *)
+                let aligned_sum = if sum mod 2 = 1 then sum else sum - (sum mod 4) in
+                let _ = update_registers dst_reg_name aligned_sum in
+                let _ = check_and_replace_instr aligned_sum in
+                if aligned_sum = !got_addr then
                   (* gen *)
                   let _ = ExpSet.remove e2 outs in
                   ExpSet.add e2 outs

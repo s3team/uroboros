@@ -186,8 +186,13 @@ module Disam = struct
         else Hashtbl.create 1
       in
 
+      let arm_postprocess (ilist : instr list) : instr list =
+        if arch = "thumb" then
+          AP.adjust_thumb_function_pointer ilist
+        else
+          ilist
+      in
       let rewriting_result = got_rewrite il_init in
-
       il :=
         if EU.elf_32 () && arch = "intel" then
           ( FnU.replace_got_ref rewriting_result @@ il_init )
@@ -203,13 +208,13 @@ module Disam = struct
              * are called by visit_type_infer_analysis and visit_heuristic_analysis.
              * If something wrong happens, AP functions might need to be moved to [ail.ml#post_process].
              *)
-            |> AP.adjust_thumb_function_pointer
           end
-          |> TU.process_tags
-          |> re#visit_heuristic_analysis
-          |> re#adjust_loclabel |> re#adjust_jmpref
-          |> re#add_func_label @@ get_userfuncs fl
-          |> dis_valid#visit;
+        |> TU.process_tags
+        |> re#visit_heuristic_analysis
+        |> re#adjust_loclabel |> re#adjust_jmpref
+        |> re#add_func_label @@ get_userfuncs fl
+        |> dis_valid#visit
+        |> arm_postprocess;
 
       let adjust_list = dis_valid#trim_results in
       if List.length adjust_list != 0 then (
