@@ -115,6 +115,11 @@ let is_movs (op : op) : bool = match op with
   | _ -> false
 in
 
+let is_mov (op : op) : bool = match op with
+  | Arm_OP (Arm_CommonOP Arm_Assign MOV, _, _) -> true
+  | _ -> false
+in
+
 let is_simple_branch (op : op) : bool = match op with
   | Arm_OP (Arm_ControlOP B, _, _) -> true
   | _ -> false
@@ -612,6 +617,70 @@ object (self)
     in
     aux [] false false false 0 ordered_il
 
+  method remove_literal_pools_after_blx_exit (instr_list : instr list) : instr list =
+    let ordered_il = List.rev instr_list in
+    let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx = function
+      | [] -> acc
+      | instr :: t -> begin
+          match get_op instr with
+          | Arm_OP (Arm_ControlOP BLX, _, _) ->
+            begin
+              match get_exp_1 instr with
+              | Symbol (CallDes func) when func.func_name = "exit" ->
+                begin
+                  (* check if the next instruction is nop or not *)
+                  let n_instr = List.nth ordered_il (idx + 1) in
+                  let nop_detected = is_nop (get_op n_instr) in
+                  let nn_offset = if nop_detected then 3 else 2 in
+                  let nn_instr = List.nth ordered_il (idx + nn_offset) in
+                  match get_op nn_instr with
+                  | Arm_OP (Arm_CommonOP (Arm_Assign MOV), _, _)
+                  | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _)
+                    when check_if_common_reg (get_exp_1 nn_instr)
+                        && check_if_common_reg (get_exp_2 nn_instr) ->
+                    begin
+                      (* keep the blx instruction *)
+                      aux (instr :: acc) true nop_detected false (idx + 1) t
+                    end
+                  | _ -> begin
+                      (* keep this instruction *)
+                      aux (instr :: acc) false false false (idx + 1) t
+                    end
+                end
+              | _ -> aux (instr :: acc) false false false (idx + 1) t
+            end
+          | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) when is_nop_after_blx -> begin
+              (* keep nop instruction located right after blx
+               * to prevent the "undefined reference" issue.
+               *)
+              aux (instr :: acc) true false false (idx + 1) t
+            end
+          | _ -> begin
+            if is_literal_pool && idx + 1 < List.length ordered_il then begin
+              let n_instr = List.nth ordered_il (idx + 1) in
+              let cur_op = get_op instr in
+              let next_op = get_op n_instr in
+              if (not is_second_movs) && (is_movs next_op || is_mov next_op) then begin
+                (* skip this instruction *)
+                aux acc true false true (idx + 1) t
+              end
+              else if is_second_movs && (is_movs cur_op || is_mov cur_op) then begin
+                (* skip this instruction *)
+                aux acc true false false (idx + 1) t
+              end
+              else begin
+                (* stop skipping instructions *)
+                aux (instr :: acc) false false false (idx + 1) t
+              end
+            end
+            else begin
+              (* last instruction *)
+              aux (instr :: acc) false false false (idx + 1) t
+            end
+          end
+        end
+    in
+    aux [] false false false 0 ordered_il
 
   (** Remove instructions after branch opcodes unless they are pointed by other instructions *)
   method remove_literal_pools_after_branch (instr_list : instr list) : instr list =
@@ -793,6 +862,7 @@ object (self)
     instrs <- self#tag_branch_islands instrs;
     instrs <- self#remove_literal_pools_v1 instrs;
     instrs <- self#remove_literal_pools_with_movs instrs;
+    instrs <- self#remove_literal_pools_after_blx_exit instrs;
     instrs <- self#remove_literal_pools_after_branch instrs;
     instrs <- self#remove_literal_pools_by_pc_relative_load instrs;
     instrs <- self#remove_illegal_instructions instrs arch;
