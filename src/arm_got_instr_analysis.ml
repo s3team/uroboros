@@ -3,6 +3,7 @@ open Semantic_analysis
 (* Value-based abstract state for ARM GOT analysis *)
 module ArmGotAbsWithValues : DfaAbsWithValues = struct
   open Ail_utils
+  open Arm_parser
   open Arm_reassemble_symbol_get
   open Arm_utils
   open Batteries

@@ -739,9 +739,7 @@ let create_points_f1
     (code : string)
     (ufl : func list)
     (fname2css : (string, int list) Hashtbl.t)
-    (linenum : string)
-    (pidx : int)
-    (filepath : string)
+    (idx : int)
     (loc : string)
   : unit =
   let locations : location list =
