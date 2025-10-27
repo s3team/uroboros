@@ -174,16 +174,16 @@ let is_call (i : instr) : bool =
 
 let update_loc (i : instr) (new_loc : loc) : instr =
   match i with
-  | SingleInstr (op, loc, prefix_op, tags) ->
-    SingleInstr (op, new_loc, prefix_op, tags)
-  | DoubleInstr (op, exp, loc, prefix_op, tags) ->
-    DoubleInstr (op, exp, new_loc, prefix_op, tags)
-  | TripleInstr (op, exp1, exp2, loc, prefix_op, tags) ->
-    TripleInstr (op, exp1, exp2, new_loc, prefix_op, tags)
-  | FourInstr (op, exp1, exp2, exp3, loc, prefix_op, tags) ->
-    FourInstr (op, exp1, exp2, exp3, new_loc, prefix_op, tags)
-  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op, tags) ->
-    FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op, tags)
+  | SingleInstr (op, loc, prefix_op, tag, tags) ->
+    SingleInstr (op, new_loc, prefix_op, tag, tags)
+  | DoubleInstr (op, exp, loc, prefix_op, tag, tags) ->
+    DoubleInstr (op, exp, new_loc, prefix_op, tag, tags)
+  | TripleInstr (op, exp1, exp2, loc, prefix_op, tag, tags) ->
+    TripleInstr (op, exp1, exp2, new_loc, prefix_op, tag, tags)
+  | FourInstr (op, exp1, exp2, exp3, loc, prefix_op, tag, tags) ->
+    FourInstr (op, exp1, exp2, exp3, new_loc, prefix_op, tag, tags)
+  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op, tag, tags) ->
+    FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op, tag, tags)
 
 let update_fname2css
     (fname2css : (string, int list) Hashtbl.t)
@@ -229,14 +229,14 @@ let apply
         | None -> i
       in
       match i' with
-      | DoubleInstr 
-          (Intel_OP (Intel_ControlOP CALL), Label func_name, loc, prefix_op, tags) ->
+      | DoubleInstr
+          (Intel_OP (Intel_ControlOP CALL), Label func_name, loc, prefix_op, tag, tags) ->
         begin
           let func_name' = strip_symbol_prefix func_name |> int_of_string in
           match Hashtbl.find_opt sym_addr2label func_name' with
           | Some (sym_name, sym_type) ->
             let call' =
-              DoubleInstr (Intel_OP (Intel_ControlOP CALL), Label sym_name, loc, prefix_op, tags)
+              DoubleInstr (Intel_OP (Intel_ControlOP CALL), Label sym_name, loc, prefix_op, tag, tags)
             in
             let new_acc = call'::acc in
             ( update_fname2css fname2css sym_name loc.loc_addr;
@@ -251,6 +251,7 @@ let apply
             Symbol (CallDes {func_name; func_begin_addr; func_end_addr; is_lib}),
             loc,
             prefix_op,
+            tag,
             tags ) ->
             ( update_fname2css fname2css func_name loc.loc_addr;
               add_existing_symbols rest (i' :: acc) )
@@ -261,6 +262,7 @@ let apply
             Const (Point call_addr),
             loc,
             prefix_op,
+            tag,
             tags ) ->
           begin
             if EU.elf_64 () then
@@ -275,6 +277,7 @@ let apply
                               Label (func_name^"@PLT"),
                               loc,
                               prefix_op,
+                              tag,
                               tags )
                           in
                           let new_acc = call' :: acc in
@@ -311,6 +314,7 @@ let apply
                           Label (func_name^"@PLT"),
                           loc,
                           prefix_op,
+                          tag,
                           tags )
                       in
                       let new_acc = call' :: acc in
@@ -329,6 +333,7 @@ let apply
             _,
             loc,
             prefix_op,
+            tag,
             tags ) -> begin
               add_existing_symbols rest (i' :: acc)
             end
@@ -336,7 +341,7 @@ let apply
   in
   let il' = add_existing_symbols il [] in
   (* update function list with function symbols *)
-  let ufunc = 
+  let ufunc =
     List.filter (fun f -> String.starts_with ~prefix:"S_" f.func_name) ufunc in
   let ufunc' = List.map (
     fun f ->

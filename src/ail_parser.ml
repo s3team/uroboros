@@ -7,6 +7,7 @@ open Common_parser
 open Parser
 open Arm_parser
 open Pp_print
+open Arm_func_slicer
 open Common_func_slicer
 open Tag_utils
 

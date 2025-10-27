@@ -171,7 +171,7 @@ module Disam = struct
         let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
         let _ = Hashtbl.iter (
           fun f cfg ->
-            let _ = AD.flow_analysis cfg in
+            let _ = AD.flow_analysis f cfg in
             ()
         ) func2cfg_table in
         AGA.result

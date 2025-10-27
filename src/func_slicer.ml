@@ -13,7 +13,7 @@ class func_slicer instrs funcs =
           match op with
           | Intel_OP io -> (
               match io with Intel_StackOP PUSH -> true | _ -> false)
-          | Arm_OP (ao, _, _) -> (
+          | Arm_OP (ao, _) -> (
               match ao with Arm_StackOP PUSH -> true | _ -> false)
           | _ -> false
         in
@@ -51,6 +51,7 @@ class func_slicer instrs funcs =
                   baddr <- l.loc_addr;
                   help t)
             | _ -> ()
+          end
         | _ -> failwith "process "
       in
       help (List.rev instrs)
@@ -338,14 +339,16 @@ class func_slicer instrs funcs =
                     | Intel_OP io ->
                       begin
                         match io with
-                      | Intel_ControlOP (_) -> false
-                      (*  | CommonOP (Assign _) -> true *)
-                      | Intel_CommonOP _ -> false
-                      | Intel_SystemOP _ -> false
-                      | Intel_StackOP _ -> true
-                      | Intel_ErrorOP _ -> false
-                      | _ -> false)
-                  | Arm_OP (_, _) -> failwith "TODO: ARM support: c")
+                        | Intel_ControlOP (_) -> false
+                        (*  | CommonOP (Assign _) -> true *)
+                        | Intel_CommonOP _ -> false
+                        | Intel_SystemOP _ -> false
+                        | Intel_StackOP _ -> true
+                        | Intel_ErrorOP _ -> false
+                        | _ -> false
+                      end
+                    | Arm_OP (_, _) -> failwith "TODO: ARM support: c"
+                  end
               (*| TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOV)), e1,e2,_,_) ->
                   is_begin3 (Intel_OP (Intel_CommonOP (Intel_Assign MOV))) e2 e1
                | TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOVZBL)), e1,e2,_,_) ->
@@ -437,7 +440,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | DoubleInstr (p, e, l, _, _) when (is_s_begin p e) ->
+        | DoubleInstr (p, e, l, _, _, _) when (is_s_begin p e) ->
            begin
              last_nop <- false;
              last_ret <- false;
@@ -446,7 +449,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | SingleInstr (p, l, _, _) when (is_cet_begin p) ->
+        | SingleInstr (p, l, _, _, _) when (is_cet_begin p) ->
           begin
             let int_to_hex n =
               Printf.sprintf "0x%X" n

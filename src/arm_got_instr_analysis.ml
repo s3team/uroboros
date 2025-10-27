@@ -2,6 +2,7 @@ open Semantic_analysis
 
 module ArmGotAbs : DfaAbs = struct
   open Ail_utils
+  open Arm_parser
   open Arm_reassemble_symbol_get
   open Arm_utils
   open Batteries
@@ -36,7 +37,7 @@ module ArmGotAbs : DfaAbs = struct
       let addr = int_of_string ("0x" ^ List.nth items 1)
       and size = int_of_string ("0x" ^ List.nth items 3)
       and secname = List.nth items 0 in
-      if contains secname ".got" then got_addr := addr else ()
+      if contains ~str:secname ~sub:".got" then got_addr := addr else ()
     in
     Enum.iter parse_section_info filelines
 
@@ -104,7 +105,7 @@ module ArmGotAbs : DfaAbs = struct
     let outs = ins in
     let arm_parser = new Arm_parser.arm_parse in
     match i with
-    | DoubleInstr (p, e, loc, _, _) -> begin
+    | DoubleInstr (p, e, loc, _, _, _) -> begin
         match (p, e) with
         | Arm_OP (Arm_StackOP POP, _), Label label ->
             (* pop {r4,r7,pc}
@@ -125,7 +126,7 @@ module ArmGotAbs : DfaAbs = struct
             remove_exps reg_exps outs
         | _ -> outs
       end
-    | TripleInstr (p, e1, e2, loc, prefix, _) -> begin
+    | TripleInstr (p, e1, e2, loc, prefix, _, _) -> begin
         match (p, e1, e2) with
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), imm)),
@@ -208,7 +209,7 @@ module ArmGotAbs : DfaAbs = struct
                         in
                         let new_instr =
                           TripleInstr
-                            (ldr_op, Const (Point addr), e2, loc, prefix, None)
+                            (ldr_op, Const (Point addr), e2, loc, prefix, None, Hashtbl.create 0)
                         in
                         Hashtbl.replace result loc.loc_addr new_instr
                   | None -> ()
@@ -251,7 +252,7 @@ module ArmGotAbs : DfaAbs = struct
           end
         | _ -> outs
       end
-    | FourInstr (p, e1, e2, e3, loc, _, _) -> begin
+    | FourInstr (p, e1, e2, e3, loc, _, _, _) -> begin
         match (p, e1, e2, e3) with
         | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _),
             Reg (Arm_Reg (Arm_CommonReg src1)),
@@ -293,7 +294,7 @@ module ArmGotAbs : DfaAbs = struct
       | None -> false
     in
     match i with
-    | TripleInstr (p, e1, e2, loc, prefix, _) -> begin
+    | TripleInstr (p, e1, e2, loc, prefix, _, tags) -> begin
         match (p, e1, e2) with
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _),
             Ptr (BinOP_PLUS_R (Arm_CommonReg src1, Arm_CommonReg src2)),
@@ -312,7 +313,7 @@ module ArmGotAbs : DfaAbs = struct
               let sym_tag = Some (Sym sym_addr) in
               (* If new_instr needs to be not only symbolized but dereferenced,
                * dereference it in arm_reassemble_symbol_get.ml#v_exp2 *)
-              let new_instr = TripleInstr (p, e1, e2, loc, prefix, sym_tag) in
+              let new_instr = TripleInstr (p, e1, e2, loc, prefix, sym_tag, tags) in
               Hashtbl.replace result (get_loc i).loc_addr new_instr;
               ()
             end

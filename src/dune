@@ -20,7 +20,7 @@
 (library
  (name pp_print)
  (modules pp_print)
- (libraries type)
+ (libraries type tag_utils)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -29,6 +29,22 @@
  (name ail_utils)
  (modules ail_utils)
  (libraries parmap batteries pp_print)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name arm_utils)
+ (modules arm_utils)
+ (libraries batteries ail_utils pp_print type)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name tag_utils)
+ (modules tag_utils)
+ (libraries type)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -61,6 +77,7 @@
  (name disassemble_process)
  (modules disassemble_process)
  (libraries
+  arm_got_instr_analysis
   semantic_analysis
   flow_insensitive_analysis
   reassemble_symbol_get
@@ -74,6 +91,22 @@
  (name semantic_analysis)
  (modules semantic_analysis)
  (libraries pp_print ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name arm_got_instr_analysis)
+ (modules arm_got_instr_analysis)
+ (libraries
+  semantic_analysis
+  ail_utils
+  arm_parser
+  arm_reassemble_symbol_get
+  arm_utils
+  batteries
+  pp_print
+  type)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -146,7 +179,23 @@
 (library
  (name func_slicer)
  (modules func_slicer)
- (libraries pp_print ail_utils visit)
+ (libraries pp_print common_func_slicer ail_utils visit)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name arm_func_slicer)
+ (modules arm_func_slicer)
+ (libraries batteries type pp_print common_func_slicer ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name common_func_slicer)
+ (modules common_func_slicer)
+ (libraries type pp_print ail_utils)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -192,15 +241,42 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
+ (name common_reassemble_symbol_get)
+ (modules common_reassemble_symbol_get)
+ (libraries visit type)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
  (name reassemble_symbol_get)
  (modules reassemble_symbol_get)
  (libraries
   batteries
+  common_reassemble_symbol_get
   pp_print
   ail_utils
   share_lib_helper
   data_process
   symbol_table_get)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name arm_reassemble_symbol_get)
+ (modules arm_reassemble_symbol_get)
+ (libraries
+  batteries
+  visit
+  common_reassemble_symbol_get
+  type
+  ail_utils
+  arm_utils
+  tag_utils
+  pp_print
+  share_lib_helper
+  data_process)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -215,6 +291,7 @@
   common_parser
   parser
   arm_parser
+  arm_func_slicer
   func_slicer)
  (wrapped false)
  (flags

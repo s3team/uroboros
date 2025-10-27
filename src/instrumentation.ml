@@ -125,16 +125,16 @@ let add_comment
     (comment : string)
   : instr =
   match instr with
-  | SingleInstr (op, loc, prefix, tags) ->
-    SingleInstr (op, loc, prefix, create_comment comment)
-  | DoubleInstr (op, exp, loc, prefix, tags) ->
-    DoubleInstr (op, exp, loc, prefix, create_comment comment)
-  | TripleInstr (op, exp1, exp2, loc, prefix, tags) ->
-    TripleInstr (op, exp1, exp2, loc, prefix, create_comment comment)
-  | FourInstr (op, exp1, exp2, exp3, loc, prefix, tags) ->
-    FourInstr (op, exp1, exp2, exp3, loc, prefix, create_comment comment)
-  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, tags) ->
-    FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, create_comment comment)
+  | SingleInstr (op, loc, prefix, tag, tags) ->
+    SingleInstr (op, loc, prefix, tag, create_comment comment)
+  | DoubleInstr (op, exp, loc, prefix, tag, tags) ->
+    DoubleInstr (op, exp, loc, prefix, tag, create_comment comment)
+  | TripleInstr (op, exp1, exp2, loc, prefix, tag, tags) ->
+    TripleInstr (op, exp1, exp2, loc, prefix, tag, create_comment comment)
+  | FourInstr (op, exp1, exp2, exp3, loc, prefix, tag, tags) ->
+    FourInstr (op, exp1, exp2, exp3, loc, prefix, tag, create_comment comment)
+  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, tag, tags) ->
+    FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, tag, create_comment comment)
 
 let p_dir_str
     (dir : dir option)
@@ -157,11 +157,13 @@ let caller_saved_before_ret
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -169,11 +171,13 @@ let caller_saved_before_ret
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) )
     ]
@@ -184,17 +188,20 @@ let caller_saved_before_ret
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
           None,
-          (create_comment instr_type) );
-      DoubleInstr
-        ( Intel_OP (Intel_StackOP (PUSH)),
-          Reg (Intel_Reg (Intel_CommonReg RBX)),
-          stub_loc,
           None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
+          None,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (PUSH)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
+          stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -202,11 +209,13 @@ let caller_saved_before_ret
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -214,11 +223,13 @@ let caller_saved_before_ret
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -226,17 +237,20 @@ let caller_saved_before_ret
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
     ]
@@ -252,11 +266,13 @@ let caller_saved_before
           Reg (Intel_Reg (Intel_CommonReg EAX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -264,11 +280,13 @@ let caller_saved_before
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) )
     ]
@@ -279,11 +297,13 @@ let caller_saved_before
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RAX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -291,11 +311,13 @@ let caller_saved_before
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -303,11 +325,13 @@ let caller_saved_before
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -315,11 +339,13 @@ let caller_saved_before
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -327,11 +353,13 @@ let caller_saved_before
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
     ]
@@ -347,23 +375,27 @@ let caller_saved_after_ret
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
           None,
-          (create_comment instr_type) );
-      DoubleInstr
-        ( Intel_OP (Intel_StackOP (POP)),
-          Reg (Intel_Reg (Intel_CommonReg EBX)),
-          stub_loc,
           None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
+          None,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg EBX)),
+          stub_loc,
+          None,
           None,
           (create_comment instr_type) )
     ]
@@ -374,11 +406,13 @@ let caller_saved_after_ret
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -386,11 +420,13 @@ let caller_saved_after_ret
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -398,11 +434,13 @@ let caller_saved_after_ret
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -410,23 +448,27 @@ let caller_saved_after_ret
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None,
-          (create_comment instr_type) );
-      DoubleInstr
-        ( Intel_OP (Intel_StackOP (POP)),
-          Reg (Intel_Reg (Intel_CommonReg RBX)),
-          stub_loc,
           None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
+          None,
+          None,
+          (create_comment instr_type) );
+      DoubleInstr
+        ( Intel_OP (Intel_StackOP (POP)),
+          Reg (Intel_Reg (Intel_CommonReg RBX)),
+          stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) )
     ]
@@ -442,11 +484,13 @@ let caller_saved_after
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -454,11 +498,13 @@ let caller_saved_after
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg EAX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) )
     ]
@@ -469,11 +515,13 @@ let caller_saved_after
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -481,11 +529,13 @@ let caller_saved_after
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -493,11 +543,13 @@ let caller_saved_after
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
           None,
+          None,
           (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
+          None,
           None,
           (create_comment instr_type) );
       DoubleInstr
@@ -505,25 +557,25 @@ let caller_saved_after
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None,
-          (create_comment instr_type) );
+          None,          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
           None,
-          (create_comment instr_type) );
+          None,          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RAX)),
           stub_loc,
           None,
-          (create_comment instr_type) );
+          None,          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
           None,
-          (create_comment instr_type) )
+          None,          (create_comment instr_type) )
     ]
 
 let caller_saved_before_regs
@@ -645,8 +697,7 @@ let create_points_f1
     (linenum : string)
     (pidx : int)
     (filepath : string)
-    (main_symbol : string)
-    (loc : string) 
+    (loc : string)
   : unit =
   let locations : location list =
     if contains ~str:loc ~sub:"-" then
@@ -974,8 +1025,8 @@ let arg_order_64
 
 let set_arg
     (instr_type : string)
-    (i : int) 
-    (arg : (string * string))
+    (i : int)
+    (arg : exp)
   : instr =
   let module EU = ELF_utils in
   let _type, _value = arg in
@@ -1009,6 +1060,7 @@ let set_arg
         exp_type,
         stub_loc,
         None,
+        None,
         (create_comment instr_type) )
   else
     let dest_arg_reg = arg_order_64 i in
@@ -1017,6 +1069,7 @@ let set_arg
         Reg (Intel_Reg dest_arg_reg),
         exp_type,
         stub_loc,
+        None,
         None,
         (create_comment instr_type) )
 
@@ -1040,6 +1093,25 @@ let add_call_seq_arg
     ~(ret_type : c_ret_type)
   : instr list =
   let module EU = ELF_utils in
+  let parse_arg arg =
+    let _type, _value = arg in
+    match _type with
+    | "int" ->
+      ( try Const (Normal (int_of_string _value))
+      with _ -> Label _value )
+    | "char*" | "char *" | "int*" | "int *" ->
+      Label _value
+    | "print-arg" ->
+      if EU.elf_32 () then
+        failwith ("for PRINTARGS 32-bits, should not reach here. Failure at "
+                  ^ __LOC__)
+      else
+        Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
+  in
+  let args' = List.map (
+    parse_arg
+  ) args
+  in
   if EU.elf_32 () then
     List.rev
       ( (caller_saved_before_regs instr_type ret_type)
@@ -1058,6 +1130,7 @@ let add_call_seq_arg
             ),
             stub_loc,
             None,
+            None,
             (create_comment instr_type) ) ]
     @ [ TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
@@ -1065,7 +1138,7 @@ let add_call_seq_arg
           Const (Normal (4 * List.length args)),
           stub_loc,
           None,
-          (create_comment instr_type) ) ] (* arguments on stack for 32-bits *)
+          None,          (create_comment instr_type) ) ] (* arguments on stack for 32-bits *)
     @ (caller_saved_after_regs instr_type ret_type) )
   else
     List.rev
@@ -1084,6 +1157,7 @@ let add_call_seq_arg
               }
             ),
             stub_loc,
+            None,
             None,
             (create_comment instr_type) ) ]
     @ (caller_saved_after_regs instr_type ret_type) )
@@ -1113,7 +1187,7 @@ let add_call_seq
           ),
           stub_loc,
           None,
-          (create_comment instr_type) ) ] )
+          None,          (create_comment instr_type) ) ] )
   else
     List.rev
     ( (caller_saved_before_regs instr_type ret_type)
@@ -1129,7 +1203,7 @@ let add_call_seq
           ),
           stub_loc,
           None,
-          (create_comment instr_type) ) ]
+          None,          (create_comment instr_type) ) ]
     @ (caller_saved_after_regs instr_type ret_type) )
 
 let print_args
@@ -1159,6 +1233,7 @@ let print_args
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             stub_loc,
             None,
+            None,
             (create_comment instr_type) );
           TripleInstr
           ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -1166,13 +1241,13 @@ let print_args
             Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), esp_arg_i)),
             stub_loc,
             None,
-            (create_comment instr_type) );
+            None,            (create_comment instr_type) );
           DoubleInstr
           ( Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             stub_loc,
             None,
-            (create_comment instr_type) );
+            None,            (create_comment instr_type) );
           DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -1185,17 +1260,19 @@ let print_args
             ),
             stub_loc,
             None,
-            (create_comment instr_type) );
+            None,            (create_comment instr_type) );
           DoubleInstr
             ( Intel_OP (Intel_StackOP (POP)),
               Reg (Intel_Reg (Intel_CommonReg EAX)),
               stub_loc,
+              None,
               None,
               (create_comment instr_type) );
           DoubleInstr
             ( Intel_OP (Intel_StackOP (POP)),
               Reg (Intel_Reg (Intel_CommonReg EAX)),
               stub_loc,
+              None,
               None,
               (create_comment instr_type) ) ]
         in
@@ -1225,7 +1302,7 @@ let get_ret_type
     (code_ep : string)
   : c_ret_type =
   let lines = read_lines code in
-  let rec find_code_ep 
+  let rec find_code_ep
       (code_ep : string)
     : string list -> c_ret_type = function
     | [] -> failwith ("code entry point not found. Failure at "

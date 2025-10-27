@@ -2081,18 +2081,18 @@ class arm_reassemble =
           | Arm_OP _ -> false
         in
         match i with
-        | SingleInstr (p, l, pre, _) -> i
-        | DoubleInstr (p, e, l, pre, tag) ->
-            DoubleInstr (p, self#v_exp2 e i f false, l, pre, tag)
-        | TripleInstr (p, e1, e2, l, pre, Some (Sym value)) -> begin
+        | SingleInstr (p, l, pre, _, _) -> i
+        | DoubleInstr (p, e, l, pre, tag, tags) ->
+            DoubleInstr (p, self#v_exp2 e i f false, l, pre, tag, tags)
+        | TripleInstr (p, e1, e2, l, pre, Some (Sym value), tags) -> begin
             (* `Point value` will be symbolized
              * when vinst2 is called by visit_type_infer_analysis *)
             let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None) in
             let pointer_instr =
-              TripleInstr (ldr_op, Const (Point value), e2, l, pre, None)
+              TripleInstr (ldr_op, Const (Point value), e2, l, pre, None, tags)
             in
             let deref_instr =
-              TripleInstr (ldr_op, Const (Point value), e2, l, pre, Some Deref)
+              TripleInstr (ldr_op, Const (Point value), e2, l, pre, Some Deref, tags)
             in
             match self#check_sec value with
             | Some s ->
@@ -2111,21 +2111,22 @@ class arm_reassemble =
                 else deref_instr
             | None -> pointer_instr
           end
-        | TripleInstr (p, e1, e2, l, pre, tag) when is_test p ->
+        | TripleInstr (p, e1, e2, l, pre, tag, tags) when is_test p ->
             TripleInstr
-              (p, self#v_exp2 e1 i f true, self#v_exp2 e2 i f true, l, pre, tag)
-        | TripleInstr (p, e1, e2, l, pre, tag) ->
+              (p, self#v_exp2 e1 i f true, self#v_exp2 e2 i f true, l, pre, tag, tags)
+        | TripleInstr (p, e1, e2, l, pre, tag, tags) ->
             TripleInstr
               ( p,
                 self#v_exp2 e1 i f false,
                 self#v_exp2 e2 i f false,
                 l,
                 pre,
-                tag )
-        | FourInstr (p, e1, e2, e3, l, pre, tag) ->
-            FourInstr (p, e1, self#v_exp2 e2 i f false, e3, l, pre, tag)
-        | FifInstr (p, e1, e2, e3, e4, l, pre, tag) ->
-            FifInstr (p, e1, self#v_exp2 e2 i f false, e3, e4, l, pre, tag)
+                tag,
+                tags )
+        | FourInstr (p, e1, e2, e3, l, pre, tag, tags) ->
+            FourInstr (p, e1, self#v_exp2 e2 i f false, e3, l, pre, tag, tags)
+        | FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags) ->
+            FifInstr (p, e1, self#v_exp2 e2 i f false, e3, e4, l, pre, tag, tags)
 
     method visit_heuristic_analysis (instrs : instr list) =
       let func (i : instr) : bool =

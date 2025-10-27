@@ -33,7 +33,7 @@ class arm_func_slicer instrs funcs =
       let rec help (inst : instr) =
         match inst with
         (* ARM Thumb *)
-        | SingleInstr (Arm_OP (Arm_CommonOP (Arm_Other NOP), _), _, _, _) ->
+        | SingleInstr (Arm_OP (Arm_CommonOP (Arm_Other NOP), _), _, _, _, _) ->
             last_nop <- true;
             last_ret <- false;
             last_special <- false
@@ -44,12 +44,13 @@ class arm_func_slicer instrs funcs =
               Reg (Arm_Reg (Arm_CommonReg R0)),
               l,
               _,
+              _,
               _ ) ->
             last_nop <- true;
             last_ret <- false;
             last_special <- false
         (* pop {r7, pc} *)
-        | DoubleInstr (Arm_OP (Arm_StackOP POP, _), Label lab, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP POP, _), Label lab, _, _, _, _)
           when has_pc_reg lab ->
             last_nop <- false;
             last_ret <- false;
@@ -57,7 +58,7 @@ class arm_func_slicer instrs funcs =
             last_pop <- true
         (* add a function *)
         (* push {r4, lr} *)
-        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _), Label lab, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _), Label lab, _, _, _, _)
           when has_lr_reg lab ->
             last_nop <- false;
             last_ret <- false;
@@ -81,21 +82,21 @@ class arm_func_slicer instrs funcs =
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* add a function *)
-        | TripleInstr (_, _, _, _, _, _) when last_nop ->
+        | TripleInstr (_, _, _, _, _, _, _) when last_nop ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* add a function *)
-        | FourInstr (_, _, _, _, _, _, _) when last_nop ->
+        | FourInstr (_, _, _, _, _, _, _, _) when last_nop ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         (* AArch64 *)
-        | SingleInstr (Arm_OP (Arm_ControlOP RET, _), _, _, _) ->
+        | SingleInstr (Arm_OP (Arm_ControlOP RET, _), _, _, _, _) ->
             last_nop <- false;
             last_ret <- true;
             last_special <- false;
@@ -105,7 +106,7 @@ class arm_func_slicer instrs funcs =
          * nop
          * S_0x400520:
          * adrp x0,0x411000 *)
-        | TripleInstr (_, _, _, _, _, _) when last_ret ->
+        | TripleInstr (_, _, _, _, _, _, _) when last_ret ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -115,7 +116,7 @@ class arm_func_slicer instrs funcs =
          * nop
          * S_0x400590:
          * stp x29,x30,[sp, #-0x20]! *)
-        | FourInstr (_, _, _, _, _, _, _) when last_ret ->
+        | FourInstr (_, _, _, _, _, _, _, _) when last_ret ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;

@@ -796,7 +796,7 @@ module Opcode_utils = struct
       let is_arm_ret inst = match inst with
         (* TODO: ARM: implement the case below: *)
         (* pop {r7, pc} *)
-        | DoubleInstr (op, e, _, _, _) ->
+        | DoubleInstr (op, e, _, _, _, _) ->
           (match op with
           | Arm_OP (Arm_ControlOP BX, _) -> e = Reg (Arm_Reg (Arm_LinkReg LR))
           | _ -> false)
@@ -1027,7 +1027,7 @@ module Instr_utils = struct
               | Intel_CommonOP (Intel_Assign _) -> Some TRIPLE_READ
               | _ -> None
             end
-          | Arm_OP (ao, _, _) ->
+          | Arm_OP (ao, _) ->
             begin
               match ao with
               | Arm_CommonOP (Arm_Assign _) -> Some TRIPLE_READ
@@ -1078,21 +1078,21 @@ module Instr_utils = struct
 
     let is_jmp_instr i =
         match i with
-        | SingleInstr (p, _, _, _) when (is_ret p) ->
+        | SingleInstr (p, _, _, _, _) when (is_ret p) ->
            Some RET_TYPE
-        | DoubleInstr (_, _, _, _, _) when (is_arm_ret i) ->
+        | DoubleInstr (_, _, _, _, _, _) when (is_arm_ret i) ->
           Some RET_TYPE
-        | DoubleInstr (_, e, _, _, _) when (is_indirect e) ->
+        | DoubleInstr (_, e, _, _, _, _) when (is_indirect e) ->
            Some INDIRECT
-        | DoubleInstr (p, _, _, _, _) when (is_call p) ->
+        | DoubleInstr (p, _, _, _, _, _) when (is_call p) ->
            Some DIRECT_CALL
-        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = true) ->
+        | DoubleInstr (p, e, _, _, _, _) when (is_jmp p) && (is_func e = true) ->
            Some DIRECT_JMP_INTER
-        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = false) ->
+        | DoubleInstr (p, e, _, _, _, _) when (is_jmp p) && (is_func e = false) ->
            Some DIRECT_JMP_INTRA
-        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
+        | DoubleInstr (p, e, _, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
            Some COND_JMP_INTRA
-        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = true)->
+        | DoubleInstr (p, e, _, _, _, _) when (is_cond_jmp p) && (is_func e = true)->
            Some COND_JMP_INTER
         | _ -> None
 end
@@ -1432,7 +1432,7 @@ module Func_utils = struct
       in
       let help acc i =
         match i with
-        | DoubleInstr (p, e, _, _, _) when (is_call p) ->
+        | DoubleInstr (p, e, _, _, _, _) when (is_call p) ->
            let open Pp_print in
            let es = p_exp e in
            if String.exists es fn then
@@ -1502,11 +1502,11 @@ module Func_utils = struct
         in
         let get_ct_des i =
           match i with
-          | DoubleInstr (p, e, l, _, _) when is_ct p -> (
+          | DoubleInstr (p, e, l, _, _, _) when is_ct p -> (
               match e with
               | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
               | _ -> None)
-          | TripleInstr (p, e1, e2, l, _, _) when is_ct p -> (
+          | TripleInstr (p, e1, e2, l, _, _, _) when is_ct p -> (
               (* ARM: cbz r3,0x10428 *)
               match e1 with
               | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
@@ -1744,21 +1744,21 @@ module Cfg_utils = struct
     let map_jmp (visitor : (instr -> jmp_type -> instr)) instrs : instr list =
       let aux i =
         match i with
-        | SingleInstr (p, _, _, _) when (is_ret p) ->
+        | SingleInstr (p, _, _, _, _) when (is_ret p) ->
            visitor i RET_TYPE
-        | DoubleInstr (_, _, _, _, _) when (is_arm_ret i) ->
+        | DoubleInstr (_, _, _, _, _, _) when (is_arm_ret i) ->
            visitor i RET_TYPE
-        | DoubleInstr (_, e, _, _, _) when (is_indirect e) ->
+        | DoubleInstr (_, e, _, _, _, _) when (is_indirect e) ->
            visitor i INDIRECT
-        | DoubleInstr (p, _, _, _, _) when (is_call p) ->
+        | DoubleInstr (p, _, _, _, _, _) when (is_call p) ->
            visitor i DIRECT_CALL
-        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = true) ->
+        | DoubleInstr (p, e, _, _, _, _) when (is_jmp p) && (is_func e = true) ->
            visitor i DIRECT_JMP_INTER
-        | DoubleInstr (p, e, _, _, _) when (is_jmp p) && (is_func e = false) ->
+        | DoubleInstr (p, e, _, _, _, _) when (is_jmp p) && (is_func e = false) ->
            visitor i DIRECT_JMP_INTRA
-        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
+        | DoubleInstr (p, e, _, _, _, _) when (is_cond_jmp p) && (is_func e = false)->
            visitor i COND_JMP_INTRA
-        | DoubleInstr (p, e, _, _, _) when (is_cond_jmp p) && (is_func e = true)->
+        | DoubleInstr (p, e, _, _, _, _) when (is_cond_jmp p) && (is_func e = true)->
            visitor i COND_JMP_INTER
         | _ -> i in
       instrs |> List.rev_map aux |> List.rev
@@ -1768,10 +1768,10 @@ module Cfg_utils = struct
     let map_mem_write (visitor : (instr -> mem_write_type -> instr)) instrs : instr list =
       let aux i =
         match i with
-        | DoubleInstr (p, _, _, _, _) when (is_push p) ->
+        | DoubleInstr (p, _, _, _, _, _) when (is_push p) ->
            visitor i DOUBLE_WRITE
         (* memory assignment operation *)
-        | TripleInstr (op, e1, _, _, _, _) when (is_assign op) && (is_mem_exp e1)->
+        | TripleInstr (op, e1, _, _, _, _, _) when (is_assign op) && (is_mem_exp e1)->
            visitor i TRIPLE_WRITE
         | _ -> i in
       instrs |> List.rev_map aux |> List.rev

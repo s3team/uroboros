@@ -17,7 +17,7 @@ module ArmUtils = struct
 
   let get_pc_relative_addr (mode : string) (i : instr) : int =
     match i with
-    | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign _), _), exp2, _, loc, _, _)
+    | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign _), _), exp2, _, loc, _, _, _)
       -> begin
         match exp2 with
         | Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), offset)) ->

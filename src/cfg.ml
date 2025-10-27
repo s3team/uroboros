@@ -68,11 +68,11 @@ class cfg =
 
     method get_loc i =
       match i with
-      | SingleInstr (_, l, _, _) -> l
-      | DoubleInstr (_, _, l, _, _) -> l
-      | TripleInstr (_, _, _, l, _, _) -> l
-      | FourInstr (_, _, _, _, l, _, _) -> l
-      | FifInstr (_, _, _, _, _, l, _, _) -> l
+      | SingleInstr (_, l, _, _, _) -> l
+      | DoubleInstr (_, _, l, _, _, _) -> l
+      | TripleInstr (_, _, _, l, _, _, _) -> l
+      | FourInstr (_, _, _, _, l, _, _, _) -> l
+      | FifInstr (_, _, _, _, _, l, _, _, _) -> l
 
     method vinst' (i: instr) =
       (* check whether is control flow transfer opcodes *)
@@ -98,7 +98,7 @@ class cfg =
           end
         | _ -> false in
       match i with
-      | DoubleInstr (p, e, l, _, _) when (is_ct p) ->
+      | DoubleInstr (p, e, l, _, _, _) when (is_ct p) ->
          self#cfg_exp e l;
          i
       | _ -> i
@@ -276,9 +276,9 @@ class cfg =
            help_exit i
          else
            i
-      | DoubleInstr (p, e, l, _, _) when (bb_exit p l) ->
+      | DoubleInstr (p, e, l, _, _, _) when (bb_exit p l) ->
            help_exit i
-      | SingleInstr (p, l, _, _) when (bb_exit p l) ->
+      | SingleInstr (p, l, _, _, _) when (bb_exit p l) ->
          help_exit i
       | _ ->
          begin

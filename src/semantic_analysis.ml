@@ -69,6 +69,7 @@ module GotAbs : DfaAbs = struct
            Symbol (StarDes (Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)))),
            loc,
            prefix,
+           tag,
            tags )
     | DoubleInstr
         ( Intel_OP (Intel_ControlOP CALL),
@@ -464,6 +465,7 @@ module GotAbs : DfaAbs = struct
                 0
                 ( SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)),
                   stub_loc,
+                  None,
                   None,
                   got_reg_tags) );
               ExpSet.add (Reg r) outs
