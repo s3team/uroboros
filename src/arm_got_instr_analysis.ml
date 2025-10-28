@@ -193,7 +193,7 @@ module ArmGotAbs : DfaAbs = struct
             let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
             match get_register_value dst_reg_name with
             | Some dst_reg_value ->
-                let help addr =
+                let check_and_replace_instr addr =
                   let module AR = Arm_reassemble_symbol_get in
                   let arm_reassemble = new AR.arm_reassemble in
                   let sec = arm_reassemble#check_sec addr in
@@ -226,7 +226,7 @@ module ArmGotAbs : DfaAbs = struct
                         in
                         let new_instr =
                           TripleInstr
-                            (ldr_op, Const (Point addr), e2, loc, prefix, None)
+                            (ldr_op, Const (Point addr), e2, loc, prefix, None, Hashtbl.create 0)
                         in
                         Hashtbl.replace result loc.loc_addr new_instr
                       else ()

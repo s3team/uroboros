@@ -44,6 +44,7 @@ module ArmPostprocess = struct
                 Reg (Arm_Reg (Arm_CommonReg reg)),
                 loc,
                 _,
+                _,
                 _ ) -> begin
               if is_in_text_sec addr then
                 let add_instr =
@@ -53,7 +54,8 @@ module ArmPostprocess = struct
                       Reg (Arm_Reg (Arm_CommonReg reg)),
                       loc,
                       None,
-                      None )
+                      None,
+                      Hashtbl.create 0 )
                 in
                 aux (add_instr :: i :: acc) t
               else aux (i :: acc) t
@@ -63,6 +65,7 @@ module ArmPostprocess = struct
                 Label s_label,
                 Reg (Arm_Reg (Arm_CommonReg reg)),
                 loc,
+                _,
                 _,
                 _ ) -> begin
               (* ldr r3,=S_0x11346 *)
@@ -77,7 +80,8 @@ module ArmPostprocess = struct
                       Reg (Arm_Reg (Arm_CommonReg reg)),
                       loc,
                       None,
-                      None )
+                      None,
+                      Hashtbl.create 0 )
                 in
                 aux (add_instr :: i :: acc) t
               else aux (i :: acc) t

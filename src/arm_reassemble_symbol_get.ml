@@ -103,12 +103,6 @@ class datahandler (label' : (string * int) list) =
 
       (* locations are sec,offset where labels need to be added *)
       locations <- self#label_locate;
-
-      (* giyeol: *)
-      (* List.iter
-        (fun (s, jumpdes) ->
-          Printf.printf "set_datas label: %s 0x%x\n" s jumpdes)
-        label; *)
       label_set <- List.map snd label;
       label_set <- List.sort compare label_set;
       label_arr <- Array.of_list label_set;
@@ -1431,34 +1425,16 @@ class instrhandler instr_list des' =
         match (llist, dlist) with
         | llist', [] -> List.rev_append llist' acc
         | lh :: lt, dh :: dt ->
-            (* giyeol: *)
-            (* let _ = Printf.printf "loc addr: %s\n" (dec_hex lh.loc_addr) in
-            let _ = Printf.printf "des addr: 0x%x\n" dh in
-            let _ = Printf.printf "llist len: %d\n" (List.length lt) in
-            let _ = Printf.printf "des len: %d\n" (List.length dt) in
-            let _ = Printf.printf "\n" in *)
-            (* let _ = Printf.printf "lh(%x) dh(%x)\n" lh.loc_addr dh in *)
             let lhd = lh.loc_addr in
             if dh = lhd then
               let lhs = dec_hex lh.loc_addr in
               let label' = do_update lh.loc_label (lhs ^ ":\n") in
               let lh' = { lh with loc_label = label' } in
-              (* giyeol: *)
-              (* let _ =
-                Printf.printf "\tif dh = lhd: loc(%x) des(%x)\n" lh.loc_addr dh
-              in *)
               help (lh' :: acc) lt dt
             else if dh < lhd then
               (* this is not a label indeed*)
-              (* let _ =
-                Printf.printf "\telse if dh < lhd: loc(%x) des(%x)\n"
-                  lh.loc_addr dh
-              in *)
               help (lh :: acc) lt dt
             else
-              (* let _ =
-                Printf.printf "\telse: loc(%x) des(%x)\n" lh.loc_addr dh
-              in *)
               help (lh :: acc) lt dlist
         | a, b ->
             print_string "reassemble process\n";
@@ -1473,13 +1449,9 @@ class instrhandler instr_list des' =
             List.iter (Printf.printf "\tdes addr: %s\n") (List.map dec_hex b);
             failwith "undefined des list"
       in
-      (* let _ = List.iter (fun l -> Printf.printf "des: %s\n" l) des in *)
       let des' = self#clean_sort des in
-      (* let _ = List.iter (fun l -> Printf.printf "des': 0x%x\n"  l) des' in *)
-      (* giyeol: TODO: here is the problem!! *)
       locs <- List.rev (help [] locs des')
     (** Check if symbols in locs can be found in des *)
-    (* List.iter (fun l -> Printf.printf "loc: %s\n" l.loc_label) locs; *)
 
     method insert_dummy =
       let help = function
@@ -1836,10 +1808,6 @@ class arm_reassemble =
           let loc = get_loc i in
           let addr = loc.loc_addr in
           if Hashtbl.mem literal_pool_candidates addr then
-            let _ =
-              Printf.printf "giyeol: add_del_to_literal_pool_candidates: %s\n"
-                (pp_print_instr' i)
-            in
             TU.replace_tag i (Some Del)
           else i)
         il
@@ -1861,20 +1829,13 @@ class arm_reassemble =
           | Some s ->
               if check_test_condition l chk = false then e
               else if self#has_data l' then begin
-                (* let _ =
-                  Printf.printf "giyeol: build symbol with data: %s\n"
-                    (pp_print_instr' i)
-                in *)
                 let s_label = self#build_symbol l in
                 let loc' = get_loc i in
                 c2d_addr <- loc'.loc_addr :: c2d_addr;
                 Label s_label
               end
               else begin
-                (* giyeol:  *)
-                (* let _ = Printf.printf "v_exp2: Const, Some, not has_data: %s\n" (pp_print_instr' i) in *)
                 Hashtbl.replace data_set l' "";
-                (* let _ = print_endline "giyeol: build symbol with data_set" in *)
                 let s_label = self#build_symbol l in
                 label <- (s.sec_name, l') :: label;
                 let loc' = get_loc i in
@@ -1888,7 +1849,6 @@ class arm_reassemble =
                   let rb = f i in
                   ();
 
-                  (* let _ = print_endline "giyeol: build symbol with text" in *)
                   let s_label = self#build_symbol l in
                   let loc' = get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
@@ -1902,7 +1862,6 @@ class arm_reassemble =
                   e
                   (* else begin
                   Hashtbl.replace text_set l' "";
-                  (* let _ = print_endline "giyeol: build symbol with text_set" in *)
                   let s_label = self#build_symbol l in
                   deslist <- s_label :: deslist;
                   let loc' = get_loc i in
@@ -1918,7 +1877,6 @@ class arm_reassemble =
                 in
                 if EU.elf_static () = false then
                   if self#check_plt l' then
-                    (* let _ = print_endline "giyeol: build symbol with plt" in *)
                     let ns = self#build_plt_symbol l in
                     Label ns
                   else e
@@ -1927,14 +1885,9 @@ class arm_reassemble =
       | Symbol s -> begin
           match s with
           | JumpDes l ->
-              (* let _ =
-                (* giyeol: *)
-                Printf.printf "v_exp2: JumpDes %s\n" (pp_print_instr' i)
-              in *)
               if self#check_text l then
                 if self#has_text l then
                   let s_label = "S_" ^ dec_hex l in
-                  (* let _ = print_endline "giyeol: jumpdes true" in *)
                   Label s_label
                 else begin
                   Hashtbl.replace text_set l "";
@@ -1945,10 +1898,6 @@ class arm_reassemble =
               else e (* is it possible? *)
           | StarDes sd -> Symbol (StarDes (self#v_exp2 sd i f false))
           | CallDes f ->
-              (* let _ =
-                (* giyeol: *)
-                Printf.printf "v_exp2: CallDes %s\n" (pp_print_instr' i)
-              in *)
               let nl = String.length f.func_name in
               let fn = String.sub f.func_name 2 (nl - 2) in
               let is_dig_loc =
@@ -2222,7 +2171,7 @@ class arm_reassemble =
              *)
             (* `Point value` will be symbolized
              * when vinst2 is called by visit_type_infer_analysis *)
-            let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None) in
+            let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
             let pointer_instr =
               TripleInstr (ldr_op, Const (Point value), e2, l, pre, None, tags)
             in
@@ -2427,12 +2376,6 @@ class arm_reassemble =
       self#update_deslist_with_initarray;
       self#dump_c2c_labels deslist_reloc;
       let t = List.rev_append (List.rev init_array_list) deslist in
-      (* giyeol: *)
-      (* List.iter (fun l -> Printf.printf "adjust_loclabel t: %s\n" l) t; *)
-      (* List.iter
-        (fun i ->
-          Printf.printf "adjust_loclabel instr_list: %s\n" (pp_print_instr' i))
-        instr_list; *)
       let p = new instrhandler instr_list t in
       (*
           self#update_deslist_with_ehframe;

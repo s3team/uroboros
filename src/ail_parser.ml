@@ -44,7 +44,7 @@ let is_control_op (op : op) : bool = match op with
 in
 
 let is_movs_r0_r0 (i : instr) : bool = match i with
-  | TripleInstr (op, exp1, exp2, _, _, _)
+  | TripleInstr (op, exp1, exp2, _, _, _, _)
     when is_movs op
          && exp1 = Reg (Arm_Reg (Arm_CommonReg R0))
          && exp2 = Reg (Arm_Reg (Arm_CommonReg R0)) -> true
@@ -64,42 +64,42 @@ in
 let has_r2_reg (i : instr) =
   let exp = get_exp_1 i in
   match exp with
-    | Label l -> if contains l "r2" then true else false
+    | Label l -> if contains ~str:l ~sub:"r2" then true else false
     | _ -> false
 in
 
 let has_r3_reg (i : instr) =
   let exp = get_exp_1 i in
   match exp with
-    | Label l -> if contains l "r3" then true else false
+    | Label l -> if contains ~str:l ~sub:"r3" then true else false
     | _ -> false
 in
 
 let has_r7_reg (i : instr) =
   let exp = get_exp_1 i in
   match exp with
-    | Label l -> if contains l "r7" then true else false
+    | Label l -> if contains ~str:l ~sub:"r7" then true else false
     | _ -> false
 in
 
 let has_lr_reg (i : instr) =
   let exp = get_exp_1 i in
   match exp with
-    | Label l -> if contains l "lr" then true else false
+    | Label l -> if contains ~str:l ~sub:"lr" then true else false
     | _ -> false
 in
 
 let has_pc_reg (i : instr) =
   let exp = get_exp_1 i in
   match exp with
-    | Label l -> if contains l "pc" then true else false
+    | Label l -> if contains ~str:l ~sub:"pc" then true else false
     | _ -> false
 in
 
 let has_fp_reg (i : instr) =
   let exp = get_exp_1 i in
   match exp with
-    | Label l -> if contains l "fp" then true else false
+    | Label l -> if contains ~str:l ~sub:"fp" then true else false
     | _ -> false
 in
 
@@ -157,7 +157,7 @@ let is_func_start (instrs : instr list) (i : instr) (idx : int) =
   else begin
     match i with
     | TripleInstr
-        (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), _, _), _, exp2, _, _, _)
+        (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), _, _), _, exp2, _, _, _, _)
       when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) -> begin
         (* In Coreutils stat,
          * 14004:	b082      	sub	sp, #8 ;; func start
@@ -457,16 +457,16 @@ object (self)
   method adjust_width_specifier (instrs : instr list) : instr list =
     let change_width_specifier (i : instr) (new_widthsuff : arm_widthsuff option) : instr =
       match i with
-      | SingleInstr (Arm_OP (op, condsuff, widthsuff), loc, pre, tag) ->
-        SingleInstr (Arm_OP (op, condsuff, new_widthsuff), loc, pre, tag)
-      | DoubleInstr (Arm_OP (op, condsuff, widthsuff), exp, loc, pre, tag) ->
-        DoubleInstr (Arm_OP (op, condsuff, new_widthsuff), exp, loc, pre, tag)
-      | TripleInstr (Arm_OP (op, condsuff, widthsuff), exp, exp2, loc, pre, tag) ->
-        TripleInstr (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, loc, pre, tag)
-      | FourInstr (Arm_OP (op, condsuff, widthsuff), exp, exp2, exp3, loc, pre, tag) ->
-        FourInstr (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, exp3, loc, pre, tag)
-      | FifInstr (Arm_OP (op, condsuff, widthsuff), exp, exp2, exp3, exp4, loc, pre, tag) ->
-        FifInstr (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, exp3, exp4, loc, pre, tag)
+      | SingleInstr (Arm_OP (op, condsuff, widthsuff), loc, pre, tag, tags) ->
+        SingleInstr (Arm_OP (op, condsuff, new_widthsuff), loc, pre, tag, tags)
+      | DoubleInstr (Arm_OP (op, condsuff, widthsuff), exp, loc, pre, tag, tags) ->
+        DoubleInstr (Arm_OP (op, condsuff, new_widthsuff), exp, loc, pre, tag, tags)
+      | TripleInstr (Arm_OP (op, condsuff, widthsuff), exp, exp2, loc, pre, tag, tags) ->
+        TripleInstr (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, loc, pre, tag, tags)
+      | FourInstr (Arm_OP (op, condsuff, widthsuff), exp, exp2, exp3, loc, pre, tag, tags) ->
+        FourInstr (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, exp3, loc, pre, tag, tags)
+      | FifInstr (Arm_OP (op, condsuff, widthsuff), exp, exp2, exp3, exp4, loc, pre, tag, tags) ->
+        FifInstr (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, exp3, exp4, loc, pre, tag, tags)
       | _ -> failwith "Unsupported instruction type"
     in
     (* let distance_limit = 128 in *)
@@ -702,7 +702,7 @@ object (self)
       List.exists (fun addr -> addr = loc.loc_addr) addr_list
     in
     let _ = List.iter (fun i -> collect_branch_target_addr i) instrs in
-    (** [instr_buffer] is for temporarily keeping literal pools until another function begins *)
+    (* [instr_buffer] is for temporarily keeping literal pools until another function begins *)
     let rec aux acc instr_buffer is_literal_pool idx = function
       | [] -> acc
       | [instr] -> instr :: instr_buffer @ acc
@@ -759,7 +759,7 @@ object (self)
   method remove_literal_pools_by_pc_relative_load (instr_list : instr list) : instr list =
     let ordered_il = List.rev instr_list in
     let pc_relative_addrs = ref [] in
-    (** [instr_buffer] is for temporarily keeping literal pools until another function begins *)
+    (* [instr_buffer] is for temporarily keeping literal pools until another function begins *)
     let rec aux acc instr_buffer = function
       | [] -> acc
       | instr :: [] -> instr :: instr_buffer @ acc
@@ -772,7 +772,7 @@ object (self)
           else
             begin
               match instr with
-              | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _), Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)), Reg (Arm_Reg (Arm_CommonReg _)), loc, _, _)
+              | TripleInstr (Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _), Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)), Reg (Arm_Reg (Arm_CommonReg _)), loc, _, _, _)
                 when offset mod 2 = 0 ->
                 begin
                   let module AU = ArmUtils in
@@ -874,33 +874,33 @@ object (self)
       | [] -> acc
       | instr :: t -> begin
           match instr with
-          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _)
+          | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _, _)
             ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
               in
               aux (new_instr :: acc) (idx + 1) t
-          | DoubleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _)
+          | DoubleInstr (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _)
             ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
               in
               aux (new_instr :: acc) (idx + 1) t
           | DoubleInstr
-              (Arm_OP (Arm_StackOP PUSH, Some LT, width), Label label, _, _, _)
-            when contains label "lr" ->
+              (Arm_OP (Arm_StackOP PUSH, Some LT, width), Label label, _, _, _, _)
+            when contains ~str:label ~sub:"lr" ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
               in
               aux (new_instr :: acc) (idx + 1) t
-          | DoubleInstr (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _)
+          | DoubleInstr (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _, _)
             ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_ControlOP BL, None, None))
               in
               aux (new_instr :: acc) (idx + 1) t
           | TripleInstr
-              (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _) ->
+              (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _, _) ->
               let new_instr =
                 change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
               in
@@ -911,7 +911,7 @@ object (self)
                 exp2,
                 _,
                 _,
-                _ )
+                _, _ )
             when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) ->
               let new_instr =
                 change_op instr
@@ -1143,7 +1143,7 @@ object (self)
       let rec has_illegal_instr instr' = function
         | [] -> false
         | illegal_instr :: t ->
-          if contains instr' illegal_instr then true
+          if contains ~str:instr' ~sub:illegal_instr then true
           else has_illegal_instr instr' t
       in
       let rec has_illegal_opcode instr' = function
@@ -1152,7 +1152,7 @@ object (self)
         (* split using \t or " " as delimeters *)
         let items = Str.split (Str.regexp "[\t ]+") instr' in
         let opcode = List.nth items 0 in
-        if contains opcode illegal_opcode then true
+        if contains ~str:opcode ~sub:illegal_opcode then true
         else has_illegal_opcode instr' t
       in
       has_illegal_instr instr illegal_instrs || has_illegal_opcode instr illegal_opcodes
@@ -1194,6 +1194,14 @@ object (self)
       instrs <- self#convert_instructions instrs;
     end;
     funcs <- p#get_funclist;
+
+  method process_asms (l : string list) (arch : string) =
+    let p = self#create_parser arch in
+    let help instr =
+      instrs <- (p#parse_instr instr "0" arch)::instrs
+    in
+    List.iter help l;
+    instrs <- List.rev instrs
 
   method p_instrs =
     List.iter (fun i -> let is = pp_print_instr' i in print_endline is) instrs

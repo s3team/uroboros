@@ -20,7 +20,7 @@
 (library
  (name pp_print)
  (modules pp_print)
- (libraries type tag_utils)
+ (libraries type)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -44,7 +44,7 @@
 (library
  (name tag_utils)
  (modules tag_utils)
- (libraries type)
+ (libraries type pp_print)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -74,15 +74,31 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
+ (name arm_postprocess)
+ (modules arm_postprocess)
+ (libraries ail_utils type pp_print)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
  (name disassemble_process)
  (modules disassemble_process)
  (libraries
   arm_got_instr_analysis
   semantic_analysis
+  common_reassemble_symbol_get
+  arm_reassemble_symbol_get
+  arm_postprocess
   flow_insensitive_analysis
   reassemble_symbol_get
+  visit
   disassemble_validator
-  ail_parser)
+  ail_parser
+  ail_utils
+  tag_utils
+  type
+  pp_print)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -288,6 +304,8 @@
   batteries
   pp_print
   ail_utils
+  arm_utils
+  tag_utils
   common_parser
   parser
   arm_parser

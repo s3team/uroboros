@@ -263,7 +263,7 @@ class dis_validator =
           | Arm_OP (ao, _, _) ->
             begin
               match ao with
-              (* TODO: ARM: before main function, push/pop can be call and return *)
+              (* TODO: ARM: before main function, push/pop can be used as calls and returns *)
               | Arm_ControlOP aco ->
                   begin
                     match aco with

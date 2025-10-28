@@ -347,7 +347,7 @@ class func_slicer instrs funcs =
                         | Intel_ErrorOP _ -> false
                         | _ -> false
                       end
-                    | Arm_OP (_, _) -> failwith "TODO: ARM support: c"
+                    | Arm_OP (_, _, _) -> failwith "TODO: ARM support: c"
                   end
               (*| TripleInstr (Intel_OP (Intel_CommonOP (Intel_Assign MOV)), e1,e2,_,_) ->
                   is_begin3 (Intel_OP (Intel_CommonOP (Intel_Assign MOV))) e2 e1

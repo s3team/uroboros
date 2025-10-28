@@ -168,16 +168,16 @@ let get_op i =
 
 let change_op i new_op =
   match i with
-  | SingleInstr (p, l, pre, tag) ->
-    SingleInstr (new_op, l, pre, tag)
-  | DoubleInstr (p, e, l, pre, tag) ->
-    DoubleInstr (new_op, e, l, pre, tag)
-  | TripleInstr (p, e1, e2, l, pre, tag) ->
-    TripleInstr (new_op, e1, e2, l, pre, tag)
-  | FourInstr (p, e1, e2, e3, l, pre, tag) ->
-    FourInstr (new_op, e1, e2, e3, l, pre, tag)
-  | FifInstr (p, e1, e2, e3, e4, l, pre, tag) ->
-    FifInstr (new_op, e1, e2, e3, e4, l, pre, tag)
+  | SingleInstr (p, l, pre, tag, tags) ->
+    SingleInstr (new_op, l, pre, tag, tags)
+  | DoubleInstr (p, e, l, pre, tag, tags) ->
+    DoubleInstr (new_op, e, l, pre, tag, tags)
+  | TripleInstr (p, e1, e2, l, pre, tag, tags) ->
+    TripleInstr (new_op, e1, e2, l, pre, tag, tags)
+  | FourInstr (p, e1, e2, e3, l, pre, tag, tags) ->
+    FourInstr (new_op, e1, e2, e3, l, pre, tag, tags)
+  | FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags) ->
+    FifInstr (new_op, e1, e2, e3, e4, l, pre, tag, tags)
 
 let change_condsuff i new_condsuff =
   let op = get_op i in
@@ -318,16 +318,11 @@ let sort_loc (ll : loc list) : loc list =
  * we assume no instructions share same location!
 *)
 let get_instr_byloc (instrs : instr list) (locs : loc list) : instr list =
-  (* giyeol: *)
-  (* let _ = List.iter (fun i -> Printf.printf "get instrs: 0x%x\n" (get_addr i)) instrs in
-  let _ = List.iter (fun l -> Printf.printf "get locs: 0x%x\n" l.loc_addr) locs in *)
   let rec aux il ll acc =
     match (il, ll) with
     | (ih::it, lh::lt) ->
       begin
         let iloc = get_loc ih in
-        (* giyeol: *)
-        (* let _ = Printf.printf "iloc(0x%x), lloc(0x%x)\n" iloc.loc_addr lh.loc_addr in *)
         if iloc.loc_addr < lh.loc_addr then
           aux it ll acc
         else if iloc.loc_addr = lh.loc_addr then

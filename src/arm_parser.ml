@@ -505,8 +505,6 @@ class arm_parse =
     (f, int_of_string offset')
 
   method jumpdes_symb s =
-    (* giyeol: *)
-    (* let _ = Printf.printf "jumpdes_symb: %s\n" s in *)
     if String.contains s '+' then
       let split = Str.split (Str.regexp " +") in
       let s1 = List.nth (split s) 0 in
@@ -697,8 +695,6 @@ class arm_parse =
     call_des := false
 
   method parse_instr instr loc (arch : string) =
-    (* giyeol: *)
-    (* let _ = Printf.printf "parse_instr: %s\n" instr in *)
     self#init_process;
     let compact (instr : string) =
       (* See [arm_postprocess.py#remove_caret] *)

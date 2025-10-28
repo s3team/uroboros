@@ -122,7 +122,6 @@ module Disam = struct
       ail_parser#set_secs secs;
       ail_parser#set_arch arch;
       let instr_list = read_file "instrs.info" in
-      (* giyeol: remove_literal_pools is here *)
       ail_parser#process_instrs instr_list arch;
       re#instr_addrs_collect ail_parser#get_instrs;
 

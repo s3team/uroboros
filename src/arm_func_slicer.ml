@@ -54,7 +54,7 @@ class arm_func_slicer instrs funcs =
             last_ret <- false;
             last_special <- false;
             last_pop <- true
-        | DoubleInstr (Arm_OP (Arm_StackOP op, _), Label lab, _, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _, _)
           when is_pop op && has_pc_reg lab ->
             last_nop <- false;
             last_ret <- false;
@@ -62,7 +62,7 @@ class arm_func_slicer instrs funcs =
             last_pop <- true
         (* add a function *)
         (* push {r4, lr} *)
-        | DoubleInstr (Arm_OP (Arm_StackOP op, _), Label lab, _, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _, _)
           when is_push op && has_lr_reg lab ->
             last_nop <- false;
             last_ret <- false;
@@ -73,7 +73,7 @@ class arm_func_slicer instrs funcs =
         (* push	{r7}
          * sub	sp, #12
          *)
-        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _, _)
           when not (has_lr_reg lab) -> begin
             let next_instr = List.nth ordered_il (idx + 1) in
             match next_instr with
@@ -82,6 +82,7 @@ class arm_func_slicer instrs funcs =
                   Const (Immediate _),
                   Reg (Arm_Reg (Arm_StackReg SP)),
                   l,
+                  _,
                   _,
                   _ ) ->
                 last_nop <- false;
@@ -117,6 +118,7 @@ class arm_func_slicer instrs funcs =
               exp2,
               loc,
               _,
+              _,
               _ )
           when List.length ordered_il > idx + 5 ->
             let n_inst = List.nth ordered_il (idx + 1) in
@@ -137,8 +139,9 @@ class arm_func_slicer instrs funcs =
                       Symbol (CallDes func),
                       _,
                       _,
+                      _,
                       _ ) )
-                when contains func.func_name "__cxa_atexit" ->
+                when contains ~str:func.func_name ~sub:"__cxa_atexit" ->
                   true
               | _ -> false
             in
@@ -152,7 +155,7 @@ class arm_func_slicer instrs funcs =
             else ()
         (* add a function *)
         (* AArch64 *)
-        | SingleInstr (Arm_OP (Arm_ControlOP RET, _), _, _, _, _) ->
+        | SingleInstr (Arm_OP (Arm_ControlOP RET, _, _), _, _, _, _) ->
             last_nop <- false;
             last_ret <- true;
             last_special <- false;
