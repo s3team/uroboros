@@ -143,7 +143,8 @@ def disassemble_arm_thumb_binary(filename, output_dir):
     with open(f"{output_path}", "w") as f:
         f.writelines(result_lines)
 
-    os.system(f"rm {filename}.thumb.temp")
+    if os.path.exists(f"{filename}.thumb.temp"):
+        os.system(f"rm {filename}.thumb.temp")
     # if is_call_weak_fn_already_passed is False:
     #     # Terminate the entire program
     #     print(f"[Error] call_weak_fn pattern not found in {filename}.")
