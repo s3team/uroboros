@@ -1605,6 +1605,15 @@ class arm_reassemble =
     val mutable c2d_inline_addr_list : int list =
       [] (* for inline data in text section *)
 
+    (* text symbols that should be created
+     * e.g.,
+     * When we symbolize pointers in instructions like:
+     * add r3, pc  --> ldr r3,=S_0x12344
+     *
+     * The definition of S_0x12344 should be created in the text section.
+     * In such cases, we need to collect these symbols and create them
+     * by matching corresponding addresses in the text section.
+     *)
     val mutable deslist : string list = []
 
     (* only collect the relocated symbol *)
@@ -2152,7 +2161,9 @@ class arm_reassemble =
               tags )
           when odd_addr mod 2 = 1 && self#check_text (odd_addr - 1) ->
             (* To handle odd addresses in Thumb mode *)
+            Hashtbl.replace text_set (odd_addr - 1) "";
             let s_label = self#build_symbol (Point (odd_addr - 1)) in
+            deslist <- s_label :: deslist;
             TripleInstr
               ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None),
                 Label s_label,
