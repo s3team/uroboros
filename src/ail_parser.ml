@@ -767,7 +767,6 @@ object (self)
         begin
           if List.exists (fun addr -> addr = (get_loc instr).loc_addr) !pc_relative_addrs then
             (* skip this instruction *)
-            (* let _ = Printf.printf "Removing instruction: %s\n" (pp_print_instr' instr) in *)
             aux acc (instr :: instr_buffer) t
           else
             begin
@@ -863,7 +862,7 @@ object (self)
     instrs <- self#remove_literal_pools_v1 instrs;
     instrs <- self#remove_literal_pools_with_movs instrs;
     instrs <- self#remove_literal_pools_after_blx_exit instrs;
-    instrs <- self#remove_literal_pools_after_branch instrs;
+    (* instrs <- self#remove_literal_pools_after_branch instrs; *)
     instrs <- self#remove_literal_pools_by_pc_relative_load instrs;
     instrs <- self#remove_illegal_instructions instrs arch;
     instrs <- self#remove_undefined_instructions instrs;
