@@ -46,7 +46,7 @@ module ArmGotAbs : DfaAbs = struct
       initialized := true;
       Hashtbl.clear result;
       init_literal_pools ();
-      init_got_addr ()
+      init_got_addr ();
     end
     else ()
 
@@ -325,6 +325,7 @@ module ArmGotAbs : DfaAbs = struct
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             let src1_name = p_arm_reg (Arm_CommonReg src1) in
             let src2_name = p_arm_reg (Arm_CommonReg src2) in
+
             (* debug *)
             (* let src1_value = get_register_value src1_name in
             let src2_value = get_register_value src2_name in
@@ -337,14 +338,18 @@ module ArmGotAbs : DfaAbs = struct
               | _ -> Printf.printf "none\n\n"
             in
             let _ = print_reg_values () in *)
+            (* end debug *)
+
             if has_got_addr src1_name || has_got_addr src2_name then begin
               let sym_addr =
                 if has_got_addr src1_name then
                   let (Some v) = get_register_value src2_name in
-                  v + !got_addr
+                  let result_value = v + !got_addr in
+                  result_value
                 else
                   let (Some v) = get_register_value src1_name in
-                  v + !got_addr
+                  let result_value = v + !got_addr in
+                  result_value
               in
               let sym_tag = Some (Sym sym_addr) in
               (* If new_instr needs to be not only symbolized but dereferenced,
@@ -355,6 +360,20 @@ module ArmGotAbs : DfaAbs = struct
             end
             else ()
           end
+        (* debug *)
+        (* | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
+              _ ,
+              Reg (Arm_Reg (Arm_CommonReg dst)) ) ->
+            begin
+              let dst_name = p_arm_reg (Arm_CommonReg dst) in
+              let dst_value = get_register_value dst_name in
+              match dst_value with
+              | None ->
+                  Printf.printf "dst_reg: %s: None\n" dst_name;
+              | Some dst_value ->
+                  Printf.printf "dst_reg: %s: 0x%x\n" dst_name dst_value;
+            end *)
+        (* end debug *)
         | _ -> ()
       end
     | _ -> ()

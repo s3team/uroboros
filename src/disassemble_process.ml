@@ -176,6 +176,20 @@ module Disam = struct
           GA.result
         else if EU.elf_32 () && (arch = "thumb" || arch = "arm") then
         let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
+
+        (* debug *)
+        (* let sorted =
+          Hashtbl.to_seq func2cfg_table
+            |> List.of_seq
+            |> List.sort (fun (f1, _) (f2, _) -> String.compare f1 f2)
+        in
+        let _ = List.iter (
+                fun (k, v) ->
+                  let _ = Printf.printf "func2cfg_table: %s\n%!" k in
+                  ()
+              ) sorted in *)
+        (* end debug *)
+
         let _ = Hashtbl.iter (
           fun f cfg ->
             let _ = AD.flow_analysis f cfg in

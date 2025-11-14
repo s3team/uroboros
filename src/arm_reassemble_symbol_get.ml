@@ -2191,6 +2191,8 @@ class arm_reassemble =
             in
             match self#check_sec value with
             | Some s ->
+                (* giyeol: debug *)
+                (* let _ = Printf.printf "\tsection: %s\n" s.sec_name in *)
                 if s.sec_name = ".rodata" then pointer_instr
                 else if s.sec_name = ".got" then begin
                   match self#get_got_as_data_int value with
