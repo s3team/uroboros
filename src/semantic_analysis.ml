@@ -20,6 +20,23 @@ module type DfaAbs = sig
   val result : (int, instr) Hashtbl.t (* term rewriting based on DFA results *)
 end
 
+(* Module for register value tracking *)
+module RegMap = Map.Make(String)
+
+(* New DFA signature for tracking register values, not just names *)
+module type DfaAbsWithValues = sig
+  open Type
+
+  type abs_state = int RegMap.t  (* register name -> value *)
+
+  val initial : abs_state
+  val equal : abs_state -> abs_state -> bool
+  val merge : instr option list -> (instr, abs_state) Hashtbl.t -> abs_state
+  val flow_through : instr -> abs_state -> abs_state
+  val process_instr : instr -> abs_state -> unit
+  val result : (int, instr) Hashtbl.t
+end
+
 module GotAbs : DfaAbs = struct
   open Type
   open Ail_utils
@@ -613,6 +630,55 @@ module DFA (A : DfaAbs) = struct
         let _ = ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) outs in
         let _ = print_endline (" ins: ") in
         ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) ins;*)
+
+      if not (A.equal old_outs outs) then (
+        Hashtbl.replace out_map i outs;
+        let succs =
+          match Hashtbl.find_opt succs (Some i) with Some v -> v | None -> []
+        in
+        List.iter
+          (fun i_op ->
+            match i_op with Some i -> Queue.push i worklist | None -> ())
+          succs)
+    done
+end
+
+(* DFA functor for value-tracking analysis *)
+module DFAWithValues (A : DfaAbsWithValues) = struct
+  open Pp_print
+  open Ail_utils
+  open Type
+
+  let in_map : (instr, A.abs_state) Hashtbl.t = Hashtbl.create 10
+  let out_map : (instr, A.abs_state) Hashtbl.t = Hashtbl.create 10
+
+  let flow_analysis (f : string) (cfg : cfgi) : unit =
+    (* init each CFG node *)
+    let { preds; succs; il } = cfg in
+    let _ =
+      List.iter
+        (fun i ->
+          Hashtbl.add in_map i A.initial;
+          Hashtbl.add out_map i A.initial)
+        il
+    in
+    (* init worklist *)
+    let worklist = Queue.create () in
+    let _ = List.iter (fun i -> Queue.push i worklist) il in
+    (* iterate until fixpoint *)
+    while not (Queue.is_empty worklist) do
+      let i : instr = Queue.pop worklist in
+      let preds : instr option list =
+        try Hashtbl.find preds (Some i) with Not_found -> []
+      in
+      (* With [preds], get all outs from [out_map] and merge them *)
+      let ins = A.merge preds out_map in
+      let _ = Hashtbl.replace in_map i ins in
+
+      A.process_instr i ins;
+
+      let old_outs = Hashtbl.find out_map i in
+      let outs = A.flow_through i ins in
 
       if not (A.equal old_outs outs) then (
         Hashtbl.replace out_map i outs;

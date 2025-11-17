@@ -1,6 +1,7 @@
 open Semantic_analysis
 
-module ArmGotAbs : DfaAbs = struct
+(* Value-based abstract state for ARM GOT analysis *)
+module ArmGotAbsWithValues : DfaAbsWithValues = struct
   open Ail_utils
   open Arm_reassemble_symbol_get
   open Arm_utils
@@ -8,12 +9,13 @@ module ArmGotAbs : DfaAbs = struct
   open Pp_print
   open Type
 
-  let initial = ExpSet.empty
-  let equal = ExpSet.equal
-  let union = ExpSet.union
+  type abs_state = int RegMap.t  (* register name -> value *)
+
+  let initial = RegMap.empty
+  let equal = RegMap.equal (=)
   let result = Hashtbl.create 100
   let (initialized : bool ref) = ref false
-  let registers : (string, int) Hashtbl.t = Hashtbl.create 30
+
   let literal_pools : (int, string) Hashtbl.t = Hashtbl.create 200
   let (got_addr : int ref) = ref 0
 
@@ -50,20 +52,17 @@ module ArmGotAbs : DfaAbs = struct
     end
     else ()
 
-  let update_registers (reg_name : string) (value : int) =
-    Hashtbl.replace registers reg_name value
+  (** Get register value from the abstract state *)
+  let get_register_value (state : abs_state) (reg_name : string) : int option =
+    RegMap.find_opt reg_name state
 
-  let has_register_value (reg_name : string) : bool =
-    try
-      let _ = Hashtbl.find registers reg_name in
-      true
-    with Not_found -> false
+  (** Update register value in the abstract state *)
+  let update_register (state : abs_state) (reg_name : string) (value : int) : abs_state =
+    RegMap.add reg_name value state
 
-  let get_register_value (reg_name : string) : int option =
-    try
-      let value = Hashtbl.find registers reg_name in
-      Some value
-    with Not_found -> None
+  (** Remove register from the abstract state *)
+  let remove_register (state : abs_state) (reg_name : string) : abs_state =
+    RegMap.remove reg_name state
 
   let has_literal_pool_data (addr : int) : bool =
     Hashtbl.mem literal_pools addr = true
@@ -82,23 +81,34 @@ module ArmGotAbs : DfaAbs = struct
     in
     aux s
 
-  (** Return the union of all values in [input_map] for the keys in [preds]. *)
+  (** Merge register value maps from predecessors.
+      Only keep register-value bindings that are consistent across all predecessors.
+      If different predecessors have different values for the same register, drop it. *)
   let merge (preds : instr option list)
-      (input_map : (instr, ExpSet.t) Hashtbl.t) : ExpSet.t =
-    let union_preds =
-     fun acc (p_op : instr option) ->
-      match p_op with
-      | Some p ->
-          let out = Hashtbl.find input_map p in
-          union acc out
-      | None -> acc
-    in
-    List.fold_left union_preds ExpSet.empty preds
+      (input_map : (instr, abs_state) Hashtbl.t) : abs_state =
+    match preds with
+    | [] -> RegMap.empty
+    | (Some first_pred) :: rest_preds ->
+        let first_state = Hashtbl.find input_map first_pred in
+        (* For each register in first_state, check if all other preds have same value *)
+        let merge_reg (reg_name : string) (value : int) (acc : abs_state) : abs_state =
+          let all_agree = List.for_all (fun p_op ->
+            match p_op with
+            | Some p ->
+                let state = Hashtbl.find input_map p in
+                (match RegMap.find_opt reg_name state with
+                 | Some v -> v = value
+                 | None -> false)
+            | None -> false
+          ) rest_preds
+          in
+          if all_agree then RegMap.add reg_name value acc else acc
+        in
+        RegMap.fold merge_reg first_state RegMap.empty
+    | _ -> RegMap.empty
 
-  let remove_exps exps set =
-    List.fold_left (fun acc reg_exp -> ExpSet.remove reg_exp acc) set exps
-
-  let flow_through (i : instr) (ins : ExpSet.t) : ExpSet.t =
+  (** Transfer function: compute output state from input state *)
+  let flow_through (i : instr) (ins : abs_state) : abs_state =
     init ();
     let module AU = ArmUtils in
     let outs = ins in
@@ -109,20 +119,15 @@ module ArmGotAbs : DfaAbs = struct
         | Arm_OP (Arm_StackOP POP, _, _), Label label ->
             (* pop {r4,r7,pc}
              * Currently, we handle {...} exp as a Label.
-             * See [Arm_parser.exp_symb] for details. *)
+             * See [Arm_parser.exp_symb] for details.
+             * Kill all popped registers from the state. *)
             let parse_label_to_regs l =
               let l = String.trim (String.sub l 1 (String.length l - 2)) in
               let items = Str.split (Str.regexp ",") l in
               List.map String.trim items
             in
             let regs = parse_label_to_regs label in
-            let reg_exps = List.map arm_parser#exp_symb regs in
-            let remove_exps exps set =
-              List.fold_left
-                (fun acc reg_exp -> ExpSet.remove reg_exp acc)
-                set exps
-            in
-            remove_exps reg_exps outs
+            List.fold_left (fun state reg -> RegMap.remove reg state) outs regs
         | _ -> outs
       end
     | TripleInstr (p, e1, e2, loc, prefix, _, _) -> begin
@@ -132,19 +137,11 @@ module ArmGotAbs : DfaAbs = struct
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             let pc_relative_addr = AU.get_pc_relative_addr "thumb" i in
             if has_literal_pool_data pc_relative_addr then begin
-              (* update the register value *)
+              (* update the register value in the output state *)
               let (Some data_str) = get_literal_pool_data pc_relative_addr in
               let data = int_of_string ("0x" ^ data_str) in
               let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
-              let _ = update_registers dst_reg_name data in
-              (* check if the value is got address.
-               * haven't seen this case where we can get the got address
-               * with just one pc-relative ldr instruction *)
-              if data = !got_addr then
-                (* gen *)
-                let _ = ExpSet.remove e2 outs in
-                ExpSet.add e2 outs
-              else outs
+              update_register outs dst_reg_name data
             end
             else
               let _ =
@@ -152,7 +149,6 @@ module ArmGotAbs : DfaAbs = struct
                   pc_relative_addr
               in
               let _ = Printf.printf "\t%s\n" (pp_print_instr' i) in
-              (* failwith "check literal pools." *)
               outs
           end
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
@@ -160,38 +156,34 @@ module ArmGotAbs : DfaAbs = struct
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
             (* a case that a common reg points to a literal pool *)
             let src_reg_name = p_arm_reg (Arm_CommonReg src) in
-            match get_register_value src_reg_name with
+            match get_register_value ins src_reg_name with
             | Some src_reg_value ->
-                if has_literal_pool_data src_reg_value then
-                  (* update the register value *)
+                if has_literal_pool_data src_reg_value then begin
+                  (* update the register value in output state *)
                   let (Some data_str) = get_literal_pool_data src_reg_value in
                   let data = int_of_string ("0x" ^ data_str) in
                   let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
-                  let _ = update_registers dst_reg_name data in
-                  if data = !got_addr then
-                    (* gen *)
-                    let _ = ExpSet.remove e2 outs in
-                    ExpSet.add e2 outs
-                  else
-                    (* kill *)
-                    ExpSet.remove e2 outs
+                  update_register outs dst_reg_name data
+                end
                 else
-                  (* src_reg_value points to another section. *)
-                  outs
+                  (* src_reg_value points to another section, kill dst *)
+                  remove_register outs (p_arm_reg (Arm_CommonReg dst))
             | None ->
-                (* cannot get the value of the src register *)
-                outs
+                (* cannot get the value of the src register, kill dst *)
+                remove_register outs (p_arm_reg (Arm_CommonReg dst))
           end
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             _,
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
-            ExpSet.remove e2 outs
+            (* Generic LDR: kill dst register *)
+            remove_register outs (p_arm_reg (Arm_CommonReg dst))
           end
         | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Reg (Arm_Reg (Arm_PCReg _)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
+            (* ADD rX, pc - compute address by adding PC to register value *)
             let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
-            match get_register_value dst_reg_name with
+            match get_register_value ins dst_reg_name with
             | Some dst_reg_value ->
                 let check_and_replace_instr addr =
                   let module AR = Arm_reassemble_symbol_get in
@@ -215,11 +207,6 @@ module ArmGotAbs : DfaAbs = struct
                         Hashtbl.replace result loc.loc_addr new_instr
                   | None ->
                       if arm_reassemble#check_text addr then
-                        (* e.g., store a function pointer:
-                         * ldr r3,[pc, #0x9c]
-                         * add r3,pc
-                         * str r3,[sp, #0x8]
-                         *)
                         let tag = Some (Sym addr) in
                         let ldr_op =
                           Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
@@ -231,48 +218,32 @@ module ArmGotAbs : DfaAbs = struct
                         Hashtbl.replace result loc.loc_addr new_instr
                       else ()
                 in
-                (* update the register value *)
+                (* compute the new register value *)
                 let pc = loc.loc_addr + 4 in
                 let dst_reg_value' = AU.to_signed_int dst_reg_value in
                 let sum = pc + dst_reg_value' in
-
-                (* When code pointer addresses are calculated, they are odd numbers.
-                 * So, we need to align them to the nearest even number.
-                 * And they will be symbolized and added by 1 later.
-                 * See Also: arm_postprocess.ml.
-                 *)
                 let aligned_sum = if sum mod 2 = 1 then sum else sum - (sum mod 4) in
-                let _ = update_registers dst_reg_name aligned_sum in
                 let _ = check_and_replace_instr aligned_sum in
-                if aligned_sum = !got_addr then
-                  (* gen *)
-                  let _ = ExpSet.remove e2 outs in
-                  ExpSet.add e2 outs
-                else
-                  (* kill *)
-                  ExpSet.remove e2 outs
-            | None -> outs
+                (* update output state with new value *)
+                update_register outs dst_reg_name aligned_sum
+            | None ->
+                (* dst register value unknown, kill it *)
+                remove_register outs dst_reg_name
           end
         | ( Arm_OP (Arm_CommonOP (Arm_Assign mov_op), _, _),
             Reg (Arm_Reg (Arm_CommonReg src)),
             Reg (Arm_Reg (Arm_CommonReg dst)) )
           when mov_op = MOV || mov_op = MOVS -> begin
+            (* MOV dst, src - copy register value *)
             let src_reg_name = p_arm_reg (Arm_CommonReg src) in
             let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
-            match get_register_value src_reg_name with
+            match get_register_value ins src_reg_name with
             | Some src_reg_value ->
-                (* update the register value *)
-                let _ = update_registers dst_reg_name src_reg_value in
-                if src_reg_value = !got_addr then
-                  (* gen dst *)
-                  let _ = ExpSet.remove e2 outs in
-                  ExpSet.add e2 outs
-                else
-                  (* kill dst *)
-                  ExpSet.remove e2 outs
+                (* copy value from src to dst *)
+                update_register outs dst_reg_name src_reg_value
             | None ->
-                (* kill dst *)
-                ExpSet.remove e2 outs
+                (* src value unknown, kill dst *)
+                remove_register outs dst_reg_name
           end
         | _ -> outs
       end
@@ -282,38 +253,29 @@ module ArmGotAbs : DfaAbs = struct
             Reg (Arm_Reg (Arm_CommonReg src1)),
             Reg (Arm_Reg (Arm_CommonReg src2)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
+            (* ADD dst, src1, src2 - add two registers *)
             let src1_reg_name = p_arm_reg (Arm_CommonReg src1) in
             let src2_reg_name = p_arm_reg (Arm_CommonReg src2) in
-            if
-              has_register_value src1_reg_name
-              && has_register_value src2_reg_name
-            then
-              let (Some src1_reg_value) = get_register_value src1_reg_name in
-              let (Some src2_reg_value) = get_register_value src2_reg_name in
-              (* update the register value *)
-              let sum = src1_reg_value + src2_reg_value in
-              let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
-              let _ = update_registers dst_reg_name sum in
-              (* check if the value is the got address *)
-              if sum = !got_addr then
-                (* gen *)
-                let _ = ExpSet.remove e3 outs in
-                ExpSet.add e3 outs
-              else
-                (* kill *)
-                ExpSet.remove e3 outs
-            else
-              (* cannot get the values of the registers *)
-              outs
+            let dst_reg_name = p_arm_reg (Arm_CommonReg dst) in
+            match (get_register_value ins src1_reg_name, get_register_value ins src2_reg_name) with
+            | (Some src1_reg_value, Some src2_reg_value) ->
+                (* both values available, compute sum *)
+                let sum = src1_reg_value + src2_reg_value in
+                update_register outs dst_reg_name sum
+            | _ ->
+                (* at least one value unknown, kill dst *)
+                remove_register outs dst_reg_name
           end
         | _ -> outs
       end
     (* push (kill) -> but only happens at a function entry and exit *)
     | _ -> outs
 
-  let process_instr (i : instr) (ins : ExpSet.t) : unit =
+  (** Process instruction to detect GOT-based memory accesses and rewrite them *)
+  let process_instr (i : instr) (ins : abs_state) : unit =
+    let loc = get_loc i in
     let has_got_addr (reg_name : string) =
-      match get_register_value reg_name with
+      match get_register_value ins reg_name with
       | Some v -> v = !got_addr
       | None -> false
     in
@@ -323,12 +285,13 @@ module ArmGotAbs : DfaAbs = struct
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             Ptr (BinOP_PLUS_R (Arm_CommonReg src1, Arm_CommonReg src2)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
+            (* LDR dst, [src1, src2] - check if src1 or src2 contains GOT address *)
             let src1_name = p_arm_reg (Arm_CommonReg src1) in
             let src2_name = p_arm_reg (Arm_CommonReg src2) in
 
             (* debug *)
-            (* let src1_value = get_register_value src1_name in
-            let src2_value = get_register_value src2_name in
+            (* let src1_value = get_register_value ins src1_name in
+            let src2_value = get_register_value ins src2_name in
             let print_reg_values () =
               let _ = Printf.printf "%s\n" (pp_print_instr' i) in
               let _ = Printf.printf "src1: %s, src2: %s\n" src1_name src2_name in
@@ -343,37 +306,21 @@ module ArmGotAbs : DfaAbs = struct
             if has_got_addr src1_name || has_got_addr src2_name then begin
               let sym_addr =
                 if has_got_addr src1_name then
-                  let (Some v) = get_register_value src2_name in
-                  let result_value = v + !got_addr in
-                  result_value
+                  match get_register_value ins src2_name with
+                  | Some v -> v + !got_addr
+                  | None -> failwith "Expected src2 value but got None"
                 else
-                  let (Some v) = get_register_value src1_name in
-                  let result_value = v + !got_addr in
-                  result_value
+                  match get_register_value ins src1_name with
+                  | Some v -> v + !got_addr
+                  | None -> failwith "Expected src1 value but got None"
               in
               let sym_tag = Some (Sym sym_addr) in
-              (* If new_instr needs to be not only symbolized but dereferenced,
-               * dereference it in arm_reassemble_symbol_get.ml#v_exp2 *)
               let new_instr = TripleInstr (p, e1, e2, loc, prefix, sym_tag, tags) in
               Hashtbl.replace result (get_loc i).loc_addr new_instr;
               ()
             end
             else ()
           end
-        (* debug *)
-        (* | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
-              _ ,
-              Reg (Arm_Reg (Arm_CommonReg dst)) ) ->
-            begin
-              let dst_name = p_arm_reg (Arm_CommonReg dst) in
-              let dst_value = get_register_value dst_name in
-              match dst_value with
-              | None ->
-                  Printf.printf "dst_reg: %s: None\n" dst_name;
-              | Some dst_value ->
-                  Printf.printf "dst_reg: %s: 0x%x\n" dst_name dst_value;
-            end *)
-        (* end debug *)
         | _ -> ()
       end
     | _ -> ()

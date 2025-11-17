@@ -3,31 +3,33 @@
 exception Pass_Validator
 
 module Disam = struct
-    open Arm_got_instr_analysis
-    open Semantic_analysis
-    open Common_reassemble_symbol_get
-    open Arm_reassemble_symbol_get
-    open Arm_postprocess
-    open Flow_insensitive_analysis
-    open Reassemble_symbol_get
-    open Visit
-    open Disassemble_validator
-    open Ail_parser
-    open Ail_utils
-    open Tag_utils
-    open Type
-    open Pp_print
+  open Arm_got_instr_analysis
+  open Semantic_analysis
+  open Common_reassemble_symbol_get
+  open Arm_reassemble_symbol_get
+  open Arm_postprocess
+  open Flow_insensitive_analysis
+  open Reassemble_symbol_get
+  open Visit
+  open Disassemble_validator
+  open Ail_parser
+  open Ail_utils
+  open Tag_utils
+  open Type
+  open Pp_print
 
   let disasm_skip f ba ea =
     let ba = string_of_int ba in
     let ea = string_of_int ea in
 
-    ignore (Sys.command
-      ("objdump -Dr -j .text " ^ f ^ " --start-address=" ^ ba
-     ^ " --stop-address=" ^ ea ^ " > " ^ f ^ ".temp"));
+    ignore
+      (Sys.command
+         ("objdump -Dr -j .text " ^ f ^ " --start-address=" ^ ba
+        ^ " --stop-address=" ^ ea ^ " > " ^ f ^ ".temp"));
     ignore (Sys.command ("python3 useless_func_del.py " ^ f));
-    ignore (Sys.command
-      ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f1,3 > instrs.info"));
+    ignore
+      (Sys.command
+         ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f1,3 > instrs.info"));
 
     ignore (Sys.command "python3 filter_nop.py");
 
@@ -36,7 +38,8 @@ module Disam = struct
 
   let get_userfuncs fl = List.filter (fun f -> f.is_lib = false) fl
 
-  let create_re (arch : string) = match arch with
+  let create_re (arch : string) =
+    match arch with
     | "intel" -> (new reassemble :> common_reassemble)
     | "thumb" | "arm" -> begin
         let re = (new arm_reassemble :> common_reassemble) in
@@ -113,9 +116,9 @@ module Disam = struct
       let module FnU = Func_utils in
       let module EU = ELF_utils in
       let module GA = GotAbs in
-      let module D = DFA(GA) in
-      let module AGA = ArmGotAbs in
-      let module AD = DFA(AGA) in
+      let module D = DFA (GA) in
+      let module AGA = ArmGotAbsWithValues in
+      let module AD = DFAWithValues (AGA) in
       let module TU = TagUtils in
       let module AP = ArmPostprocess in
       ail_parser#set_funcs funcs;
@@ -175,10 +178,10 @@ module Disam = struct
           ) func2cfg in
           GA.result
         else if EU.elf_32 () && (arch = "thumb" || arch = "arm") then
-        let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
+          let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
 
-        (* debug *)
-        (* let sorted =
+          (* debug *)
+          (* let sorted =
           Hashtbl.to_seq func2cfg_table
             |> List.of_seq
             |> List.sort (fun (f1, _) (f2, _) -> String.compare f1 f2)
@@ -200,10 +203,7 @@ module Disam = struct
       in
 
       let arm_postprocess (ilist : instr list) : instr list =
-        if arch = "thumb" then
-          AP.adjust_thumb_function_pointer ilist
-        else
-          ilist
+        if arch = "thumb" then AP.adjust_thumb_function_pointer ilist else ilist
       in
       let rewriting_result = got_rewrite il_init in
       il :=
