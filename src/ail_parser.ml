@@ -127,7 +127,9 @@ in
 
 let check_if_common_reg (e : exp) : bool =
   match e with
-  | Reg (Arm_Reg (Arm_CommonReg _)) -> true
+  | Reg (Arm_Reg (Arm_CommonReg R0)) -> true
+  | Reg (Arm_Reg (Arm_CommonReg R1)) -> true
+  | Reg (Arm_Reg (Arm_CommonReg R2)) -> true
   | _ -> false
 in
 
