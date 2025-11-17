@@ -626,7 +626,7 @@ object (self)
           | Arm_OP (Arm_ControlOP BLX, _, _) ->
             begin
               match get_exp_1 instr with
-              | Symbol (CallDes func) when func.func_name = "exit" ->
+              | Symbol (CallDes func) when func.func_name = "exit" || func.func_name = "abort" ->
                 begin
                   (* check if the next instruction is nop or not *)
                   let n_instr = List.nth ordered_il (idx + 1) in
