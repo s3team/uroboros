@@ -186,15 +186,20 @@ def dump(fn):
 def process(f, i, arch):
     is_32bit_binary = is_32()
     strip_command = ""
+    objdump_commamnd = ""
     if arch == "intel":
         strip_command = "strip"
+        objdump_commamnd = "objdump"
     elif arch == "thumb":
         strip_command = "arm-linux-gnueabihf-strip"
+        objdump_commamnd = "arm-linux-gnueabihf-objdump"
     elif arch == "arm":
         if is_32bit_binary:
             strip_command = "arm-linux-gnueabihf-strip"
+            objdump_commamnd = "arm-linux-gnueabihf-objdump"
         else:
             strip_command = "aarch64-linux-gnu-strip"
+            objdump_commamnd = "aarch64-linux-gnu-objdump"
 
     try:
         os.system("rm final_*.txt")

@@ -1,5 +1,6 @@
 import os
 import sys
+import arm_symbol_manager
 
 disassemble_option = "-Dr"
 
@@ -15,9 +16,6 @@ def get_call_weak_fn_lines_from_arm32(filename) -> list[str]:
         list[str]: A list of call_weak_fn instructions
     """
 
-    os.system(
-        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp.arm32"
-    )
     # Find call_weak_fn pattern in arm32 mode,
     # then replace the call_weak_fn in thumb mode with the one in arm32 mode.
     call_weak_fn_lines_from_arm32 = []
@@ -38,7 +36,7 @@ def get_call_weak_fn_lines_from_arm32(filename) -> list[str]:
                 and "andeq" in lines[i]
             ):
                 break
-    os.system(f"rm {filename}.temp.thumb {filename}.temp.arm32")
+    # os.system(f"rm {filename}.temp.thumb {filename}.temp.arm32")
 
     return call_weak_fn_lines_from_arm32
 
@@ -71,6 +69,10 @@ def disassemble_arm_thumb_binary(filename, output_dir):
     os.system(
         f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp.thumb"
     )
+    os.system(
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp.arm32"
+    )
+
 
     call_weak_fn_pattern = [
         "adds",
@@ -143,8 +145,9 @@ def disassemble_arm_thumb_binary(filename, output_dir):
     with open(f"{output_path}", "w") as f:
         f.writelines(result_lines)
 
-    if os.path.exists(f"{filename}.thumb.temp"):
-        os.system(f"rm {filename}.thumb.temp")
+    # if os.path.exists(f"{filename}.thumb.temp"):
+    #     os.system(f"rm {filename}.thumb.temp")
+
     # if is_call_weak_fn_already_passed is False:
     #     # Terminate the entire program
     #     print(f"[Error] call_weak_fn pattern not found in {filename}.")
@@ -657,6 +660,7 @@ if __name__ == "__main__":
         disassemble_arm_thumb_binary(filename, output_dir)
     elif arch == "arm":
         disassemble_arm32_binary(filename, output_dir)
+    arm_symbol_manager.extract_arm32_instructions(filename)
     disassemble_text_section_as_data(filename)
     disassemble_got_section_as_data(filename)
     adjust_floating_point_instructions(filename)
