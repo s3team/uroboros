@@ -371,6 +371,7 @@ and arm_arithmop =
   | USAX | USUB16 | USUB8 | UXTAB | UXTAB16 | UXTAH
   | UXTB | UXTB16 | UXTH
   | VHADD | VHSUB
+  | VAND | VPADD | VORR
   | VADDHN
   | VMUL | VNMUL | VMLA | VMLS
   | VNMLS | VNMLA | VADD | VSUB | VDIV | VABS | VNEG
@@ -401,9 +402,11 @@ and arm_assignop =
   | VSTR | VST4
   | VSTM | VSTMDB | VPUSH | VLDR | VLDM | VLDMDB
   | VLD4 | VSTMIA | VLDMIA | VMRS
+  | VDUP | VCEQ
   | VEXT
   | VREV16 | VREV32 | VREV64
   | VSWP
+  | FLDMIAX | FSTMIAX
   (* AArch64 *)
   | STP | LDP
 and arm_compareop =
@@ -720,6 +723,7 @@ let show_intel_reg = function
             | USAX -> "usax" | USUB16 -> "usub16" | USUB8 -> "usub8" | UXTAB -> "uxtab" | UXTAB16 -> "uxtab16" | UXTAH -> "uxtah"
             | UXTB -> "uxtb" | UXTB16 -> "uxtb16" | UXTH -> "uxth"
             | VHADD -> "vhadd" | VHSUB -> "vhsub"
+            | VAND -> "vand" | VPADD -> "vpadd" | VORR -> "vorr"
             | VADDHN -> "vaddhn"
             | VMUL -> "vmul" | VNMUL -> "vnmul" | VMLA -> "vmla" | VMLS -> "vmls"
             | VNMLS -> "vnmls" | VNMLA -> "vnmla" | VADD -> "vadd" | VSUB -> "vsub" | VDIV -> "vdiv" | VABS -> "vabs" | VNEG -> "vneg"
@@ -758,9 +762,11 @@ let show_intel_reg = function
             | VSTR -> "vstr" | VST4 -> "vst4"
             | VSTM -> "vstm" | VSTMDB -> "vstmdb" | VPUSH -> "vpush" | VLDR -> "vldr" | VLDM -> "vldm" | VLDMDB -> "vldmdb"
             | VLD4 -> "vld4" | VSTMIA -> "vstmia" | VLDMIA -> "vldmia" | VMRS -> "vmrs"
+            | VDUP -> "vdup" | VCEQ -> "vceq"
             | VEXT -> "vext"
             | VREV16 -> "vrev16" | VREV32 -> "vrev32" | VREV64 -> "vrev64"
             | VSWP -> "vswp"
+            | FLDMIAX -> "fldmiax" | FSTMIAX -> "fstmiax"
             | STP -> "stp" | LDP -> "ldp"
           end
         | Arm_Compare acommon_compare ->

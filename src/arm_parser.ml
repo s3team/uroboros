@@ -271,6 +271,7 @@ class arm_parse =
     | "usax" -> USAX | "usub16" -> USUB16 | "usub8" -> USUB8 | "uxtab" -> UXTAB | "uxtab16" -> UXTAB16 | "uxtah" -> UXTAH
     | "uxtb" -> UXTB | "uxtb16" -> UXTB16 | "uxth" -> UXTH
     | "vhadd" -> VHADD | "vhsub" -> VHSUB
+    | "vand" -> VAND | "vpadd" -> VPADD | "vorr" -> VORR
     | "vaddhn" -> VADDHN
     | "vmul" -> VMUL | "vnmul" -> VNMUL | "vmla" -> VMLA | "vmls" -> VMLS
     | "vnmls" -> VNMLS | "vnmla" -> VNMLA | "vadd" -> VADD | "vsub" -> VSUB | "vdiv" -> VDIV | "vabs" -> VABS | "vneg" -> VNEG
@@ -304,10 +305,12 @@ class arm_parse =
     | "vstr" -> VSTR | "vst4" -> VST4
     | "vstm" -> VSTM | "vstmdb" -> VSTMDB | "vpush" -> VPUSH | "vldr" -> VLDR | "vldm" -> VLDM | "vldmdb" -> VLDMDB
     | "vld4" -> VLD4 | "vstmia" -> VSTMIA | "vldmia" -> VLDMIA | "vmrs" -> VMRS
+    | "vdup" -> VDUP | "vceq" -> VCEQ
     | "stp" -> STP | "ldp" -> LDP
     | "vext" -> VEXT
     | "vrev16" -> VREV16 | "vrev32" -> VREV32|  "vrev64" -> VREV64
     | "vswp" -> VSWP
+    | "fldmiax" -> FLDMIAX | "fstmiax" -> FSTMIAX
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmn" -> CMN | "cmp" -> CMP
@@ -319,7 +322,7 @@ class arm_parse =
     | "it" -> IT | "ite" -> ITE | "itt" -> ITT
     | "ittt" -> ITTT | "itte" -> ITTE | "itee" -> ITEE | "itet" -> ITET
     | "itttt" -> ITTTT | "ittte" -> ITTTE | "ittet" -> ITTET | "ittee" -> ITTEE
-    | "iteet" -> ITEET | "iteee" -> ITEEE
+    | "itett" -> ITETT | "itete" -> ITETE | "iteet" -> ITEET | "iteee" -> ITEEE
     | _ -> raise ParseError
   and otherop_symb = function
     | "nop" -> NOP | "hlt" -> HLT | "nopw" -> NOPW | "nopl" -> NOPL | "ud2" -> UD2
