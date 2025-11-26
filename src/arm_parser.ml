@@ -699,7 +699,7 @@ class arm_parse =
     help sec_list (int_of_string addr)
 
   method init_process =
-    call_des := false
+    call_des := false;
 
   method parse_instr instr loc (arch : string) =
     self#init_process;

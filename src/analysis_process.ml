@@ -78,8 +78,9 @@ module Analysis = struct
 
   let post_analyze il re (arch : string) =
     let pp_print_file_arch = pp_print_file arch in
+    let pp_print_list_arch = pp_print_list arch in
     ( re#unify_loc il
-      |> pp_print_list arch
+      |> pp_print_list_arch
       |> re#adjust_globallabel @@ global_bss ()
       |> pp_print_file_arch )
 

@@ -452,18 +452,82 @@ let pp_print_instr' i =
         ^(p_prefix pre)
         ^(p_five p exp1 exp2 exp3 exp4))
       end
-
-let pp_print_list arch instr_list =
-  if arch = "thumb" then
-    comment_sym := "@"
-  else
-    comment_sym := "#";
+let pp_print_list (arch : string) (instr_list : instr list) : string list =
+  (* Load ARM32 and Thumb address ranges from file *)
+  let arm32_addrs = ref [] in
+  let thumb_addrs = ref [] in
+  let _ =
+    try begin
+        let metafile = open_in "arm32_replaced.info" in
+        try begin
+            while true do
+              let line = input_line metafile in
+              match Str.split (Str.regexp ":") line with
+              | [start_str; end_str] ->
+                let start_addr = int_of_string start_str in
+                let end_addr = int_of_string end_str in
+                arm32_addrs := start_addr :: !arm32_addrs;
+                thumb_addrs := end_addr :: !thumb_addrs
+              | _ -> ()
+            done
+          end
+        with End_of_file -> ();
+        close_in metafile;
+        (* Sort addresses in ascending order *)
+        arm32_addrs := List.sort compare !arm32_addrs;
+        thumb_addrs := List.sort compare !thumb_addrs
+      end
+    with Sys_error _ -> ();
+  in
+  let check_if_arm32_section (instr : instr) : bool =
+    match !arm32_addrs with
+    | [] -> false
+    | h :: t ->
+      let instr_addr = (get_loc instr).loc_addr in
+      if instr_addr >= h then begin
+          arm32_addrs := t;
+          true
+        end
+      else begin
+        false
+      end
+  in
+  let check_if_thumb_section (instr : instr) : bool =
+    match !thumb_addrs with
+    | [] -> false
+    | h :: t ->
+      let instr_addr = (get_loc instr).loc_addr in
+      if instr_addr >= h then begin
+          thumb_addrs := t;
+          true
+        end
+      else begin
+        false
+      end
+  in
+  let check_arm32_thumb_sections (arch : string) (h : instr) (acc : string list) : string list =
+    if arch <> "thumb" then
+      acc
+    else
+    if check_if_arm32_section h then
+      let directive = ".arm\n" in
+      let s = pp_print_instr h in
+      directive :: acc
+    else if check_if_thumb_section h then
+      let directive = ".thumb\n" in
+      let s = pp_print_instr h in
+      directive :: acc
+    else
+      acc
+  in
   let rec help acc l =
     match l with
 	| h::t ->
-		let s = pp_print_instr h in
-    help (s :: acc) t
-	| []   -> List.rev acc in
+      let acc = check_arm32_thumb_sections arch h acc in
+      let s = pp_print_instr h in
+      help (s :: acc) t
+	| [] ->
+    List.rev acc in
     help [] instr_list
 
 let pp_print_file (arch : string) (instr_list : string list) =

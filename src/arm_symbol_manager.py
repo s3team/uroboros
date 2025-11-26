@@ -86,7 +86,7 @@ def branch_target_extractor(filename) -> list[tuple[int, str, int]]:
             if not is_branch_opcode(opcode):
                 continue
 
-            # # Extract target address
+            # Extract target address
             target = operands.split()[0]
             target_addr = None
             if "0x" in target:
@@ -128,8 +128,8 @@ def extract_arm32_instructions(program_name):
     # Get text start address
     text_start = None
     with open("text_sec.info", "r") as f:
-        line = f.readline()
-        parts = line.strip().split()
+        original_line = f.readline()
+        parts = original_line.strip().split()
         if len(parts) != 4:
             print("Error: Invalid text_sec.info format")
             sys.exit(1)
@@ -139,101 +139,110 @@ def extract_arm32_instructions(program_name):
     # Remove duplicate address ranges and those before text_start
     # e.g., (0x1000, 0x1100), (0x1050, 0x1100) -> (0x1000, 0x1100)
     filtered_address_pair = []
-    for pair in from_to_address_pair:
-        if pair[0] < text_start:
+    for arm32_range_pair in from_to_address_pair:
+        if arm32_range_pair[0] < text_start:
             continue
 
         if not filtered_address_pair:
-            filtered_address_pair.append(pair)
+            filtered_address_pair.append(arm32_range_pair)
             continue
 
         last_pair = filtered_address_pair[-1]
-        if pair[0] >= last_pair[0] and pair[1] <= last_pair[1]:
+        if arm32_range_pair[0] >= last_pair[0] and arm32_range_pair[1] <= last_pair[1]:
             # Duplicate range, skip
             continue
         else:
-            filtered_address_pair.append(pair)
+            filtered_address_pair.append(arm32_range_pair)
 
     # debug print
     # for pair in filtered_address_pair:
     #     print(f"From {hex(pair[0])} to {hex(pair[1])}")
 
-    # open and extract instructions between address ranges
+    # Open and extract instructions between address ranges
     arm32_filename = f"{program_name}.temp.arm32"
     arm32_instructions = []
     with open(arm32_filename, "r") as f:
         lines = f.readlines()
-        for pair in filtered_address_pair:
-            for line in lines:
-                parsed_line = line.strip().split("\t")
+        for arm32_range_pair in filtered_address_pair:
+            for original_line in lines:
+                parsed_line = original_line.strip().split("\t")
                 if len(parsed_line) < 4:
                     continue
 
-                addr = parsed_line[0].strip(":")
+                inst_addr_str = parsed_line[0].strip(":")
                 opcode = parsed_line[2]
                 operands = parsed_line[3]
 
                 try:
-                    addr_int = int(addr, 16)
+                    inst_addr = int(inst_addr_str, 16)
                 except ValueError:
                     continue
 
-                if addr_int >= pair[0] and addr_int < pair[1]:
-                    arm32_instructions.append(line.strip())
+                if inst_addr >= arm32_range_pair[0] and inst_addr < arm32_range_pair[1]:
+                    arm32_instructions.append(original_line.strip())
 
     if not filtered_address_pair:
         print("No ARM32 instructions found to replace.")
         return
 
+    # Store metadata about replaced ARM32 ranges
+    metadata_filename = f"arm32_replaced.info"
+    with open(metadata_filename, "w") as f:
+        for arm32_range_pair in filtered_address_pair:
+            f.write(f"{hex(arm32_range_pair[0])}:{hex(arm32_range_pair[1])}\n")
+
     # debug print
     # for i in arm32_instructions:
     #     print(i)
 
-    # replace arm32 instructions into thumb disassembly file
-    # if an instruction address within the range matches, replace it
+    # Replace arm32 instructions into thumb disassembly file.
+    # If an instruction address within the range matches, replace it.
     new_content = []
     temp_filename = f"{program_name}.temp"
     with open(temp_filename, "r") as f:
         lines = f.readlines()
-        pair = filtered_address_pair.pop(0)
-        for line in lines:
+        arm32_range_pair = filtered_address_pair.pop(0)
+        for original_line in lines:
             # print("LINE:", line)
-            parsed_line = line.strip().split("\t")
+            parsed_line = original_line.strip().split("\t")
             if len(parsed_line) < 4:
                 continue
 
-            addr = parsed_line[0].strip(":")
-            addr_int = None
+            inst_addr_str = parsed_line[0].strip(":")
+            inst_addr = None
             try:
-                addr_int = int(addr, 16)
+                inst_addr = int(inst_addr_str, 16)
             except ValueError:
                 continue
 
-            if addr_int < pair[0]:
-                new_content.append(line)
+            arm32_start_addr = arm32_range_pair[0]
+            arm32_end_addr = arm32_range_pair[1]
+            if inst_addr < arm32_start_addr:
+                new_content.append(original_line)
                 continue
-            elif addr_int >= pair[0] and addr_int < pair[1]:
+            elif inst_addr >= arm32_start_addr and inst_addr < arm32_end_addr:
                 # within range
                 continue
-            elif addr_int >= pair[1]:
-                # replace logic
-                while arm32_instructions:
-                    inst_line = arm32_instructions.pop(0)
-                    inst_parsed = inst_line.strip().split("\t")
-                    inst_addr = inst_parsed[0].strip(":")
-                    inst_addr_int = None
-                    try:
-                        inst_addr_int = int(inst_addr, 16)
-                    except ValueError:
-                        continue
+            elif inst_addr >= arm32_end_addr:
+                if arm32_instructions:
+                    # replace logic
+                    while arm32_instructions:
+                        arm32_inst_line = arm32_instructions.pop(0)
+                        arm32_inst_parsed = arm32_inst_line.strip().split("\t")
+                        arm32_inst_addr_str = arm32_inst_parsed[0].strip(":")
+                        arm32_instr_addr = None
+                        try:
+                            arm32_instr_addr = int(arm32_inst_addr_str, 16)
+                        except ValueError:
+                            continue
 
-                    if addr_int >= inst_addr_int:
-                        new_content.append("   " + inst_line + "\n")
-                    else:
-                        break
+                        if inst_addr >= arm32_instr_addr:
+                            new_content.append("   " + arm32_inst_line + "\n")
+                        else:
+                            break
+                new_content.append(original_line)
 
-                new_content.append(line)
-
+    # Write back to the temp file
     with open(temp_filename, "w") as f:
         f.writelines(new_content)
 
