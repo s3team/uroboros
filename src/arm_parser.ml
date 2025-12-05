@@ -269,6 +269,12 @@ class arm_parse =
     if s.[0] = '#' then
       let s' = String.sub s 1 (String.length s - 1) in
       Immediate (int_of_string s')
+    else if String.length s >= 3 && String.sub s 0 2 = "0x" then
+      (* try 0x20124 *)
+      Immediate (int_of_string s)
+    else if String.for_all Char.is_digit s then
+      (* try 20124 *)
+      Immediate (int_of_string s)
     else failwith "const_symb"
   in
 

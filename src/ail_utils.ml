@@ -1480,7 +1480,7 @@ module Func_utils = struct
             let f_ea = hf.func_end_addr in
             let i_loc = get_loc hi in
             let i_addr = i_loc.loc_addr in
-            (* giyeol: debug *)
+            (* debug *)
             (* let _ = Printf.printf "\tfunc: %s, 0x%x - 0x%x\n%!" hf.func_name f_ba f_ea in *)
             (* let _ = Printf.printf "\tinstr: %s\n%!" (Pp_print.pp_print_instr' hi) in *)
             (* end debug *)
@@ -1505,7 +1505,7 @@ module Func_utils = struct
           end
       in
       let func2il' = slice_il funcs il in
-      (* giyeol: debug *)
+      (* debug *)
       (* let _ = *)
       (*   Hashtbl.iter *)
       (*     (fun k v -> *)
@@ -1547,7 +1547,6 @@ module Func_utils = struct
     let func2il_table = func2il il in
 
     let rec create_cfg f (f_il : instr list) pred_cfg succ_cfg =
-      (* giyeol: debug *)
       match f_il with
       | [] ->
           let ordered_il = List.rev (Hashtbl.find func2il_table f.func_name) in
@@ -1611,7 +1610,7 @@ module Func_utils = struct
           in
           create_cfg f (i' :: il') pred_cfg succ_cfg
     in
-    (* giyeol: kind of function main starting here *)
+    (* kind of function main starting here *)
     List.iter
       (fun f ->
         match Hashtbl.find_opt func2il_table f.func_name with

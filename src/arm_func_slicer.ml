@@ -20,6 +20,11 @@ class arm_func_slicer instrs funcs =
         let has_lr = String.exists lab "lr" in
         has_brackets && has_lr
       in
+      let has_fp_reg (lab : label) : bool =
+        let has_brackets = String.contains lab '{' && String.contains lab '}' in
+        let has_fp = String.exists lab "fp" in
+        has_brackets && has_fp
+      in
       let has_sp_reg (lab : label) : bool =
         let has_sp = String.exists lab "sp" in
         has_sp
@@ -89,7 +94,13 @@ class arm_func_slicer instrs funcs =
               _,
               _,
               _ )
-          when has_lr_reg lab ->
+          when has_lr_reg lab || has_fp_reg lab
+          (* The above when condition was commented out due to the following case:
+           * in make-prime-list:
+           * 1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+           * should be recognized as a function beginning
+           *)
+          ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;

@@ -1422,6 +1422,7 @@ class instrhandler instr_list des' =
     (* let lld2 = List.sort Int.compare lld1 in
        List.map (Printf.sprintf "S_0x%X") lld2 *)
 
+    (** Check if symbols in [dlist] match with instructions in [llist] *)
     method process =
       let dec_hex (s : int) : string = Printf.sprintf "S_0x%X" s in
       let do_update s n = if String.exists s n then s else s ^ "\n" ^ n in
@@ -1894,13 +1895,13 @@ class arm_reassemble =
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                   Label s_label
                 end
-                else
+                (* else
                   (* To avoid symbolizing the below cases:
                    * mov.w	r2, #131072	; 0x20000
                    * cmp.w	r3, #131072	; 0x20000
                    *)
-                  e
-                  (* else begin
+                  e *)
+                else begin
                   Hashtbl.replace text_set l' "";
                   let _ = print_endline "giyeol: build symbol with text_set" in
                   let s_label = self#build_symbol l in
@@ -1908,7 +1909,7 @@ class arm_reassemble =
                   let loc' = get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                   Label s_label
-                end *)
+                end
               else
                 let module
                   (* in dynamically-linked binaries, call to library functions are replaced with their name *)
@@ -2234,8 +2235,6 @@ class arm_reassemble =
             in
             match self#check_sec value with
             | Some s ->
-                (* giyeol: debug *)
-                (* let _ = Printf.printf "\tsection: %s\n" s.sec_name in *)
                 if s.sec_name = ".rodata" then pointer_instr
                 else if s.sec_name = ".got" then begin
                   match self#get_got_as_data_int value with
