@@ -41,6 +41,13 @@ def parse(item):
     h3 = item[2:4].upper()
     h4 = item[0:2].upper()
     addr = h1 + h2 + h3 + h4
+
+    # For ARM thumb mode
+    addr_int = int(addr, 16)
+    if addr_int % 2 == 1:
+        addr_int -= 1
+    addr = format(addr_int, '08X')
+
     return "S_0x"+addr.lstrip('0')
 
 def help(l):

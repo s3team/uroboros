@@ -1449,13 +1449,8 @@ class instrhandler instr_list des' =
               help (lh' :: acc) lt dt
             else if dh < lhd then
               (* this is not a label indeed*)
-              (* let _ =
-                Printf.printf "\telse if dh < lhd: loc(%x) des(%x)\n"
-                  lh.loc_addr dh
-              in *)
-              help (lh :: acc) lt dt
-            else
-              help (lh :: acc) lt dlist
+              help (acc) llist dt
+            else help (lh :: acc) lt dlist
         | a, b ->
             print_string "reassemble process\n";
             print_string (dec_hex (List.nth b 0) ^ "\n");
@@ -1804,7 +1799,8 @@ class arm_reassemble =
       | Point s -> "=S_" ^ dec_hex s
       | Normal s -> "=S_" ^ dec_hex s
       | Immediate s -> begin
-          failwith "build_symbol: check immediate value" (* "=S_" ^ dec_hex s *)
+          (* only for branch targets *)
+          "S_" ^ dec_hex s
         end
 
     method build_plt_symbol c =
@@ -1854,6 +1850,10 @@ class arm_reassemble =
         | Normal v, true -> false
         | _ -> true
       in
+      let is_control_opcode (i : instr) : bool =
+        let i_op = get_op i in
+        match i_op with Arm_OP (Arm_ControlOP _, _, _) -> true | _ -> false
+      in
       let dec_hex (s : int) : string = Printf.sprintf "0x%X" s in
       match e with
       | Const l -> begin
@@ -1901,14 +1901,18 @@ class arm_reassemble =
                    * cmp.w	r3, #131072	; 0x20000
                    *)
                   e *)
-                else begin
-                  Hashtbl.replace text_set l' "";
-                  let _ = print_endline "giyeol: build symbol with text_set" in
-                  let s_label = self#build_symbol l in
-                  deslist <- s_label :: deslist;
-                  let loc' = get_loc i in
-                  deslist_reloc <- loc'.loc_addr :: deslist_reloc;
-                  Label s_label
+                  else begin
+                  if is_control_opcode i then begin
+                    Hashtbl.replace text_set l' "";
+                    let s_label = self#build_symbol l in
+                    deslist <- s_label :: deslist;
+                    let loc' = get_loc i in
+                    deslist_reloc <- loc'.loc_addr :: deslist_reloc;
+                    Label s_label
+                  end
+                  else begin
+                    e
+                  end
                 end
               else
                 let module
@@ -2231,7 +2235,8 @@ class arm_reassemble =
               TripleInstr (ldr_op, Const (Point value), e2, l, pre, None, tags)
             in
             let deref_instr =
-              TripleInstr (ldr_op, Const (Point value), e2, l, pre, Some Deref, tags)
+              TripleInstr
+                (ldr_op, Const (Point value), e2, l, pre, Some Deref, tags)
             in
             match self#check_sec value with
             | Some s ->
@@ -2264,7 +2269,13 @@ class arm_reassemble =
           end
         | TripleInstr (p, e1, e2, l, pre, tag, tags) when is_test p ->
             TripleInstr
-              (p, self#v_exp2 e1 i f true, self#v_exp2 e2 i f true, l, pre, tag, tags)
+              ( p,
+                self#v_exp2 e1 i f true,
+                self#v_exp2 e2 i f true,
+                l,
+                pre,
+                tag,
+                tags )
         | TripleInstr (p, e1, e2, l, pre, tag, tags) ->
             TripleInstr
               ( p,
@@ -2282,8 +2293,8 @@ class arm_reassemble =
     method vinst_symbol (f : instr -> bool) (i : instr) : instr =
       let module TU = TagUtils in
       match i with
-      | TripleInstr (p, Label label, e2, l, pre, tag, tags) when contains ~str:label ~sub:"=S_"
-        -> begin
+      | TripleInstr (p, Label label, e2, l, pre, tag, tags)
+        when contains ~str:label ~sub:"=S_" -> begin
           let sub_label = String.sub label 3 (String.length label - 3) in
           let addr = int_of_string sub_label in
           match self#check_sec addr with
