@@ -395,7 +395,7 @@ class arm_parse =
         let len = String.length s in
         if len < 2 then raise ParseError
         else
-          if contains s "<und>" then
+          if contains ~str:s ~sub_str:"<und>" then
             let cond_str = String.sub s (len-5) 5 in
             let op_str = String.sub s 0 (len-5) in
             let op = op_symb op_str is_special in
@@ -615,7 +615,7 @@ class arm_parse =
     match lex with
     | Lop s ->
       let str_list = Str.split (Str.regexp_string ".") in
-      if contains s "undefined" then
+      if contains ~str:s ~sub_str:"undefined" then
         Op (Undefined_OP)
       else
         if (List.length (str_list s)) = 2 then
@@ -699,7 +699,7 @@ class arm_parse =
     let compact (instr : string) =
       (* See [arm_postprocess.py#remove_caret] *)
       let instr' = Str.global_replace (Str.regexp ", ") "," instr in
-      if contains instr' " " then
+      if contains ~str:instr' ~sub_str:" " then
         let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
         instr'
       else instr'
@@ -709,9 +709,9 @@ class arm_parse =
     (* let (compact_instr, tag) = tag_identify compact_instr in *)
     let compact_instr' = prefix_sub compact_instr in
     let is_special_stackop (i : string) =
-      if contains i "stmdb" && contains i "sp!" then
+      if contains ~str:i ~sub_str:"stmdb" && contains ~str:i ~sub_str:"sp!" then
         true
-      else if contains i "ldmia" && contains i "sp!" then
+      else if contains ~str:i ~sub_str:"ldmia" && contains ~str:i ~sub_str:"sp!" then
         true
       else false
     in

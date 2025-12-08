@@ -2267,6 +2267,7 @@ class reassemble =
                 Ptr (JmpTable_PLUS (base_addr_i1, reg2_i1, 4)),
                 loc_i1,
                 prefix_i1,
+                tag_i1,
                 tags_i1 ),
             TripleInstr
               ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
@@ -2274,12 +2275,14 @@ class reassemble =
                 Const (Normal lab_i2),
                 loc_i2,
                 prefix_i2,
+                tag_i2,
                 tags_i2 ),
             DoubleInstr
               ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
                 Symbol (StarDes (Reg dest_reg_i3)),
                 loc_i3,
                 prefix_i3,
+                tag_i3,
                 tags_i3 )
             when (p_reg dest_reg_i1 = p_reg dest_reg_i2)
               && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
@@ -2319,6 +2322,7 @@ class reassemble =
                 Ptr (BinOP_PLUS (reg2_i0, base_addr_i0)),
                 loc_i0,
                 prefix_i0,
+                tag_i0,
                 tags_i0 ),
             TripleInstr
               ( Intel_OP (Intel_CommonOP (Intel_Assign MOVSLQ)),
@@ -2326,6 +2330,7 @@ class reassemble =
                 Ptr (ThreeOP (reg2_1_i1, reg2_2_i1, 4)),
                 loc_i1,
                 prefix_i1,
+                tag_i1,
                 tags_i1 ),
             TripleInstr
               ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
@@ -2333,12 +2338,14 @@ class reassemble =
                 Ptr (ThreeOP (reg2_1_i2, reg2_2_i2, 1)),
                 loc_i2,
                 prefix_i2,
+                tag_i2,
                 tags_i2 ),
             DoubleInstr
               ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
                 Symbol (StarDes (Reg dest_reg_i3)),
                 loc_i3,
                 prefix_i3,
+                tag_i3,
                 tags_i3 )
             when ((p_reg dest_reg_i1 = p_reg reg2_1_i2) || (p_reg dest_reg_i1 = p_reg reg2_2_i2))
               && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
@@ -2362,6 +2369,7 @@ class reassemble =
                         Ptr (ThreeOP (reg2_1_i1, reg2_2_i1, 4)),
                         loc_i1,
                         prefix_i1,
+                        tag_i1,
                         tags_i1 )
                   in
                   i0 :: i1' :: rewrite3 (List.tl (List.tl (List.tl instrs')))

@@ -21,4 +21,6 @@ class virtual common_reassemble =
     method virtual visit_type_infer_analysis : bblock list -> instr list -> instr list
     method virtual adjust_globallabel : (string * string * string) list -> string list -> string list
     method virtual instr_addrs_collect : instr list -> unit
+    method virtual jmp_table_rewrite : instr list -> instr list
+    method virtual jmp_table_rewrite64 : instr list -> instr list
   end

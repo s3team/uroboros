@@ -79,7 +79,7 @@ class parse =
     {loc_label=""; loc_addr=(int_of_string s); loc_visible = true;}
 
   and const_symb s =
-    if contains ~str:s ~sub:" # " && not (contains ~str:s ~sub:"*") then
+    if (contains ~str:s ~sub_str:"#") && not (contains ~str:s ~sub_str:"*") then
       (* ex 64-bit: 0xa8f3e(%rip)        # 4aa098 <_GLOBAL_OFFSET_TABLE_+0xb0> *)
       (* ex 32-bit: jmp    *0xa8fd6(%rip)        # 0x4aa000 *)
       let after_hash = String.split_on_char '#' s in

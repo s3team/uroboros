@@ -128,6 +128,7 @@ module GotAbs : DfaAbs = struct
           Reg reg2,
           loc,
           prefix,
+          tag,
           tags )
       when ExpSet.mem (Reg reg2) ins ->
         TripleInstr
@@ -237,6 +238,7 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_PLUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
+          tag,
           tags )
       when ExpSet.mem (Reg reg1) ins ->
         let got_plus_offset = got_addr + const2 in
@@ -246,6 +248,7 @@ module GotAbs : DfaAbs = struct
             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
             loc,
             prefix,
+            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -253,6 +256,7 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_MINUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
+          tag,
           tags )
       (* reg1 is base address, reg2 is offset *)
       when ExpSet.mem (Reg reg1) ins ->
@@ -271,6 +275,7 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_PLUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
+          tag,
           tags )
       when ExpSet.mem (Reg reg1) ins ->
         let got_plus_offset = got_addr + const2 in
@@ -280,6 +285,7 @@ module GotAbs : DfaAbs = struct
             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
             loc,
             prefix,
+            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -287,6 +293,7 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_MINUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
+          tag,
           tags )
       (* reg1 is base address, reg2 is offset *)
       when ExpSet.mem (Reg reg1) ins ->
@@ -297,6 +304,7 @@ module GotAbs : DfaAbs = struct
             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
             loc,
             prefix,
+            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -459,6 +467,17 @@ module GotAbs : DfaAbs = struct
       Hashtbl.replace result (get_loc i).loc_addr newi
     else ()
 
+  let contains_existing_fact tag tag_key exp_set =
+    (* exp_set: incoming facts
+     * tag[tag_key]: existing fact *)
+    if Hashtbl.mem tag tag_key then
+      let tag_exp = Hashtbl.find tag tag_key in
+      match tag_exp with
+      | Exp e ->
+        ExpSet.mem e exp_set
+      | _ -> false
+    else false
+
   (** identify GOT pointer and propagate facts *)
   let flow_through (i : instr) (ins : ExpSet.t) : ExpSet.t =
     let outs = ins in
@@ -468,7 +487,7 @@ module GotAbs : DfaAbs = struct
         ( match exp_def with
           | Exp e -> ExpSet.add e outs
           | _ -> outs )
-    | TripleInstr (p, e1, e2, _, _, _) -> (
+    | TripleInstr (p, e1, e2, _, _, _, _) -> (
         match (p, e1, e2) with
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->

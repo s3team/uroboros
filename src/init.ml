@@ -56,7 +56,7 @@ object (self)
 
     self#checkret ret (f^".temp");
 
-    ignore (Sys.command("python3 pic_process.py "^f^" "^(string_of_bool !is_32)));
+    ignore (Sys.command("python3 pic_process.py "^f^" "^(string_of_bool !is_32) ^" "^arch));
     ignore (Sys.command("python3 extern_symbol_process64.py "^f));
     ignore (Sys.command("python3 pic_process64.py "^f^" "
                        ^(string_of_bool !is_32)^" "^arch));

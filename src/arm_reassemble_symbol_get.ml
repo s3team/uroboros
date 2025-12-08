@@ -2262,6 +2262,12 @@ class arm_reassemble =
         end
       | _ -> i
 
+    method jmp_table_rewrite (instrs : instr list) =
+      instrs
+
+    method jmp_table_rewrite64 (instrs : instr list) =
+      instrs
+
     method visit_heuristic_analysis (instrs : instr list) =
       let func (i : instr) : bool =
         let l = get_loc i in

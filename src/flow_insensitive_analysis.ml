@@ -152,6 +152,7 @@ let got_rewrite_instr
           Reg reg2,
           loc,
           prefix,
+          tag,
           tags )
       when got_reg = (p_exp (Reg reg2)) ->
         Hashtbl.replace
@@ -163,6 +164,7 @@ let got_rewrite_instr
             Const (Normal got_addr),
             loc,
             prefix,
+            tag,
             tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -170,6 +172,7 @@ let got_rewrite_instr
         Ptr (FourOP_PLUS (reg1, reg2, const1, const2)),
         loc,
         prefix,
+        tag,
         tags )
     when got_reg = (p_exp (Reg reg1)) ->
       let got_plus_offset = got_addr + const2 in
@@ -182,6 +185,7 @@ let got_rewrite_instr
           Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
           loc,
           prefix,
+          tag,
           tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -189,6 +193,7 @@ let got_rewrite_instr
         Ptr (FourOP_MINUS (reg1, reg2, const1, const2)),
         loc,
         prefix,
+        tag,
         tags )
     (* reg1 is base address, reg2 is offset *)
     when got_reg = (p_exp (Reg reg1)) ->
@@ -202,6 +207,7 @@ let got_rewrite_instr
           Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
           loc,
           prefix,
+          tag,
           tags ) )
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),

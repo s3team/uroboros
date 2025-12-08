@@ -166,7 +166,7 @@ def get_entry_point_address(fn) -> str:
 def dump(fn):
     entry_point_str = get_entry_point_address(fn)
     is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
-    is_32bit_binary = check_32()
+    is_32bit_binary = is_32()
 
     if arch == "intel":
         os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")

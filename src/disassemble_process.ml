@@ -60,6 +60,7 @@ module Disam = struct
                 Const (Normal lab_i2),
                 loc_i2,
                 prefix_i2,
+                tag_i2,
                 tags_i2 ),
             TripleInstr
               ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -67,6 +68,7 @@ module Disam = struct
                 Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), const_i3)),
                 loc_i3,
                 prefix_i3,
+                tag_i3,
                 tags_i3 )
               when (p_op (get_op i1)) <> "push" && (p_op (get_op i1)) <> "add" ->
             begin
@@ -90,6 +92,7 @@ module Disam = struct
                     Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), const_i3)),
                     loc_i3,
                     prefix_i3,
+                    tag_i3,
                     new_tags )
               in
               i1 :: traverse (i2 :: i3_new :: rest)
@@ -149,7 +152,7 @@ module Disam = struct
       in
 
       let got_rewrite (il : instr list) =
-        if EU.elf_32 () && arch <> "arm" then
+        if EU.elf_32 () && arch = "intel" then
           let func2cfg = FnU.func2cfg il fl in
           let _ = Hashtbl.iter (
             fun f cfg ->

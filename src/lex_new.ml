@@ -269,7 +269,7 @@ let tag_identify (instr : string) =
   else (instr, None)
 
 (** Return true if str contains sub_str *)
-let contains (str : string) (sub_str : string) : bool =
+let contains ~(str : string) ~(sub_str : string) : bool =
   let regex = Str.regexp_string sub_str in
   try
     ignore (Str.search_forward regex str 0);
