@@ -319,9 +319,6 @@ let sort_loc (ll : loc list) : loc list =
  * we assume no instructions share same location!
  *)
 let get_instr_byloc (instrs : instr list) (locs : loc list) : instr list =
-  (* giyeol: *)
-  (* let _ = List.iter (fun i -> Printf.printf "get instrs: 0x%x\n" (get_addr i)) instrs in
-  let _ = List.iter (fun l -> Printf.printf "get locs: 0x%x\n" l.loc_addr) locs in *)
   let rec aux il ll acc =
     match (il, ll) with
     | ih :: it, lh :: lt -> begin

@@ -820,7 +820,8 @@ class arm_parse =
             let op = op_symb op_str is_special in
             let cond = condsuff_symb cond_str in
             (op, Some cond)
-      with _ -> raise ParseError in
+      with _ -> raise ParseError)
+    in
 
   let unptr_symb s =
     let l = String.length s in

@@ -132,7 +132,8 @@ module Disam = struct
       ail_parser#process_instrs instr_list arch;
       re#instr_addrs_collect ail_parser#get_instrs;
 
-      let fl = ail_parser#get_funcs in (* func_slicing *)
+      (* func_slicing *)
+      let fl = ail_parser#get_funcs in
       print_endline "2: disassembly validates -->";
 
       (*let _ = List.iter (
@@ -146,7 +147,7 @@ module Disam = struct
       ) fl in*)
 
       let il_init =
-        if EU.elf_32 () && arch <> "arm" then
+        if EU.elf_32 () && arch = "intel" then
           adjust_esp ail_parser#get_instrs
         else
           ail_parser#get_instrs

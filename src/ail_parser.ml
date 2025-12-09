@@ -1181,11 +1181,15 @@ object (self)
     let _ = p#set_funclist(funcs)
     and _ = p#set_seclist(secs)
     and split = Str.split (Str.regexp_string ":") in
-    let l' = List.filter (
+    (* change empty instruction to "undefined" string *)
+    let l' = List.map (
                  fun i ->
                  let items = split i in
                  let len = List.length items in
-                 len > 1 ) l in
+                 if len > 1 then i
+                 else
+                  let loc = List.nth items 0 in
+                  loc ^ ":\tundefined") l in
     let help i =
       let items = split i in
       let loc = List.nth items 0 in
@@ -1196,7 +1200,16 @@ object (self)
         instrs <- (p#parse_instr instr loc arch)::instrs;
     in
     List.iter help l';
-    funcs <- p#get_funclist
+    if arch = "arm" || arch = "thumb" then begin
+      self#build_address_hex_map ();
+      self#remove_literal_pools instrs;
+      instrs <- self#adjust_width_specifier instrs;
+    end;
+    if arch = "thumb" then begin
+      instrs <- self#remove_it_sequence instrs;
+      instrs <- self#convert_instructions instrs;
+    end;
+    funcs <- p#get_funclist;
 
   method process_asms (l : string list) (arch : string) =
     let p = self#create_parser arch in

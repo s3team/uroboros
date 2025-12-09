@@ -218,7 +218,7 @@ def process(f, i, arch):
         os.system(f"echo \"{str(i)}\" > count.txt")
         os.system(f"cp {f} {f}.sym")
         os.system(f"nm {f}.sym > nm.info 2> /dev/null")
-        if check_static():
+        if is_static():
             os.system(f"{objdump_commamnd} -d --section=.plt {f} > plt_whole.info 2> /dev/null")
             os.system(f"readelf -r {f} > rela_plt.info")
             os.system(f"readelf -l {f} > headers.info")
