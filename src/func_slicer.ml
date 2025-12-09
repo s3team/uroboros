@@ -13,7 +13,7 @@ class func_slicer instrs funcs =
           match op with
           | Intel_OP io -> (
               match io with Intel_StackOP PUSH -> true | _ -> false)
-          | Arm_OP (ao, _) -> (
+          | Arm_OP (ao, _, _) -> (
               match ao with Arm_StackOP PUSH -> true | _ -> false)
           | _ -> false
         in

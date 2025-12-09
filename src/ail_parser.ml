@@ -551,7 +551,7 @@ object (self)
             begin
               (* check if the next instruction is nop or not *)
               let n_instr = List.nth ordered_il (idx + 1) in
-              let nop_detected = is_nop n_instr in
+              let nop_detected = is_nop (get_op n_instr) in
               let nn_offset = if nop_detected then 3 else 2 in
               let nn_instr = List.nth ordered_il (idx + nn_offset) in
               match get_op nn_instr with

@@ -20,7 +20,7 @@
 (library
  (name pp_print)
  (modules pp_print)
- (libraries type tag_utils)
+ (libraries type)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))

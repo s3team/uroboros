@@ -166,7 +166,7 @@ def get_entry_point_address(fn) -> str:
 def dump(fn):
     entry_point_str = get_entry_point_address(fn)
     is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
-    is_32bit_binary = check_32()
+    is_32bit_binary = is_32()
 
     if arch == "intel":
         os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")
@@ -218,7 +218,6 @@ def process(f, i, arch):
             os.system(f"readelf -r {f} > rela_plt.info")
             os.system(f"readelf -l {f} > headers.info")
         os.system(f"{strip_command} {f}")
-
         dump(f)
 
         bit_mode = "32" if is_32bit_binary else "64"
@@ -227,7 +226,6 @@ def process(f, i, arch):
         if init_result.returncode != 0:
             print("init failed")
             return False
-
 
         os.system(f"python3 main_discover.py {f} {arch}")
 
