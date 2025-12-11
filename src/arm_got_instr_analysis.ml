@@ -82,34 +82,48 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
     in
     aux s
 
-  (** Merge register value maps from predecessors. Only keep register-value
-      bindings that are consistent across all predecessors. If different
-      predecessors have different values for the same register, drop it. *)
+  (** Merge register value maps from predecessors. Keep register-value bindings
+      where all predecessors that define the register agree on its value. If a
+      predecessor doesn't define a register, it doesn't cause disagreement. Only
+      drop a register if different predecessors have different values for it. *)
   let merge (preds : instr option list)
       (input_map : (instr, abs_state) Hashtbl.t) : abs_state =
-    match preds with
+    (* Get all non-None predecessor states *)
+    let pred_states =
+      List.filter_map
+        (fun p_op ->
+          match p_op with
+          | Some p -> (
+              try Some (Hashtbl.find input_map p) with Not_found -> None)
+          | None -> None)
+        preds
+    in
+    match pred_states with
     | [] -> RegMap.empty
-    | Some first_pred :: rest_preds ->
-        let first_state = Hashtbl.find input_map first_pred in
-        (* For each register in first_state, check if all other preds have same value *)
-        let merge_reg (reg_name : string) (value : int) (acc : abs_state) :
-            abs_state =
-          let all_agree =
-            List.for_all
-              (fun p_op ->
-                match p_op with
-                | Some p -> (
-                    let state = Hashtbl.find input_map p in
-                    match RegMap.find_opt reg_name state with
-                    | Some v -> v = value
-                    | None -> false)
-                | None -> false)
-              rest_preds
-          in
-          if all_agree then RegMap.add reg_name value acc else acc
+    | states ->
+        (* Collect all registers that appear in at least one state *)
+        let all_regs =
+          List.fold_left
+            (fun acc state ->
+              RegMap.fold
+                (fun reg _ acc -> if List.mem reg acc then acc else reg :: acc)
+                state acc)
+            [] states
         in
-        RegMap.fold merge_reg first_state RegMap.empty
-    | _ -> RegMap.empty
+        (* For each register, keep it if all states that define it agree on the value *)
+        List.fold_left
+          (fun acc reg ->
+            (* Get all values for this register across all states *)
+            let values =
+              List.filter_map (fun state -> RegMap.find_opt reg state) states
+            in
+            match values with
+            | [] -> acc (* No state has this register *)
+            | v :: rest ->
+                (* Keep the register if all states that have it agree on the value *)
+                if List.for_all (fun x -> x = v) rest then RegMap.add reg v acc
+                else acc (* States disagree, drop the register *))
+          RegMap.empty all_regs
 
   (** Transfer function: compute output state from input state *)
   let flow_through (i : instr) (ins : abs_state) : abs_state =
@@ -320,6 +334,8 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
               match (src1_value, src2_value) with
               | (Some src1_val, Some src2_val) ->
                 Printf.printf "src1: %x, src2: %x\n\n" src1_val src2_val
+              | (Some src1_val, None) -> Printf.printf "src1: %x\n\n" src1_val
+              | (None, Some src2_val) -> Printf.printf "src2: %x\n\n" src2_val
               | _ -> Printf.printf "none\n\n"
             in
             let _ = print_reg_values () in *)

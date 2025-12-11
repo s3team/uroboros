@@ -1438,7 +1438,7 @@ class instrhandler instr_list des' =
               help (lh' :: acc) lt dt
             else if dh < lhd then
               (* this is not a label indeed *)
-              help (acc) llist dt
+              help acc llist dt
             else help (lh :: acc) lt dlist
         | a, b ->
             print_string "reassemble process\n";
@@ -1634,7 +1634,6 @@ class arm_reassemble =
 
     (* collect all the symbols from code section or from data sections *)
     val mutable symbol_list : int list = []
-
     method set_arch (arch_name : string) = arch <- arch_name
 
     method section_collect =
@@ -1966,8 +1965,6 @@ class arm_reassemble =
               else if self#has_text_as_data pc_relative_addr then begin
                 Hashtbl.replace literal_pool_candidates pc_relative_addr i;
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
-                let _ = Printf.printf "text_as_data symbol: %s\n" s_label in
-                let _ = Printf.printf "\t%s\n" (pp_print_instr' i) in
                 (* [label] is used to create c2d symbols *)
                 label <- (".text_as_data", pc_relative_addr) :: label;
                 (* for data in text section *)
@@ -2282,11 +2279,8 @@ class arm_reassemble =
         end
       | _ -> i
 
-    method jmp_table_rewrite (instrs : instr list) =
-      instrs
-
-    method jmp_table_rewrite64 (instrs : instr list) =
-      instrs
+    method jmp_table_rewrite (instrs : instr list) = instrs
+    method jmp_table_rewrite64 (instrs : instr list) = instrs
 
     method visit_heuristic_analysis (instrs : instr list) =
       let func (i : instr) : bool =

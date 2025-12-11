@@ -128,7 +128,8 @@ module Disam = struct
       ail_parser#set_secs secs;
       ail_parser#set_arch arch;
       let instr_list = read_file "instrs.info" in
-      (* giyeol: remove_literal_pools is here *)
+      
+      (* remove_literal_pools is here *)
       ail_parser#process_instrs instr_list arch;
       re#instr_addrs_collect ail_parser#get_instrs;
 
@@ -227,8 +228,8 @@ module Disam = struct
              * If something wrong happens, AP functions might need to be moved to [ail.ml#post_process].
              *)
           end
-        |> TU.process_tags
         |> re#visit_heuristic_analysis
+        |> TU.process_tags (* should be located after visit_heuristic_analysis *)
         |> re#adjust_loclabel |> re#adjust_jmpref
         |> re#add_func_label @@ get_userfuncs fl
         |> dis_valid#visit

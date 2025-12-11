@@ -1020,8 +1020,6 @@ class arm_parse =
           with _ ->
             try Symbol (self#symbol_symb s)
             with _ ->
-              (* giyeol: *)
-              (* let _ = Printf.printf "exp_symb: Label\n" in *)
               try Label (s)   (* we just consider these as labels *)
               with _ ->
                 raise ParseError
