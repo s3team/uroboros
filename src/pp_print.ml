@@ -1,6 +1,7 @@
 open Type
 
 let flip f x y = f y x
+let comment_sym = ref ""
 
 let rec last_ele = (function
 | [h] -> h
@@ -306,7 +307,7 @@ let pp_print_instr i =
         ((p_location l)
         ^(p_prefix pre)
         ^(p_single p)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_location l)
         ^(p_prefix pre)
@@ -318,8 +319,8 @@ let pp_print_instr i =
         ((p_location l)
         ^(p_prefix pre)
         ^(p_double p exp1)
-        ^"    #"
-        ^value)
+        ^ "    " ^ !comment_sym
+        ^ value)
       | None ->
         ((p_location l)
         ^(p_prefix pre)
@@ -331,8 +332,8 @@ let pp_print_instr i =
         ((p_location l)
         ^(p_prefix pre)
         ^(p_triple p exp1 exp2)
-        ^"    #"
-        ^value)
+        ^ "    " ^ !comment_sym
+        ^ value)
       | None ->
         ((p_location l)
         ^(p_prefix pre)
@@ -344,7 +345,7 @@ let pp_print_instr i =
         ((p_location l)
         ^(p_prefix pre)
         ^(p_four p exp1 exp2 exp3)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_location l)
         ^(p_prefix pre)
@@ -356,7 +357,7 @@ let pp_print_instr i =
         ((p_location l)
         ^(p_prefix pre)
         ^(p_five p exp1 exp2 exp3 exp4)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_location l)
         ^(p_prefix pre)
@@ -375,7 +376,7 @@ let pp_print_instr' i =
         ^(p_location l)
         ^(p_prefix pre)
         ^(p_single p)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_addr l)
         ^(p_location l)
@@ -389,7 +390,7 @@ let pp_print_instr' i =
         ^(p_location l)
         ^(p_prefix pre)
         ^(p_double p exp1)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_addr l)
         ^(p_location l)
@@ -403,7 +404,7 @@ let pp_print_instr' i =
         ^(p_location l)
         ^(p_prefix pre)
         ^(p_triple p exp1 exp2)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_addr l)
         ^(p_location l)
@@ -417,7 +418,7 @@ let pp_print_instr' i =
         ^(p_location l)
         ^(p_prefix pre)
         ^(p_four p exp1 exp2 exp3)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_addr l)
         ^(p_location l)
@@ -431,7 +432,7 @@ let pp_print_instr' i =
         ^(p_location l)
         ^(p_prefix pre)
         ^(p_five p exp1 exp2 exp3 exp4)
-        ^"    #"^value)
+        ^ "    " ^ !comment_sym ^ value)
       | None ->
         ((p_addr l)
         ^(p_location l)
@@ -439,7 +440,11 @@ let pp_print_instr' i =
         ^(p_five p exp1 exp2 exp3 exp4))
       end
 
-let pp_print_list instr_list =
+let pp_print_list arch instr_list =
+  if arch = "thumb" then
+    comment_sym := "@"
+  else
+    comment_sym := "#";
   let rec help acc l =
     match l with
 	| h::t ->
@@ -456,7 +461,5 @@ let pp_print_file (arch : string) (instr_list : string list) =
     Printf.fprintf oc ".section .text\n";
   else
     Printf.fprintf oc ".section .text\n";
-  (* Printf.fprintf oc ".intel_syntax noprefix\n"; *)
-  (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) instr_list; *)
   List.iter (fun l -> output_string oc l; output_char oc '\n') instr_list;
   close_out oc

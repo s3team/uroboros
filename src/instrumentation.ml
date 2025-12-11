@@ -259,7 +259,17 @@ let caller_saved_before
     (instr_type : string)
   : instr list =
   let module EU = ELF_utils in
-  if EU.elf_32 () then
+  if EU.elf_arm () then
+    [
+      DoubleInstr
+        ( Arm_OP (Arm_StackOP (PUSH), None, None),
+          Label "{r0, r1, r2, r3, r12}",
+          stub_loc,
+          None,
+          None,
+          (create_comment instr_type) )
+    ]
+  else if EU.elf_32 () then
     [
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
@@ -368,7 +378,17 @@ let caller_saved_after_ret
     (instr_type : string)
   : instr list =
   let module EU = ELF_utils in
-  if EU.elf_32 () then
+  if EU.elf_arm () then
+    [
+      DoubleInstr
+        ( Arm_OP (Arm_StackOP (POP), None, None),
+          Label "{r0, r1, r2, r3, r12}",
+          stub_loc,
+          None,
+          None,
+          (create_comment instr_type) )
+    ]
+  else if EU.elf_32 () then
     [
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
@@ -477,7 +497,17 @@ let caller_saved_after
     (instr_type : string)
   : instr list =
   let module EU = ELF_utils in
-  if EU.elf_32 () then
+  if EU.elf_arm () then
+    [
+      DoubleInstr
+        ( Arm_OP (Arm_StackOP (POP), None, None),
+          Label "{r0, r1, r2, r3, r12}",
+          stub_loc,
+          None,
+          None,
+          (create_comment instr_type) )
+    ]
+  else if EU.elf_32 () then
     [
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
@@ -557,25 +587,29 @@ let caller_saved_after
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None,
-          None,          (create_comment instr_type) );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
           None,
-          None,          (create_comment instr_type) );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RAX)),
           stub_loc,
           None,
-          None,          (create_comment instr_type) );
+          None,
+          (create_comment instr_type) );
       DoubleInstr
         ( Intel_OP (Intel_StackOP (POP)),
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
           None,
-          None,          (create_comment instr_type) )
+          None,
+          (create_comment instr_type) )
     ]
 
 let caller_saved_before_regs
@@ -1138,7 +1172,8 @@ let add_call_seq_arg
           Const (Normal (4 * List.length args)),
           stub_loc,
           None,
-          None,          (create_comment instr_type) ) ] (* arguments on stack for 32-bits *)
+          None,
+          (create_comment instr_type) ) ] (* arguments on stack for 32-bits *)
     @ (caller_saved_after_regs instr_type ret_type) )
   else
     List.rev
@@ -1173,7 +1208,25 @@ let add_call_seq
   (** 32-bit x86 calling convention pushes arguments on the stack,
     * so if we save caller-saved registers on the stack before the call
     * the argument stack is messed up *)
-  if EU.elf_32 () && use_existing_arg then
+if EU.elf_arm () then
+    List.rev
+    ( (caller_saved_before_regs instr_type ret_type)
+    @ [ DoubleInstr
+        ( Arm_OP (Arm_ControlOP (BL), None, None),
+          Symbol (
+            CallDes {
+              func_name=code_ep;
+              func_begin_addr=0;
+              func_end_addr=0;
+              is_lib=false;
+            }
+          ),
+          stub_loc,
+          None,
+          None,
+          (create_comment instr_type) ) ]
+    @ (caller_saved_after_regs instr_type ret_type) )
+else if EU.elf_32 () && use_existing_arg then
     List.rev
     ( [ DoubleInstr
         ( Intel_OP (Intel_ControlOP (CALL)),
@@ -1187,7 +1240,8 @@ let add_call_seq
           ),
           stub_loc,
           None,
-          None,          (create_comment instr_type) ) ] )
+          None,
+          (create_comment instr_type) ) ] )
   else
     List.rev
     ( (caller_saved_before_regs instr_type ret_type)
@@ -1203,7 +1257,8 @@ let add_call_seq
           ),
           stub_loc,
           None,
-          None,          (create_comment instr_type) ) ]
+          None,
+          (create_comment instr_type) ) ]
     @ (caller_saved_after_regs instr_type ret_type) )
 
 let print_args
@@ -1241,13 +1296,15 @@ let print_args
             Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), esp_arg_i)),
             stub_loc,
             None,
-            None,            (create_comment instr_type) );
+            None,
+            (create_comment instr_type) );
           DoubleInstr
           ( Intel_OP (Intel_StackOP (PUSH)),
             Reg (Intel_Reg (Intel_CommonReg EAX)),
             stub_loc,
             None,
-            None,            (create_comment instr_type) );
+            None,
+            (create_comment instr_type) );
           DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -1260,7 +1317,8 @@ let print_args
             ),
             stub_loc,
             None,
-            None,            (create_comment instr_type) );
+            None,
+            (create_comment instr_type) );
           DoubleInstr
             ( Intel_OP (Intel_StackOP (POP)),
               Reg (Intel_Reg (Intel_CommonReg EAX)),
@@ -1332,7 +1390,9 @@ let process_point
   let module EU = ELF_utils in
   if cmd = "" && code_ep = "x" && code = "x" then begin
     (* action PRINTARGS *)
-    if EU.elf_32 () then
+    if EU.elf_arm () then
+      ignore (Sys.command ("arm-linux-gnueabihf-gcc -no-pie -c ./instr_modules/c/lib.c"))
+    else if EU.elf_32 () then
       ignore (Sys.command ("gcc -no-pie -c ./instr_modules/c/lib.c -m32"))
     else
       ignore (Sys.command ("gcc -no-pie -c ./instr_modules/c/lib.c"));

@@ -869,7 +869,7 @@ class datahandler (label' : (string * int) list) =
       in
       (* read in file as list to ensure file is closed in a timely manner *)
       (* otherwise, we can get "Too many open files" error when check_offset is called many times *)
-      let filelines = read_lines "pic_secs.info" in
+      let filelines = [] in
       let peek lst = match lst with [] -> None | x :: _ -> Some x in
       let help l offset =
         let items = Str.split (Str.regexp " +") l in
