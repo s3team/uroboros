@@ -289,11 +289,11 @@ divert from the original binary, e.g., the reassembled binary segfaults but the 
 
 To make it easy to identify and subsequently fix Uroboros-generated errors,
 a comment follows each Uroboros' inserted instruction in the symbolized assembly file,
-`final.s`. 
+`final.s`.
 A comment contains three parts: `filename`, `line`, and `instrumentation point`.
 `filename` is the filename of the instrumentation file (recall that there can be multiple instrumentation files in `src/points/`).
 `line` is the line number of the corresponding instrumentation point in the instrumentation file.
-`instrumentation point` is the instrumentation point index. 
+`instrumentation point` is the instrumentation point index.
 If each instrumentation point in the file is only one line long, then the line number and corresponding instrumentation are the same.
 
 Under a debugger such as GDB, if the reassembled binary segfaults,

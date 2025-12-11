@@ -286,6 +286,7 @@
   batteries
   visit
   common_reassemble_symbol_get
+  symbol_table_get
   type
   ail_utils
   arm_utils
