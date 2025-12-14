@@ -122,6 +122,7 @@ let func_sym_mapping () =
   ) filelines'
 
 let parse_nm () : (int, string * string) Hashtbl.t =
+  let module EU = ELF_utils in
   let sym_addr2label = Hashtbl.create 100 in
   let seen = Hashtbl.create 100 in
   let filelines = read_lines "nm.info" in
@@ -142,7 +143,14 @@ let parse_nm () : (int, string * string) Hashtbl.t =
                       |> Seq.map replace_at
                       |> String.of_seq
         in
-        let addr' = int_of_string ("0x"^addr) in
+        let addr' =
+          if EU.elf_arm () then
+            (* for ARM Thumb *)
+            (* there is an extra byte to denote Thumb mode from Arm mode *)
+            int_of_string ("0x"^addr) - 1
+          else
+            int_of_string ("0x"^addr)
+        in
         if symbol_name' <> "main" then
           if not (Hashtbl.mem seen symbol_name') then
             (Hashtbl.add sym_addr2label addr' (symbol_name', symbol_type);
@@ -214,7 +222,7 @@ let apply
         addr_file_bytes_mapping ();
         func_sym_mapping () );
   let fname2css = Hashtbl.create 100 in  (* function name to callsites list *)
-  let sym_addr2label = parse_nm () in
+  let sym_addr2label: (int, string * string) Hashtbl.t = parse_nm () in
   let rec add_existing_symbols il acc =
     match il with
     | [] -> List.rev acc
@@ -229,6 +237,27 @@ let apply
         | None -> i
       in
       match i' with
+      | DoubleInstr
+          ( Arm_OP (Arm_ControlOP (BL), None, None),
+            Label func_name,
+            loc,
+            prefix_op,
+            tag,
+            tags ) ->
+              (
+                let func_name' = strip_symbol_prefix func_name |> int_of_string in
+                match Hashtbl.find_opt sym_addr2label func_name' with
+                | Some (sym_name, sym_type) ->
+                  let call' =
+                    DoubleInstr (Arm_OP (Arm_ControlOP (BL), None, None), Label sym_name, loc, prefix_op, tag, tags)
+                  in
+                  let new_acc = call' :: acc in
+                  ( update_fname2css fname2css sym_name loc.loc_addr;
+                    add_existing_symbols rest new_acc )
+                | None ->
+                  ( update_fname2css fname2css func_name loc.loc_addr;
+                    add_existing_symbols rest (i' :: acc) )
+              )
       | DoubleInstr
           (Intel_OP (Intel_ControlOP CALL), Label func_name, loc, prefix_op, tag, tags) ->
         begin
@@ -255,79 +284,6 @@ let apply
             tags ) ->
             ( update_fname2css fname2css func_name loc.loc_addr;
               add_existing_symbols rest (i' :: acc) )
-      (* OUTDATED: using existing symbols to resolve the PLT issue *)
-      (*
-      | DoubleInstr
-          ( Intel_OP (Intel_ControlOP CALL),
-            Const (Point call_addr),
-            loc,
-            prefix_op,
-            tag,
-            tags ) ->
-          begin
-            if EU.elf_64 () then
-              ( match Hashtbl.find_opt plt_map call_addr with
-                | Some resolve_addr -> begin
-                    match Hashtbl.find_opt rela_plt_map resolve_addr with
-                    | Some func_addr -> begin
-                        match Hashtbl.find_opt func_sym_map func_addr with
-                        | Some func_name ->
-                          let call' = DoubleInstr
-                            ( Intel_OP (Intel_ControlOP CALL),
-                              Label (func_name^"@PLT"),
-                              loc,
-                              prefix_op,
-                              tag,
-                              tags )
-                          in
-                          let new_acc = call' :: acc in
-                          ( update_fname2css fname2css func_name loc.loc_addr;
-                            add_existing_symbols rest new_acc )
-                        | None -> add_existing_symbols rest (i' :: acc)
-                      end
-                    | None -> add_existing_symbols rest (i' :: acc)
-                  end
-                | None -> add_existing_symbols rest (i' :: acc) )
-            else
-              (
-                match Hashtbl.find_opt plt_map call_addr with
-                | Some resolve_addr ->
-                  begin
-                    let f_offset =
-                      Hashtbl.fold (
-                        fun (l_start_addr, l_end_addr) l_f_offset acc ->
-                          match acc with
-                          | Some _ -> acc
-                          | None ->
-                            if resolve_addr >= l_start_addr && resolve_addr < l_end_addr then
-                              let f_addr = l_f_offset + resolve_addr - l_start_addr in
-                              Some f_addr
-                            else None
-                      ) load_ranges None
-                    in
-                    let f_addr = Option.value f_offset ~default:0 in
-                    let func_addr = read_addr_bytes !file_bytes f_addr in
-                    ( match Hashtbl.find_opt func_sym_map func_addr with
-                    | Some func_name ->
-                      let call' = DoubleInstr
-                        ( Intel_OP (Intel_ControlOP CALL),
-                          Label (func_name^"@PLT"),
-                          loc,
-                          prefix_op,
-                          tag,
-                          tags )
-                      in
-                      let new_acc = call' :: acc in
-                      ( update_fname2css fname2css func_name loc.loc_addr;
-                        add_existing_symbols rest new_acc )
-                    | None -> add_existing_symbols rest (i' :: acc) )
-                  end
-                | None -> begin
-                  add_existing_symbols rest (i' :: acc)
-                end
-              )
-          end
-      *)
       | DoubleInstr
           ( Intel_OP (Intel_ControlOP CALL),
             _,
