@@ -150,7 +150,17 @@ let caller_saved_before_ret
     (instr_type : string)
   : instr list =
   let module EU = ELF_utils in
-  if EU.elf_32 () then
+  if EU.elf_arm () then
+    [
+      DoubleInstr
+        ( Arm_OP (Arm_StackOP (PUSH), None, None),
+          Label "{lr, r1, r2, r3, r12}",
+          stub_loc,
+          None,
+          None,
+          (create_comment instr_type) )
+    ]
+  else if EU.elf_32 () then
     [
       DoubleInstr
         ( Intel_OP (Intel_StackOP (PUSH)),
@@ -263,7 +273,7 @@ let caller_saved_before
     [
       DoubleInstr
         ( Arm_OP (Arm_StackOP (PUSH), None, None),
-          Label "{r0, r1, r2, r3, r12}",
+          Label "{lr, r0, r1, r2, r3, r12}",
           stub_loc,
           None,
           None,
@@ -382,7 +392,7 @@ let caller_saved_after_ret
     [
       DoubleInstr
         ( Arm_OP (Arm_StackOP (POP), None, None),
-          Label "{r0, r1, r2, r3, r12}",
+          Label "{lr, r1, r2, r3, r12}",
           stub_loc,
           None,
           None,
@@ -501,7 +511,7 @@ let caller_saved_after
     [
       DoubleInstr
         ( Arm_OP (Arm_StackOP (POP), None, None),
-          Label "{r0, r1, r2, r3, r12}",
+          Label "{lr, r0, r1, r2, r3, r12}",
           stub_loc,
           None,
           None,
