@@ -154,7 +154,7 @@ let caller_saved_before_ret
     [
       DoubleInstr
         ( Arm_OP (Arm_StackOP (PUSH), None, None),
-          Label "{lr, r1, r2, r3, r12}",
+          Label "{r1, r2, r3, r12, lr}",
           stub_loc,
           None,
           None,
@@ -273,7 +273,7 @@ let caller_saved_before
     [
       DoubleInstr
         ( Arm_OP (Arm_StackOP (PUSH), None, None),
-          Label "{lr, r0, r1, r2, r3, r12}",
+          Label "{r0, r1, r2, r3, r12, lr}",
           stub_loc,
           None,
           None,
@@ -392,7 +392,7 @@ let caller_saved_after_ret
     [
       DoubleInstr
         ( Arm_OP (Arm_StackOP (POP), None, None),
-          Label "{lr, r1, r2, r3, r12}",
+          Label "{r1, r2, r3, r12, lr}",
           stub_loc,
           None,
           None,
@@ -511,7 +511,7 @@ let caller_saved_after
     [
       DoubleInstr
         ( Arm_OP (Arm_StackOP (POP), None, None),
-          Label "{lr, r0, r1, r2, r3, r12}",
+          Label "{r0, r1, r2, r3, r12, lr}",
           stub_loc,
           None,
           None,
