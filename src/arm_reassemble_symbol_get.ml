@@ -1021,7 +1021,7 @@ class datahandler (label' : (string * int) list) =
     method data_output =
       let p =
         object (sp)
-          method process lbs =
+          method process lbs sym_addr2label =
             let dec_hex (s : int) : string = Printf.sprintf "S_0x%X:\n" s in
             let rec help loc_list =
               match loc_list with
@@ -1031,32 +1031,44 @@ class datahandler (label' : (string * int) list) =
                       let off = l - fst text_sec in
                       let s' = dec_hex l in
                       let s, d = text_as_data_array.(off) in
-                      text_as_data_array.(off) <- (s', d);
+                      ( match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) -> (text_as_data_array.(off) <- (sym_label^":\n"^s', d))
+                      | None -> (text_as_data_array.(off) <- (s', d)) );
                       help t
                   | ".data" ->
                       let off = l - self#section_addr ".data" in
                       let s' = dec_hex l and s, d = data_array.(off) in
-                      data_array.(off) <- (s', d);
+                      ( match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) -> (data_array.(off) <- (sym_label^":\n"^s', d))
+                      | None -> (data_array.(off) <- (s', d)) );
                       help t
                   | ".rodata" ->
                       let off = l - self#section_addr ".rodata" in
                       let s' = dec_hex l and s, d = rodata_array.(off) in
-                      rodata_array.(off) <- (s', d);
+                      ( match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) -> (rodata_array.(off) <- (sym_label^":\n"^s', d))
+                      | None -> (rodata_array.(off) <- (s', d)) );
                       help t
                   | ".got" ->
                       let off = l - self#section_addr ".got" in
                       let s' = dec_hex l and s, d = got_array.(off) in
-                      got_array.(off) <- (s', d);
+                      ( match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) -> (got_array.(off) <- (sym_label^":\n"^s', d))
+                      | None -> (got_array.(off) <- (s', d)) );
                       help t
                   | ".bss" ->
                       let off = l - self#section_addr ".bss" in
                       let s' = dec_hex l and s, d = bss_array.(off) in
-                      bss_array.(off) <- (s', d);
+                      ( match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) -> (bss_array.(off) <- (sym_label^":\n"^s', d))
+                      | None -> (bss_array.(off) <- (s', d)) );
                       help t
                   | ".data.rel.ro" ->
                       let off = l - self#section_addr ".data.rel.ro" in
                       let s' = dec_hex l and s, d = data_rel_ro_array.(off) in
-                      data_rel_ro_array.(off) <- (s', d);
+                      ( match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) -> (data_rel_ro_array.(off) <- (sym_label^":\n"^s', d))
+                      | None -> (data_rel_ro_array.(off) <- (s', d)) );
                       help t
                   | _ ->
                       let module EU = ELF_utils in
@@ -1068,7 +1080,9 @@ class datahandler (label' : (string * int) list) =
                             in
                             let s' = dec_hex l
                             and s, d = __libc_IO_vtables_array.(off) in
-                            __libc_IO_vtables_array.(off) <- (s', d);
+                            ( match Hashtbl.find_opt sym_addr2label l with
+                            | Some (sym_label, _) -> (__libc_IO_vtables_array.(off) <- (sym_label^":\n"^s', d))
+                            | None -> (__libc_IO_vtables_array.(off) <- (s', d)) );
                             help t
                         | "__libc_freeres_ptrs" ->
                             let off =
@@ -1076,7 +1090,9 @@ class datahandler (label' : (string * int) list) =
                             in
                             let s' = dec_hex l
                             and s, d = __libc_freeres_ptrs_array.(off) in
-                            __libc_freeres_ptrs_array.(off) <- (s', d);
+                            ( match Hashtbl.find_opt sym_addr2label l with
+                            | Some (sym_label, _) -> (__libc_freeres_ptrs_array.(off) <- (sym_label^":\n"^s', d))
+                            | None -> (__libc_freeres_ptrs_array.(off) <- (s', d)) );
                             help t
                         | ".tbss" -> help t
                         | _ -> raise (Reassemble_Error ("data_output: " ^ n))
@@ -1155,20 +1171,6 @@ class datahandler (label' : (string * int) list) =
             else ();
             if List.length data_rel_ro_list > 2 then
               write_file_opt data_rel_ro_list;
-            (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) (sp#zip rodata_list); *)
-            (*
-                (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) (sp#zip *)
-                (* got_list); *)
-                List.iter (fun l -> Printf.fprintf oc "%s\n" l) (sp#zip data_list);
-                List.iter (fun l -> Printf.fprintf oc "%s\n" l) (sp#zip bss_list);
-                 *)
-            (* Printf.fprintf oc "%s\n" (String.concat "\n" (sp#zip rodata_list)); *)
-            (* List.iter (fun l -> Printf.fprintf oc "%s\n" l) (sp#zip *)
-            (* got_list); *)
-            (*
-Printf.fprintf oc "%s\n" (String.concat "\n" (sp#zip data_list));
-                Printf.fprintf oc "%s\n" (String.concat "\n" (sp#zip bss_list));
-*)
             close_out oc
 
           method de_redunt labels =
@@ -1192,6 +1194,8 @@ Printf.fprintf oc "%s\n" (String.concat "\n" (sp#zip data_list));
       (* let temp = p#zip2 locations in *)
       (* List.iter print_string temp; *)
       (* print_int (List.length bss_list); *)
+      let module S = Symbol_table_get in
+      let sym_addr2label = S.parse_nm () in
       text_as_data_array <- Array.of_list text_as_data_list;
       rodata_array <- Array.of_list rodata_list;
       got_array <- Array.of_list got_list;
@@ -1210,8 +1214,8 @@ Printf.fprintf oc "%s\n" (String.concat "\n" (sp#zip data_list));
       self#dump_d2d_labels data_labels_reloc;
        *)
       (* )self#dump_c2d_labels label; *)
-      p#process locations;
-      p#process data_labels;
+      p#process locations sym_addr2label;
+      p#process data_labels sym_addr2label;
       text_as_data_list <- Array.to_list text_as_data_array;
       rodata_list <- Array.to_list rodata_array;
       got_list <- Array.to_list got_array;

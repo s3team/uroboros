@@ -146,8 +146,11 @@ let parse_nm () : (int, string * string) Hashtbl.t =
         let addr' =
           if EU.elf_arm () then
             (* for ARM Thumb *)
-            (* there is an extra byte to denote Thumb mode from Arm mode *)
-            int_of_string ("0x"^addr) - 1
+            (* there is an extra byte to denote Thumb mode from Arm mode in code *)
+            if contains ~str:l ~sub: " D " then
+              int_of_string ("0x"^addr)
+            else
+              int_of_string ("0x"^addr) - 1
           else
             int_of_string ("0x"^addr)
         in
@@ -233,7 +236,11 @@ let apply
         let i_label = i_loc.loc_label in
         match Hashtbl.find_opt sym_addr2label i_addr with
         | Some (sym_name, sym_type) ->
-          update_loc i {i_loc with loc_label = sym_name^":\n"^i_label}
+          (* avoid multiple labels that are the same *)
+          if contains ~str:i_label ~sub:sym_name then
+            i
+          else
+            update_loc i {i_loc with loc_label = sym_name^":\n"^i_label}
         | None -> i
       in
       match i' with

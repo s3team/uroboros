@@ -1,0 +1,2 @@
+PRINTARGS BEFORE [0x1042c] SELF [int:-] "" C x x; # Supposed at memory address 0x1042c is a function call that takes one argument of type integer. This command will insert instructions to print the integer argument
+PRINTARGS BEFORE [0x1043a] SELF [char*:-,int:-] "" C x x; # assumed that 0x1043a is a function call that takes two arguments of type string (char*) and integer, and inserts instructions to print the two arguments before the call

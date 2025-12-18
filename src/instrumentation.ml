@@ -3,6 +3,7 @@
 open Ail_utils
 open Ail_parser
 open Type
+open Pp_print
 
 type act = INSERT | INSERTCALL | DELETE | REPLACE | PRINTARGS | INCLUDE
 type dir = BEFORE | AFTER | AT
@@ -1052,6 +1053,19 @@ let parse_instrument
       ~main_symbol
   ) files
 
+let arg_order_arm
+    (i : int)
+  : arm_reg =
+  match i with
+  | 0 -> Arm_CommonReg R0
+  | 1 -> Arm_CommonReg R1
+  | 2 -> Arm_CommonReg R2
+  | 3 -> Arm_CommonReg R3
+  | x -> failwith (
+          (string_of_int x)
+           ^ " is too many arguments"
+           ^ "Failure at " ^ __LOC__)
+
 let arg_order_64
     (i : int)
   : intel_reg =
@@ -1071,7 +1085,7 @@ let set_arg
     (instr_type : string)
     (i : int)
     (arg : exp)
-  : instr =
+  : instr list =
   let module EU = ELF_utils in
   let _type, _value = arg in
   let exp_type =
@@ -1098,24 +1112,58 @@ let set_arg
       | _ ->
         Intel_OP (Intel_CommonOP (Intel_Assign MOV))
   in
-  if EU.elf_32 () then
-    DoubleInstr
+    if EU.elf_arm () then
+    match arg with
+    | Label _ ->
+      let dest_arg_reg = arg_order_arm i in
+      [
+        TripleInstr
+          ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None),
+            arg,
+            Reg (Arm_Reg dest_arg_reg),
+            stub_loc,
+            None,
+            None,
+            (create_comment instr_type) );
+        TripleInstr
+          ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None),
+            Ptr (UnOP (Arm_Reg dest_arg_reg)),
+            Reg (Arm_Reg dest_arg_reg),
+            stub_loc,
+            None,
+            None,
+            (create_comment instr_type) )
+      ]
+    | Reg _ ->
+      let dest_arg_reg = arg_order_arm i in
+      [
+        TripleInstr
+          ( Arm_OP (Arm_CommonOP (Arm_Assign MOV), None, None),
+            arg,
+            Reg (Arm_Reg dest_arg_reg),
+            stub_loc,
+            None,
+            None,
+            (create_comment instr_type) )
+      ]
+  else if EU.elf_32 () then
+    [ DoubleInstr
       ( opcode,
         exp_type,
         stub_loc,
         None,
         None,
-        (create_comment instr_type) )
+        (create_comment instr_type) ) ]
   else
     let dest_arg_reg = arg_order_64 i in
-    TripleInstr
+    [ TripleInstr
       ( opcode,
         Reg (Intel_Reg dest_arg_reg),
         exp_type,
         stub_loc,
         None,
         None,
-        (create_comment instr_type) )
+        (create_comment instr_type) ) ]
 
 (** update stack since for 32-bit arguments are passed on the stack *)
 (*
@@ -1141,12 +1189,20 @@ let add_call_seq_arg
     let _type, _value = arg in
     match _type with
     | "int" ->
-      ( try Const (Normal (int_of_string _value))
-      with _ -> Label _value )
+      if EU.elf_arm () then
+          Label ("="^_value)
+      else
+        ( try Const (Normal (int_of_string _value))
+          with _ -> Label _value)
     | "char*" | "char *" | "int*" | "int *" ->
-      Label _value
+      if EU.elf_arm () then
+        Label ("="^_value)
+      else
+        Label _value
     | "print-arg" ->
-      if EU.elf_32 () then
+      if EU.elf_arm () then
+        Reg (Arm_Reg (arg_order_arm (int_of_string _value)))
+      else if EU.elf_32 () then
         failwith ("for PRINTARGS 32-bits, should not reach here. Failure at "
                   ^ __LOC__)
       else
@@ -1156,12 +1212,34 @@ let add_call_seq_arg
     parse_arg
   ) args
   in
-  if EU.elf_32 () then
+  if EU.elf_arm () then
+    (* first four arguments are on the stack *)
     List.rev
       ( (caller_saved_before_regs instr_type ret_type)
-      @ List.mapi (
+      @ List.flatten ( List.mapi (
         set_arg instr_type
-      ) args
+      ) args )
+      @ [ DoubleInstr
+          ( Arm_OP (Arm_ControlOP (BL), None, None),
+            Symbol (
+              CallDes {
+                func_name=code_ep;
+                func_begin_addr=0;
+                func_end_addr=0;
+                is_lib=false;
+              }
+            ),
+            stub_loc,
+            None,
+            None,
+            (create_comment instr_type) ) ]
+    @ (caller_saved_after_regs instr_type ret_type) )
+  else if EU.elf_32 () then
+    List.rev
+      ( (caller_saved_before_regs instr_type ret_type)
+      @ List.flatten ( List.mapi (
+        set_arg instr_type
+      ) args' )
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -1188,7 +1266,7 @@ let add_call_seq_arg
   else
     List.rev
       ( (caller_saved_before_regs instr_type ret_type)
-      @ List.mapi (
+      @ List.flatten ( List.mapi (
         set_arg instr_type
       ) args
       @ [ DoubleInstr
@@ -1285,9 +1363,27 @@ let print_args
     match args with
     | [] -> List.rev acc
     | (t, v) :: rest ->
-      if EU.elf_32 () then
+      if EU.elf_arm () then
+        let call_seq =
+          let code_ep =
+            match t with
+            | "int" -> "print_int_arg"
+            | "char*" | "char *" -> "print_char_star_arg"
+            | "int*" | "int *" -> "print_int_star_arg"
+          in
+          let arg_i = string_of_int i in
+          List.rev
+            ( add_call_seq_arg
+                ~instr_type
+                ~code_ep
+                ~args:[("print-arg", arg_i)]
+                ~ret_type:VOID )
+        in
+        call_with_arg instr_type rest (i+1) (call_seq @ acc)
+      else if EU.elf_32 () then
         let code_ep =
           match t with
+          (* function to call to print the arg, located in lib.c *)
           | "int" -> "print_int_arg"
           | "char*" | "char *" -> "print_char_star_arg"
           | "int*" | "int *" -> "print_int_star_arg"
@@ -1377,7 +1473,7 @@ let get_ret_type
                       ^ __LOC__)
     | line :: rest -> begin
       let line_trimmed = String.trim line in
-      if contains ~str:line_trimmed ~sub:code_ep then
+      if contains ~str:line_trimmed ~sub:(" " ^ code_ep ^ " ") then
         match String.split_on_char ' ' line_trimmed with
         | ret_type :: line_rest ->
           begin match ret_type with

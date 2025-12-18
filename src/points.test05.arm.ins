@@ -1,0 +1,9 @@
+INSERT BEFORE [print_info] CALLSITE [] "arm-linux-gnueabihf-gcc -no-pie -c ./fun.c" C before_print_info ./fun.c; # insert before any call to function print_info with call to before_print_info defined in /root/fun.c
+INSERT AFTER [0x10450,0x10420] SELF [] "arm-linux-gnueabihf-gcc -no-pie -c ./fun.c" C log_execution_times ./fun.c; # insert before memory addresses 0x4011b5 and 0x401188 with call to log_execution_times defined in /root/fun.c
+INSERT BEFORE [0x1041a] SELF [] "" asm x "mov r1, 30"; # insert before the instruction with memory address 0x401177 with the assembly instruction that assigns %eax with 30
+INSERT AFTER [print_info] FUNENTRY [] "" asm x
+"mov r1, 0
+mov r1, 0
+mov r1, 0";
+DELETE x [0x10412] SELF [] "" x x x; # delete the instruction at memory address 0x40116f. first printf in print_info()
+REPLACE x [0x1042e-0x10432] SELF [] "arm-linux-gnueabihf-gcc -no-pie -c ./fun.c" C log_execution_times ./fun.c; # replace instructions at addresses 0x40118d to 0x4011a5 with the assembly code defined in /root/fun.asm

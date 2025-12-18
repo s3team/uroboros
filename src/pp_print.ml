@@ -197,6 +197,19 @@ let p_const l =
   | Point s -> d2h_p s
   | Immediate s -> d2h_lower s
 
+let rec p_exp' e =
+  let p_symbol = function
+  | CallDes f -> "calldes: " ^ p_fun f
+  | JumpDes (des) -> "jumpdes: " ^p_loc des
+  | StarDes e -> "stardes: " ^ "*" ^ (p_exp' e) in
+  match e with
+  | Const s -> "const: " ^ p_const s
+  | Symbol s -> "symbol: " ^ p_symbol s
+  | Reg s -> "reg: " ^ p_reg s
+  | Assist s -> "assist: " ^ p_assist s
+  | Ptr addr -> "ptr: " ^ p_ptraddr addr
+  | Label s -> "label: " ^ s
+
 let rec p_exp e =
   let p_symbol = function
   | CallDes f -> p_fun f
