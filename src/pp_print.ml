@@ -452,7 +452,7 @@ let pp_print_instr' i =
         ^(p_prefix pre)
         ^(p_five p exp1 exp2 exp3 exp4))
       end
-let pp_print_list (arch : string) (instr_list : instr list) : string list =
+let pp_print_list (arch : string) (is_static : bool) (instr_list : instr list) : string list =
   (* Load ARM32 and Thumb address ranges from file *)
   let arm32_addrs = ref [] in
   let thumb_addrs = ref [] in
@@ -505,8 +505,8 @@ let pp_print_list (arch : string) (instr_list : instr list) : string list =
         false
       end
   in
-  let check_arm32_thumb_sections (arch : string) (h : instr) (acc : string list) : string list =
-    if arch <> "thumb" then
+  let check_arm32_thumb_sections (arch : string) (is_static : bool) (h : instr) (acc : string list) : string list =
+    if arch <> "thumb" || not is_static then
       acc
     else
     if check_if_arm32_section h then
@@ -523,7 +523,7 @@ let pp_print_list (arch : string) (instr_list : instr list) : string list =
   let rec help acc l =
     match l with
 	| h::t ->
-      let acc = check_arm32_thumb_sections arch h acc in
+      let acc = check_arm32_thumb_sections arch is_static h acc in
       let s = pp_print_instr h in
       help (s :: acc) t
 	| [] ->

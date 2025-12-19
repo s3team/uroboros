@@ -77,8 +77,10 @@ module Analysis = struct
     ( fbl, bbl, cfg_t, cg, il, re, u_fl )
 
   let post_analyze il re (arch : string) =
+    let module EU = Ail_utils.ELF_utils in
+    let is_static = EU.elf_static() in
     let pp_print_file_arch = pp_print_file arch in
-    let pp_print_list_arch = pp_print_list arch in
+    let pp_print_list_arch = pp_print_list arch is_static in
     ( re#unify_loc il
       |> pp_print_list_arch
       |> re#adjust_globallabel @@ global_bss ()
