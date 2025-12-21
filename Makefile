@@ -23,4 +23,7 @@ clean:
 	( cd src && ls | grep '\.s$$' | xargs rm || true )
 	( cd src && ls | grep '\.txt$$' | xargs -r rm -f || true )
 	( cd src && ls | grep '\.sym$$' | xargs -r rm -f || true )
-	( cd src && find . -maxdepth 1 -type f -perm /111 ! -name 'uroboros.py' -delete )
+	( cd src && ls | grep '\.debug$$' | xargs -r rm -f || true )
+	( cd src && ls | grep '\.arm32$$' | xargs -r rm -f || true )
+	( cd src && ls | grep '\.thumb$$' | xargs -r rm -f || true )
+	( cd src && find . -maxdepth 1 -type f -executable ! -name 'uroboros.py' ! -name 'arm_postprocess.py' -delete )
