@@ -147,10 +147,17 @@ let parse_nm () : (int, string * string) Hashtbl.t =
           if EU.elf_arm () then
             (* for ARM Thumb *)
             (* there is an extra byte to denote Thumb mode from Arm mode in code *)
-            if contains ~str:l ~sub: " D " then
-              int_of_string ("0x"^addr)
-            else
-              int_of_string ("0x"^addr) - 1
+            (
+              if contains ~str:l ~sub: " D " then
+                int_of_string ("0x"^addr)
+              else
+                (
+                  if (int_of_string ("0x"^addr)) mod 2 == 0 then
+                    int_of_string ("0x"^addr)
+                  else
+                    int_of_string ("0x"^addr) - 1
+                )
+            )
           else
             int_of_string ("0x"^addr)
         in
@@ -260,7 +267,9 @@ let apply
                   in
                   let new_acc = call' :: acc in
                   ( update_fname2css fname2css sym_name loc.loc_addr;
-                    add_existing_symbols rest new_acc )
+                    (* TODO: fix resymbolize issue with coreutils rm *)
+                    (*add_existing_symbols rest new_acc )*)
+                    add_existing_symbols rest (i' :: acc) )
                 | None ->
                   ( update_fname2css fname2css func_name loc.loc_addr;
                     add_existing_symbols rest (i' :: acc) )

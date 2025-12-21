@@ -1,0 +1,2 @@
+INSERT BEFORE [0x11456] SELF [char*:X] "arm-linux-gnueabihf-gcc -no-pie -c ./fun.c" C print_string ./fun.c; 
+INSERT AFTER [0x11454] SELF [] "" asm x "ldr r0, [sp, 12]";

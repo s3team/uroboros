@@ -1535,7 +1535,12 @@ let process_point
     (* asm provided in instrumentation point *)
     let ail_parser = new ailParser in
     let asm = String.split_on_char '\n' code in
-    let _ = ail_parser#process_asms asm "intel" in
+    let _ =
+      if EU.elf_arm () then
+        ail_parser#process_asms asm "arm"
+      else
+        ail_parser#process_asms asm "intel"
+    in
     let asm = ail_parser#get_instrs in
     List.map (
       fun i ->
