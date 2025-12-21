@@ -8,6 +8,67 @@ open Cg
 
 open Ail_utils
 
+let merge_func (funcs : func list) (il : instr list) : func list =
+  let module OU = Opcode_utils in
+  let rec update funcs il acc =
+    match (funcs, il) with
+    | [], il' -> List.rev acc
+    | funcs', [] -> List.rev acc
+    | hf :: tf, hi :: ti ->
+      let f_ea = hf.func_end_addr in
+      let f_ba = hf.func_begin_addr in
+      let i_loc = get_loc hi in
+      let i_addr = i_loc.loc_addr in
+      begin
+        if i_addr = f_ba then
+          match hi with
+          | TripleInstr (p, e1, e2, _, _, _) -> (
+              match (p, e1, e2) with
+              | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
+              | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->
+                  if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then
+                    let prev_func = List.hd acc in
+                    let acc' = List.tl acc in
+                    let prev_func' = { prev_func with func_end_addr = hf.func_end_addr } in
+                    update funcs ti (prev_func' :: acc')
+                  else
+                    update funcs ti acc
+              | _ -> update funcs ti acc )
+          | _ -> update funcs ti acc
+        else if i_addr >= f_ea then
+          update tf il (hf :: acc)
+        else if i_addr < f_ba then
+          update funcs ti acc
+        else
+          update funcs ti acc
+      end
+    in
+    update funcs il []
+
+let update_func_end (funcs : func list) (il : instr list) : func list =
+  let module OU = Opcode_utils in
+  let rec update funcs il acc =
+    match (funcs, il) with
+    | [], il' -> acc
+    | funcs', [] -> acc
+    | hf :: tf, hi :: ti ->
+      let f_ea = hf.func_end_addr in
+      let f_ba = hf.func_begin_addr in
+      let i_loc = get_loc hi in
+      let i_addr = i_loc.loc_addr in
+      begin
+        if i_addr >= f_ea then
+          update tf il (hf :: acc)
+        else if i_addr < f_ba then
+          update funcs ti acc
+        else
+          if OU.is_ret_instr hi then
+            update ({ hf with func_end_addr = i_addr } :: tf) ti acc
+          else
+            update funcs ti acc
+      end
+  in
+  update funcs il []
 
 let merge_func (funcs : func list) (il : instr list) : func list =
   let module OU = Opcode_utils in

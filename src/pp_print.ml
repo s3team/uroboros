@@ -454,6 +454,10 @@ let pp_print_instr' i =
       end
 let pp_print_list (arch : string) (is_static : bool) (instr_list : instr list) : string list =
   (* Load ARM32 and Thumb address ranges from file *)
+  if arch = "thumb" then
+    comment_sym := "@"
+  else
+    comment_sym := "#";
   let arm32_addrs = ref [] in
   let thumb_addrs = ref [] in
   let _ =

@@ -37,7 +37,7 @@ let read_file_bytes (filename : string) : bytes =
   close_in ic;
   buf
 
-let read_addr_bytes buf offset =
+let read_addr_bytes (buf : bytes) (offset : int) : int =
   let b0 = Bytes.get buf (offset)     |> Char.code in
   let b1 = Bytes.get buf (offset + 1) |> Char.code in
   let b2 = Bytes.get buf (offset + 2) |> Char.code in
@@ -147,10 +147,17 @@ let parse_nm () : (int, string * string) Hashtbl.t =
           if EU.elf_arm () then
             (* for ARM Thumb *)
             (* there is an extra byte to denote Thumb mode from Arm mode in code *)
-            if contains ~str:l ~sub: " D " then
-              int_of_string ("0x"^addr)
-            else
-              int_of_string ("0x"^addr) - 1
+            (
+              if contains ~str:l ~sub: " D " then
+                int_of_string ("0x"^addr)
+              else
+                (
+                  if (int_of_string ("0x"^addr)) mod 2 == 0 then
+                    int_of_string ("0x"^addr)
+                  else
+                    int_of_string ("0x"^addr) - 1
+                )
+            )
           else
             int_of_string ("0x"^addr)
         in
@@ -240,7 +247,7 @@ let apply
           if contains ~str:i_label ~sub:sym_name then
             i
           else
-            update_loc i {i_loc with loc_label = sym_name^":\n"^i_label}
+            update_loc i {i_loc with loc_label = i_label^sym_name^":\n"}
         | None -> i
       in
       match i' with
