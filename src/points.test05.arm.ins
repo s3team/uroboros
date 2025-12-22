@@ -5,5 +5,9 @@ INSERT AFTER [print_info] FUNENTRY [] "" asm x
 "mov r1, 0
 mov r1, 0
 mov r1, 0";
+INSERT BEFORE [print_info] FUNEXIT [] "" asm x
+"mov r1, 0
+mov r1, 0
+mov r1, 0";
 DELETE x [0x10412] SELF [] "" x x x; # delete the instruction at memory address 0x40116f. first printf in print_info()
 REPLACE x [0x1042e-0x10432] SELF [] "arm-linux-gnueabihf-gcc -no-pie -c ./fun.c" C log_execution_times ./fun.c; # replace instructions at addresses 0x40118d to 0x4011a5 with the assembly code defined in /root/fun.asm
