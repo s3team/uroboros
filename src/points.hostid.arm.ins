@@ -1,2 +1,2 @@
-INSERT BEFORE [0x11456] SELF [char*:X] "arm-linux-gnueabihf-gcc -no-pie -c ./fun.c" C print_string ./fun.c; 
-INSERT AFTER [0x11454] SELF [] "" asm x "ldr r0, [sp, 12]";
+INSERT BEFORE [0x11456] SELF [char*:X] "arm-linux-gnueabihf-gcc -no-pie -c ./fun.c" C print_string ./fun.c; # before call to parse_gnu_standard_options_only, print the argument containing author name
+INSERT AFTER [0x11454] SELF [] "" asm x "ldr r0, [sp, 12]"; # copy the argument containing the author name to r0 for print_string
