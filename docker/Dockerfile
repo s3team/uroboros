@@ -37,6 +37,13 @@ RUN apt-get install -y -q \
     gperf \
     texinfo \
     gfortran \
+    libssl-dev \
+    libselinux1-dev \
+    qemu-user \
+    gdb-multiarch \
+    gcc-arm-linux-gnueabihf \
+    g++-arm-linux-gnueabihf \
+    binutils-arm-linux-gnueabihf \
     libgmp-dev
 
 # allow use of git inside the container
@@ -46,4 +53,4 @@ RUN python3 -m venv $VIRTUAL_ENV
 
 RUN opam init -a --disable-sandboxing
 RUN opam switch create 5.3.0
-RUN opam install -y ppx_deriving.6.0.3 parmap.1.2.5 batteries.3.9.0
+RUN opam install -y ppx_deriving.6.0.3 parmap.1.2.5 batteries.3.9.0 ocamlformat.0.28.1

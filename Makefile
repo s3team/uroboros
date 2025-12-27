@@ -26,4 +26,4 @@ clean:
 	( cd src && ls | grep '\.debug$$' | xargs -r rm -f || true )
 	( cd src && ls | grep '\.arm32$$' | xargs -r rm -f || true )
 	( cd src && ls | grep '\.thumb$$' | xargs -r rm -f || true )
-	( cd src && find . -maxdepth 1 -type f -executable ! -name 'uroboros.py' ! -name 'arm_postprocess.py' -delete )
+	( cd src && find . -maxdepth 1 -type f -perm /111 ! -name 'uroboros.py' ! -name 'arm_postprocess.py' -delete )
