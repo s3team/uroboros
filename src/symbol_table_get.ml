@@ -37,7 +37,7 @@ let read_file_bytes (filename : string) : bytes =
   close_in ic;
   buf
 
-let read_addr_bytes buf offset =
+let read_addr_bytes (buf : bytes) (offset : int) : int =
   let b0 = Bytes.get buf (offset)     |> Char.code in
   let b1 = Bytes.get buf (offset + 1) |> Char.code in
   let b2 = Bytes.get buf (offset + 2) |> Char.code in
@@ -247,7 +247,7 @@ let apply
           if contains ~str:i_label ~sub:sym_name then
             i
           else
-            update_loc i {i_loc with loc_label = sym_name^":\n"^i_label}
+            update_loc i {i_loc with loc_label = i_label^sym_name^":\n"}
         | None -> i
       in
       match i' with
@@ -267,9 +267,7 @@ let apply
                   in
                   let new_acc = call' :: acc in
                   ( update_fname2css fname2css sym_name loc.loc_addr;
-                    (* TODO: fix resymbolize issue with coreutils rm *)
-                    (*add_existing_symbols rest new_acc )*)
-                    add_existing_symbols rest (i' :: acc) )
+                    add_existing_symbols rest new_acc )
                 | None ->
                   ( update_fname2css fname2css func_name loc.loc_addr;
                     add_existing_symbols rest (i' :: acc) )
