@@ -1217,9 +1217,9 @@ let process_point
   if cmd = "" && code_ep = "x" && code = "x" then begin
     (* action PRINTARGS *)
     if EU.elf_32 () then
-      ignore (Sys.command ("gcc -no-pie -c ./plugins/c/lib.c -m32"))
+      ignore (Sys.command ("gcc -no-pie -c ./instr_modules/c/lib.c -m32"))
     else
-      ignore (Sys.command ("gcc -no-pie -c ./plugins/c/lib.c"));
+      ignore (Sys.command ("gcc -no-pie -c ./instr_modules/c/lib.c"));
     match stack with
     | [] ->
       failwith

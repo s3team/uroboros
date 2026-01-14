@@ -4,7 +4,7 @@ One application of Uroboros is binary code instrumentation,
 which is the arbitrary addition of user-specified code at a set of instrumentation
 points or memory addresses.
 Binary code instrumentation is useful for many reasons, such as
-retrofitting security mitigations and sanitizations (e.g., [ASan](https://github.com/google/sanitizers/wiki/addresssanitizer));
+retrofitting security mitigations and sanitizations (e.g., [ASan](https://github.com/google/sanitizers/wiki/addresssanitizer)),
 or enabling the collection of runtime information that is otherwise
 inaccessible (e.g., argument values before a library function call).
 
@@ -15,10 +15,8 @@ The backward compatibility is maintained with a special command in
 the new design. Below we specify the instrumentation language.
 
 To use Uroboros for instrumentation,
-in the file `points.ins` (placed in `src/`), a user specifies the set of
-instrumentation points in which an instrumentation point is specified 
-per-line.
-`src/` contains multiple example `points.ins` files:
+specify the set of instrumentation points in a file placed in `src/points/`.
+`src/point_examples` contains multiple example instrumentation files:
 
 - `points.test00.32.ins` and `points.test00.64.ins`
 for executables `test00.32.nopie.dynamic.sym` and `test00.64.nopie.dynamic.sym`
@@ -28,6 +26,10 @@ for executables `test01.32.nopie.dynamic.sym` and `test01.64.nopie.dynamic.sym`
 for executables `test05.32.nopie.dynamic.sym` and `test05.64.nopie.dynamic.sym`
 - `points.test07.32.ins` and `points.test07.64.ins`
 for executables `test07.32.nopie.dynamic.sym` and `test07.64.nopie.dynamic.sym`
+
+To use an example instrumentation file, copy the file to `src/points/` before executing `uroboros.py`.
+To generate all the `test*` executables, execute the following command in the project root: `./test/test_all.py -a -c`.
+As an example, the executable `test00.32.nopie.dynamic.sym` can be found in `src/test/test00/` after executing the above command. 
 
 Following is the Table of Contents:
 
@@ -89,19 +91,19 @@ Semicolon denotes the end of an instrumentation point.
 <details><summary>:point_right: <b>example 1 (points.test05.64.ins)</b></summary>
 
 ```
-INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c /root/fun.c" C before_print_info /root/fun.c;
+INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c fun.c" C before_print_info fun.c;
 ```
-The above will insert before any call to function `print_info` with call to `before_print_info` defined in `/root/fun.c`.
+The above will insert before any call to function `print_info` with call to `before_print_info` defined in `fun.c`.
 
 ```
-INSERT BEFORE [0x4011b5,0x401188] SELF [] "gcc -no-pie -c /root/fun.c" C log_execution_times /root/fun.c;
+INSERT BEFORE [0x4011b5,0x401188] SELF [] "gcc -no-pie -c fun.c" C log_execution_times fun.c;
 ```
-The above will insert before memory addresses 0x4011b5 and 0x401188 with call to `log_execution_times` defined in `/root/fun.c`.
+The above will insert before memory addresses 0x4011b5 and 0x401188 with call to `log_execution_times` defined in `fun.c`.
 
 ```
 INSERT BEFORE [0x401177] SELF [] "" asm x "movl $30, %eax";
 ```
-The above will insert before the instruction with memory address 0x401177 with the assembly instruction that assigns %eax with 30.
+The above will insert before the instruction at address 0x401177 with the assembly instruction that assigns %eax with 30.
 
 ```
 INSERT AFTER [print_info] FUNENTRY [] "" asm x
@@ -127,17 +129,17 @@ The above will delete the instruction at memory address 0x40116f.
 ```
 REPLACE x [0x40118d-0x4011a5] SELF [] "" asm x /root/fun.asm;
 ```
-The above will replace instructions at addresses 0x40118d to 0x4011a5 with the assembly code defined in `/root/fun.asm`.
+The above will replace instructions at addresses 0x40118d to 0x4011a5 with the assembly code defined in `fun.asm`.
 
-Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/`). For the binary `/test/test05/test05.64.nopie.dynamic.sym` (source is located at `/test/test05.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/point_examples`). For the binary `test/test05/test05.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
 ```
 name: Jinquan Zhang
 age: 26
 gender: m
 ```
-After renaming the provided `points.test05.64.ins` to `points.ins` and instrumentation by Uroboros:
+After placing the provided `points.test05.64.ins` in `src/points/` and running Uroboros:
 ```
-cp points.test05.64.ins points.ins
+cp src/point_examples/points.test05.64.ins src/points/
 python3 uroboros.py test/test05/test05.64.nopie.dynamic.sym
 ```
 the output of the recompiled `a.out` is the following:
@@ -170,14 +172,14 @@ INSERTCALL BEFORE [0x401184] SELF [var:X] "gcc -c ./fun.c" C print_string ./fun.
 ```
 The above will insert a call to `print_string` (defined in `fun.c`) with argument `X` (defined in the binary) before memory address 0x401184.
 
-Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/`). For the binary `/test/test00/test00.64.nopie.dynamic.sym` (source is located at `/test/test00.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/point_examples`). For the binary `test/test00/test00.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
 ```
 10
 hello world
 ```
-After renaming the provided `points.test00.64.ins` to `points.ins` and instrumentation by Uroboros:
+After placing the provided `points.test00.64.ins` in `src/points/` and running Uroboros:
 ```
-cp points.test00.64.ins points.ins
+cp src/point_examples/points.test00.64.ins src/points
 python3 uroboros.py test/test00/test00.64.nopie.dynamic.sym
 ```
 the output of the recompiled `a.out` is the following:
@@ -212,13 +214,12 @@ arguments of type string (`char*`) and integer, and inserts instructions
 to print the two arguments before the call.
 
 Overall, the combined examples can be found in the provided `points.test07.64.ins`
-(located in `src/`). For the binary `/test/test07/test07.64.nopie.dynamic.sym`
-(source is located at `/test/test07.c`), its output is the following
+(located in `src/point_examples`). For the binary `test/test07/test07.64.nopie.dynamic.sym`
+(source is located at `test/test07.c`), its output is the following
 ```
 3628800
 ```
-After renaming the provided `points.test07.64.ins` to `points.ins`
-and instrumentation by Uroboros:
+After placing the provided `points.test07.64.ins` in `src/points/` and running Uroboros:
 ```
 int arg: 10
 int arg: 3628800
@@ -242,23 +243,22 @@ In addition to the domain-specific language for instrumentation, one can also
 write custom OCaml module to perform the instrumentation. Writing custom OCaml
 module gives user full access to the internal data structures of Uroboros in the
 expense of a higher learning curve.
-To invoke a custom OCaml module, the instrumentation point in `points.ins`
-must always begin with `user` and follow by filepath to OCaml module `module_path`.
+To invoke a custom OCaml module, the instrumentation point must always begin with `user` and follow by filepath to OCaml module `module_path`.
 Function `instrument` must be defined inside `module_path` and is assumed to be the
-entrypoint. Examples OCaml modules can be found in the folder `src/plugins/`.
+entrypoint. Examples OCaml modules can be found in the folder `src/instr_modules/`.
 
 ### Examples
 
 <details><summary>:point_right: <b>example 1 (points.test01.32.ins and points.test01.64.ins)</b></summary>
 
 ```
-user plugins/plugins/instr_asm.ml;
+user instr_modules/instr_asm.ml;
 ```
 `instr_asm.ml` inserts the assembly code defined in the file `generic_instr_asm.asm`
 at locations defined in the file `instrument_locs.ins`.
 
 ```
-user plugins/plugins/instr_c.ml;
+user instr_modules/instr_c.ml;
 ```
 `instr_c.ml` inserts the compiled C code for the C source defined in the file `generic_instr_fun.c` at locations defined in the file `instrument_locs.ins`.
 
@@ -266,8 +266,8 @@ The instrumentation files `points.test01.32.ins` and `points.test01.64.ins`
 contain the above two instrumentation points to insert both user-defined C and
 assembly code in the executables `test01.32.nopie.dynamic.sym` and `test01.64.nopie.dynamic.sym`, respectively:
 ```
-user plugins/plugins/instr_asm.ml;
-user plugins/plugins/instr_c.ml;
+user instr_modules/instr_asm.ml;
+user instr_modules/instr_c.ml;
 ```
 The dependent files for `instr_asm.ml` and `instr_c.ml` (e.g., `generic_instr_fun.c`, `generic_instr_asm.asm`, and
 `instrument_locs.ins`) are provided in the folder `src/`.
@@ -281,14 +281,17 @@ use completely different conventions (e.g., calling convention), making any heur
 Additionally, the prevalence of indirect calls, indirect jumps, and lack of useful source-level information
 make reliable analysis difficult to scale and further exaberate the binary analysis problem.
 Therefore, it is possible that Uroboros may generate a reassembled binary whose runtime behaviors
-divert from the original binary, e.g., the reassembled binary segfaults but the original binary
-does not.
+divert from the original binary, e.g., the reassembled binary segfaults but the original binary does not.
 
 To make it easy to identify and subsequently fix Uroboros-generated errors,
 a comment follows each Uroboros' inserted instruction in the symbolized assembly file,
-`final.s`. The comment starts with `instrumentation point`
-and follows by a number that indicates the index of the corresponding the instrumentation point
-in `points.ins`. The comment `instrumentation point 1` corresponds to the first line of `points.ins`.
-This way, under a debugger such as GDB, if the reassembled binary segfaults,
-the user can easily identify whether if the segfaulting-instruction is inserted by
-Uroboros by referencing the symbolized assembly file.
+`final.s`. 
+A comment contains three parts: `filename`, `line`, and `instrumentation point`.
+`filename` is the filename of the instrumentation file (recall that there can be multiple instrumentation files in `src/points/`).
+`line` is the line number of the corresponding instrumentation point in the instrumentation file.
+`instrumentation point` is the instrumentation point index. 
+If each instrumentation point in the file is only one line long, then the line number and corresponding instrumentation are the same.
+
+Under a debugger such as GDB, if the reassembled binary segfaults,
+the user can identify whether if the segfaulting instruction is inserted by
+Uroboros by referencing the symbolized assembly file `final.s`.

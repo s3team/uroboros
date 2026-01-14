@@ -78,7 +78,7 @@ has_failed="false"
 echo ">>> test00"
 
 pushd $(pwd)/src
-cp points.test00.32.ins points/
+cp point_examples/points.test00.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test00/test00.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -95,7 +95,7 @@ mkdir points
 popd
 
 pushd $(pwd)/src
-cp points.test00.64.ins points/
+cp point_examples/points.test00.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test00/test00.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -117,7 +117,7 @@ popd
 echo ">>> test01"
 
 pushd $(pwd)/src
-cp points.test01.32.ins points/
+cp point_examples/points.test01.32.ins points/
 echo "0x804919d" > instrument_locs.ins
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test01/test01.32.nopie.dynamic.sym &> /dev/null
@@ -135,7 +135,7 @@ mkdir points
 popd
 
 pushd $(pwd)/src
-cp points.test01.64.ins points/
+cp point_examples/points.test01.64.ins points/
 echo "0x401162" > instrument_locs.ins
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test01/test01.64.nopie.dynamic.sym &> /dev/null
@@ -158,7 +158,7 @@ popd
 echo ">>> test05"
 
 pushd $(pwd)/src
-cp points.test05.32.ins points/
+cp point_examples/points.test05.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test05/test05.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -175,7 +175,7 @@ mkdir points
 popd
 
 pushd $(pwd)/src
-cp points.test05.64.ins points/
+cp point_examples/points.test05.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test05/test05.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -197,7 +197,7 @@ popd
 echo ">>> test07"
 
 pushd $(pwd)/src
-cp points.test07.32.ins points/
+cp point_examples/points.test07.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test07/test07.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -214,7 +214,7 @@ mkdir points
 popd
 
 pushd $(pwd)/src
-cp points.test07.64.ins points/
+cp point_examples/points.test07.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test07/test07.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
