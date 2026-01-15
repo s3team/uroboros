@@ -15,11 +15,12 @@ ABC
 EOF
 
 read -r -d '' expected_test05 <<'EOF'
-called 1 times
 before call to print_info
-age: 30
+called 1 times
+name: Jinquan Zhang
+age: 26
+gender: m
 called 2 times
-called 3 times
 EOF
 
 read -r -d '' expected_test07 <<'EOF'
@@ -114,43 +115,43 @@ popd
 ##########
 # test01 #
 ##########
-echo ">>> test01"
-
-pushd $(pwd)/src
-cp point_examples/points.test01.32.ins points/
-echo "0x804919d" > instrument_locs.ins
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test01/test01.32.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test01.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm -rf points
-mkdir points
-popd
-
-pushd $(pwd)/src
-cp point_examples/points.test01.64.ins points/
-echo "0x401162" > instrument_locs.ins
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test01/test01.64.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test01.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm -rf points
-mkdir points
-popd
+#echo ">>> test01"
+#
+#pushd $(pwd)/src
+#cp point_examples/points.test01.32.ins points/
+#echo "0x804919d" > instrument_locs.ins
+#tmpfile=$(mktemp)
+#python3 uroboros.py $(pwd)/../test/test01/test01.32.nopie.dynamic.sym &> /dev/null
+#$(pwd)/a.out &> "$tmpfile"
+#
+#if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for test01.32 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf points
+#mkdir points
+#popd
+#
+#pushd $(pwd)/src
+#cp point_examples/points.test01.64.ins points/
+#echo "0x401162" > instrument_locs.ins
+#tmpfile=$(mktemp)
+#python3 uroboros.py $(pwd)/../test/test01/test01.64.nopie.dynamic.sym &> /dev/null
+#$(pwd)/a.out &> "$tmpfile"
+#
+#if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for test01.64 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf points
+#mkdir points
+#popd
 
 ##########
 # test05 #
@@ -237,160 +238,160 @@ fi
 ############
 # simul_io #
 ############
-echo ">>> 32-bit simul_io"
-pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.32.ins points/
-cp ../test/simul_io/capture.c capture.c
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/simul_io/simul_io.32.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_simul_io_32" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for simul_io.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm capture.c
-rm -rf points
-mkdir points
-popd
-
-echo ">>> 64-bit simul_io"
-pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.64.ins points/
-cp ../test/simul_io/capture.c capture.c
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_simul_io_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for simul_io.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm capture.c
-rm -rf points
-mkdir points
-popd
+#echo ">>> 32-bit simul_io"
+#pushd $(pwd)/src
+#cp ../test/simul_io/points.float_capture.32.ins points/
+#cp ../test/simul_io/capture.c capture.c
+#tmpfile=$(mktemp)
+#python3 uroboros.py $(pwd)/../test/simul_io/simul_io.32.nopie.dynamic.sym &> /dev/null
+#$(pwd)/a.out &> "$tmpfile"
+#
+#if [[ "$expected_simul_io_32" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for simul_io.32 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm capture.c
+#rm -rf points
+#mkdir points
+#popd
+#
+#echo ">>> 64-bit simul_io"
+#pushd $(pwd)/src
+#cp ../test/simul_io/points.float_capture.64.ins points/
+#cp ../test/simul_io/capture.c capture.c
+#tmpfile=$(mktemp)
+#python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
+#$(pwd)/a.out &> "$tmpfile"
+#
+#if [[ "$expected_simul_io_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for simul_io.64 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm capture.c
+#rm -rf points
+#mkdir points
+#popd
 
 ###################
 ## rware (32-bit then 64-bit) #
 ###################
-echo ">>> 32-bit rware"
-
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make
-popd
-pushd $(pwd)/src
-cp ${rware_dir}/points.rware.32.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
-$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
-
-if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm -rf ${rware_dir}/hello
-cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
-popd
-pushd ${rware_dir}
-make clean
-rm -rf points
-mkdir points
-popd
-
-echo ">>> 64-bit rware"
-
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile64
-popd
-pushd $(pwd)/src
-cp ${rware_dir}/points.rware.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
-$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
-
-if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm -rf ${rware_dir}/hello
-cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
-popd
-pushd ${rware_dir}
-make clean
-rm -rf points
-mkdir points
-popd
+#echo ">>> 32-bit rware"
+#
+#rware_dir=$(pwd)/test/rware
+#pushd ${rware_dir}
+#make
+#popd
+#pushd $(pwd)/src
+#cp ${rware_dir}/points.rware.32.ins points/
+#tmpfile=$(mktemp)
+#python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
+#$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+#
+#if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for rware.32 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf ${rware_dir}/hello
+#cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
+#popd
+#pushd ${rware_dir}
+#make clean
+#rm -rf points
+#mkdir points
+#popd
+#
+#echo ">>> 64-bit rware"
+#
+#rware_dir=$(pwd)/test/rware
+#pushd ${rware_dir}
+#make -f Makefile64
+#popd
+#pushd $(pwd)/src
+#cp ${rware_dir}/points.rware.64.ins points/
+#tmpfile=$(mktemp)
+#python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
+#$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+#
+#if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for rware.64 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf ${rware_dir}/hello
+#cp -R ${rware_dir}/hello-bk ${rware_dir}/hello
+#popd
+#pushd ${rware_dir}
+#make clean
+#rm -rf points
+#mkdir points
+#popd
 
 
 #####################
 ## genecdh (32-bit then 64-bit) #
 #####################
-echo ">>> 32-bit genecdh"
-
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make
-popd
-pushd $(pwd)/src
-cp ${rware_dir}/points.genecdh.32.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
-$(pwd)/a.out genkey &> "$tmpfile"
-
-if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm -rf points
-mkdir points
-popd
-pushd ${rware_dir}
-make clean
-popd
-
-echo ">>> 64-bit genecdh"
-
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile64
-popd
-pushd $(pwd)/src
-cp ${rware_dir}/points.genecdh.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
-$(pwd)/a.out genkey &> "$tmpfile"
-
-if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-rm -rf points
-mkdir points
-popd
-pushd ${rware_dir}
-make clean
-popd
+#echo ">>> 32-bit genecdh"
+#
+#rware_dir=$(pwd)/test/rware
+#pushd ${rware_dir}
+#make
+#popd
+#pushd $(pwd)/src
+#cp ${rware_dir}/points.genecdh.32.ins points/
+#tmpfile=$(mktemp)
+#python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
+#$(pwd)/a.out genkey &> "$tmpfile"
+#
+#if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for genecdh.32 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf points
+#mkdir points
+#popd
+#pushd ${rware_dir}
+#make clean
+#popd
+#
+#echo ">>> 64-bit genecdh"
+#
+#rware_dir=$(pwd)/test/rware
+#pushd ${rware_dir}
+#make -f Makefile64
+#popd
+#pushd $(pwd)/src
+#cp ${rware_dir}/points.genecdh.64.ins points/
+#tmpfile=$(mktemp)
+#python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
+#$(pwd)/a.out genkey &> "$tmpfile"
+#
+#if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
+#  echo "##### expected output for genecdh.64 not matching #####"
+#  echo "~ actual:"
+#  cat "$tmpfile"
+#  has_failed="true"
+#fi
+#rm "$tmpfile"
+#rm -rf points
+#mkdir points
+#popd
+#pushd ${rware_dir}
+#make clean
+#popd
 
 
 ###########

@@ -1,2 +1,2 @@
-PRINTARGS BEFORE [0x80491b4] SELF [int:-] "" C x x; # Supposed at memory address 0x80491b4 is a function call that takes one argument of type integer. This command will insert instructions to print the integer argument
-PRINTARGS BEFORE [0x80491c7] SELF [char*:-,int:-] "" C x x; # assumed that 0x80491c7 is a function call that takes two arguments of type string (char*) and integer, and inserts instructions to print the two arguments before the call
+PRINTARGS BEFORE [fac] CALLSITE [int:-] "" C x x; # Supposed at memory address 0x80491b4 is a function call that takes one argument of type integer. This command will insert instructions to print the integer argument
+PRINTARGS BEFORE [printf] CALLSITE [char*:-,int:-] "" C x x; # assumed that 0x80491c7 is a function call that takes two arguments of type string (char*) and integer, and inserts instructions to print the two arguments before the call

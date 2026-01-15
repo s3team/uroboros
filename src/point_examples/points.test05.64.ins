@@ -1,6 +1,6 @@
 INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c ./instr_modules/c/fun.c" C before_print_info ./instr_modules/c/fun.c; # insert before any call to function print_info with call to before_print_info defined in fun.c
-INSERT AFTER [0x4011b5,0x401188] SELF [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c; # insert before memory addresses 0x4011b5 and 0x401188 with call to log_execution_times defined in fun.c
-INSERT BEFORE [0x401177] SELF [] "" asm x "movl $30, %eax"; # insert before the instruction with memory address 0x401177 with the assembly instruction that assigns %eax with 30
+INSERT AFTER [print_info] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c; # insert before memory addresses 0x4011b5 and 0x401188 with call to log_execution_times defined in fun.c
+INSERT BEFORE [print_info] FUNEXIT [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c; # insert before memory addresses 0x4011b5 and 0x401188 with call to log_execution_times defined in fun.c
 INSERT AFTER [print_info] FUNENTRY [] "" asm x
 "xor %eax, %eax
 xor %ebx, %ebx
@@ -9,5 +9,3 @@ INSERT BEFORE [print_info] FUNEXIT [] "" asm x
 "xor %eax, %eax
 xor %ebx, %ebx
 xor %ecx, %ecx"; # insert before the function exit of print_info (i.e., before the ret instruction in print_info) with the three xor instructions
-DELETE x [0x40116f] SELF [] "" x x x; # delete the instruction at memory address 0x40116f
-REPLACE x [0x40118d-0x4011a5] SELF [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c; # replace instructions at addresses 0x40118d to 0x4011a5 with the C code defined in fun.c

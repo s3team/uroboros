@@ -91,19 +91,19 @@ Semicolon denotes the end of an instrumentation point.
 <details><summary>:point_right: <b>example 1 (points.test05.64.ins)</b></summary>
 
 ```
-INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c fun.c" C before_print_info fun.c;
+INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c ./instr_modules/c/fun.c" C before_print_info ./instr_modules/c/fun.c;
 ```
 The above will insert before any call to function `print_info` with call to `before_print_info` defined in `fun.c`.
 
 ```
-INSERT BEFORE [0x4011b5,0x401188] SELF [] "gcc -no-pie -c fun.c" C log_execution_times fun.c;
+INSERT AFTER [print_info] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;
 ```
-The above will insert before memory addresses 0x4011b5 and 0x401188 with call to `log_execution_times` defined in `fun.c`.
+The above will insert at the start of print_info with call to `log_execution_times` defined in `fun.c`.
 
 ```
-INSERT BEFORE [0x401177] SELF [] "" asm x "movl $30, %eax";
+INSERT BEFORE [print_info] FUNEXIT [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;
 ```
-The above will insert before the instruction at address 0x401177 with the assembly instruction that assigns %eax with 30.
+The above will insert at the end of print_info with call to `log_execution_times` defined in `fun.c`.
 
 ```
 INSERT AFTER [print_info] FUNENTRY [] "" asm x
@@ -121,16 +121,6 @@ xor %ecx, %ecx";
 ```
 The above will insert before the function exit of `print_info` (i.e., before the `ret` instruction in `print_info`) with the three `xor` instructions.
 
-```
-DELETE x [0x40116f] SELF [] "" x x x;
-```
-The above will delete the instruction at memory address 0x40116f.
-
-```
-REPLACE x [0x40118d-0x4011a5] SELF [] "" asm x /root/fun.asm;
-```
-The above will replace instructions at addresses 0x40118d to 0x4011a5 with the assembly code defined in `fun.asm`.
-
 Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/point_examples`). For the binary `test/test05/test05.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
 ```
 name: Jinquan Zhang
@@ -144,11 +134,12 @@ python3 uroboros.py test/test05/test05.64.nopie.dynamic.sym
 ```
 the output of the recompiled `a.out` is the following:
 ```
-called 1 times
 before call to print_info
-age: 30
+called 1 times
+name: Jinquan Zhang
+age: 26
+gender: m
 called 2 times
-called 3 times
 ```
 
 </details>
@@ -158,19 +149,19 @@ called 3 times
 In the following, we will discuss examples for `INSERTCALL` to insert user-defined functions that takes arguments.
 
 ```
-INSERTCALL BEFORE [0x401175] SELF [] "gcc -c ./fun.c" C print_args ./fun.c;
+INSERTCALL BEFORE [printf] CALLSITE [] "gcc -c ./fun.c" C print_args ./fun.c;
 ```
-The above will insert a call to `print_args` (defined in `fun.c`) using arguments already assigned in code (0x401175 is before a call to printf where printf's two arguments are already assigned); `print_args` requires two arguments and the two arguments are those assigned for printf. 
+The above will insert a call to `print_args` (defined in `fun.c`) using arguments already assigned in code, which are the arguments for printf, before printf's callsites.
 
 ```
-INSERTCALL BEFORE [0x401170] SELF [var:A] "gcc -c ./fun.c" C print_int ./fun.c;
+INSERTCALL BEFORE [printf] CALLSITE [var:A] "gcc -c ./fun.c" C print_int ./fun.c;
 ```
-The above will insert a call to `print_int` (defined in `fun.c`) with argument `A` (defined in the binary) before memory address 0x401170.
+The above will insert a call to `print_int` (defined in `fun.c`) with argument `A` (defined in the binary) before printf's callsites.
 
 ```
-INSERTCALL BEFORE [0x401184] SELF [var:X] "gcc -c ./fun.c" C print_string ./fun.c;
+INSERTCALL BEFORE [puts] CALLSITE [var:X] "gcc -c ./fun.c" C print_string ./fun.c;
 ```
-The above will insert a call to `print_string` (defined in `fun.c`) with argument `X` (defined in the binary) before memory address 0x401184.
+The above will insert a call to `print_string` (defined in `fun.c`) with argument `X` (defined in the binary) before puts' callsites.
 
 Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/point_examples`). For the binary `test/test00/test00.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
 ```
@@ -200,18 +191,15 @@ In the following, we will discuss examples for `PRINTARGS` to print arguments of
 a function before the callsite.
 
 ```
-PRINTARGS BEFORE [0x401170] SELF [int:-] "" C x x;
+PRINTARGS BEFORE [fac] CALLSITE [int:-] "" C x x;
 ```
-Supposed at memory address 0x401170 is a function call that takes one argument
-of type integer. The above will insert instructions to print the
-integer argument.
+The above will insert instructions to print the
+integer argument of fac before the call to fac.
 
 ```
-PRINTARGS BEFORE [0x401186] SELF [char*:-,int:-] "" C x x;
+PRINTARGS BEFORE [printf] CALLSITE [char*:-,int:-] "" C x x;
 ```
-Similarly, the above assumed that 0x401186 is a function call that takes two
-arguments of type string (`char*`) and integer, and inserts instructions
-to print the two arguments before the call.
+Similarly, the above ainserts instructions to print the two arguments of printf before its call.
 
 Overall, the combined examples can be found in the provided `points.test07.64.ins`
 (located in `src/point_examples`). For the binary `test/test07/test07.64.nopie.dynamic.sym`

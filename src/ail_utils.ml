@@ -736,6 +736,19 @@ module Opcode_utils = struct
             end
         | _ -> false
 
+      let is_ret_instr (i : instr) : bool =
+        match get_op i with
+        | Intel_OP iop -> begin
+            match iop with
+            | Intel_ControlOP c -> begin
+                match c with
+                | RET | RETN | RETQ -> true
+                | _ -> false
+              end
+            | _ -> false
+          end
+        | _ -> false
+
       let is_ret op = match op with
         | Intel_OP iop ->
           begin
