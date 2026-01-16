@@ -538,21 +538,30 @@ let caller_saved_after_regs
   | VOID -> caller_saved_after instr_type
   | NOT_VOID -> caller_saved_after_ret instr_type
 
+let read_file
+    (f : string)
+  : string list =
+  let ic = open_in f in
+  let content = really_input_string ic (in_channel_length ic) in
+  let _ = close_in ic in
+  let content = List.filter (
+    fun i -> String.trim i <> ""
+  ) (String.split_on_char '\n' content) in
+  content
+
 let read_points
     ~(f : string)
   : string list =
   try
-    let ic = open_in f in
-    let content = really_input_string ic (in_channel_length ic) in
-    let _ = close_in ic in
-    let content = List.filter (
-      fun i -> i <> ""
-    ) (String.split_on_char '\n' content) in
+    let content = read_file f in
     let content_nocomments = List.mapi (
       fun i s -> remove_comment_from_point '#' s (i + 1)
     ) content in
     let content' = String.concat "\n" content_nocomments in
     let points = String.split_on_char ';' content' in
+    let points = List.filter (
+      fun i -> String.trim i <> ""
+    ) points in
     points
   with Sys_error _ -> []
 
@@ -636,6 +645,7 @@ let create_points_f1
     (linenum : string)
     (pidx : int)
     (filepath : string)
+    (main_symbol : string)
     (loc : string) 
   : unit =
   let locations : location list =
@@ -702,9 +712,13 @@ let create_points_f1
         points_f1 := p' :: !points_f1
       end
     | SYMBOL s ->
+      let s' =
+        if s = "main" then main_symbol
+        else s
+      in
       match locm with
       | Some FUNENTRY ->
-        begin match List.find_opt (fun f -> f.func_name = s) ufl with
+        begin match List.find_opt (fun f -> f.func_name = s') ufl with
         | Some s_func ->
           let p' =
             ( s_func.func_begin_addr,
@@ -723,7 +737,7 @@ let create_points_f1
         | None -> ()
         end
       | Some FUNEXIT ->
-        begin match List.find_opt (fun f -> f.func_name = s) ufl with
+        begin match List.find_opt (fun f -> f.func_name = s') ufl with
         | Some s_func ->
           let p' =
             ( s_func.func_end_addr,
@@ -742,7 +756,7 @@ let create_points_f1
         | None -> ()
         end
       | Some CALLSITE ->
-        begin match Hashtbl.find_opt fname2css s with
+        begin match Hashtbl.find_opt fname2css s' with
         | Some css ->
           List.iter ( fun addr ->
             let p' =
@@ -776,6 +790,7 @@ let process_instrument_point
     (line : string)
     (pidx : int)
     (filepath : string)
+    (main_symbol : string)
   : unit =
   let (linenum, point) = get_linenum_point line in
   if not (String.starts_with ~prefix:"user" point) &&
@@ -829,6 +844,7 @@ let process_instrument_point
           linenum
           pidx
           filepath
+          main_symbol
       ) locations;
     | _ -> failwith ("invalid instrument format at " ^ __LOC__)
   else if String.starts_with ~prefix:"INCLUDE" point then
@@ -872,6 +888,7 @@ let parse_instrument_file
     ~(fbl : (string, bblock list) Hashtbl.t)
     ~(bbl : bblock list)
     ~(filepath : string)
+    ~(main_symbol : string)
   : unit =
   let filelines =
     read_points ~f:filepath
@@ -889,6 +906,7 @@ let parse_instrument_file
         l
         i
         filepath
+        main_symbol
   ) filelines;
   let sorted = List.sort (
     fun (addr1, _, _, _, _, _, _, _, _, _, _)
@@ -920,6 +938,7 @@ let parse_instrument
     ~(fbl : (string, bblock list) Hashtbl.t)
     ~(bbl : bblock list)
   : unit =
+  let main_symbol = List.hd (read_file "main.info") in
   (* points folder contains the instrumentation files *)
   let files = Sys.readdir "points"
               |> Array.to_list
@@ -935,6 +954,7 @@ let parse_instrument
       ~fbl
       ~bbl
       ~filepath
+      ~main_symbol
   ) files
 
 let arg_order_64
@@ -1289,6 +1309,7 @@ let instrument_at_instr
       if !include_instr then
         acc_after @ [instr] @ acc_before
       else
+        (* for actions DELETE and REPLACE *)
         acc_after @ acc_before
     | ph :: pt -> begin
         let ( p_addr, p_action, p_dir, p_stack, p_cmd,

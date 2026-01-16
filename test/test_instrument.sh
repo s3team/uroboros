@@ -115,6 +115,7 @@ popd
 ##########
 # test01 #
 ##########
+# old instrumentation
 #echo ">>> test01"
 #
 #pushd $(pwd)/src

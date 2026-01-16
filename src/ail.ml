@@ -188,7 +188,6 @@ object (self)
     ignore ( Sys.command ("cat gcc_exception_table.data >> final.s") )
 
   method post_process (f : string) (arch : string) : unit =
-    ignore ( Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch) );
     ignore ( Sys.command ("python3 post_process.py "^arch) );
     ignore ( Sys.command ("python3 post_process_lib.py") )
     (*
@@ -196,8 +195,9 @@ object (self)
     self#excpt_tbl_dump;
     *)
 
-  method pre_process : unit =
-    ignore ( Sys.command ("python3 pre_process.py") )
+  method pre_process (f : string) (arch : string) : unit =
+    ignore ( Sys.command ("python3 pre_process.py") );
+    ignore ( Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch) )
 
   method instr_process (f : string) (arch : string) : unit =
     let open Disassemble_process in
@@ -207,7 +207,7 @@ object (self)
     let module S = Symbol_table_get in
     let module I = Instrumentation in
     let module EU = ELF_utils in
-    let _ = self#pre_process in
+    let _ = self#pre_process f arch in
     (* .text section is in instrs.info *)
     let il, fl, re = D.disassemble f funcs secs arch in
 

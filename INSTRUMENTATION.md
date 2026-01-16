@@ -16,7 +16,7 @@ the new design. Below we specify the instrumentation language.
 
 To use Uroboros for instrumentation,
 specify the set of instrumentation points in a file placed in `src/points/`.
-`src/point_examples` contains multiple example instrumentation files:
+`src/point_examples/` contains multiple example instrumentation files:
 
 - `points.test00.32.ins` and `points.test00.64.ins`
 for executables `test00.32.nopie.dynamic.sym` and `test00.64.nopie.dynamic.sym`
@@ -29,7 +29,7 @@ for executables `test07.32.nopie.dynamic.sym` and `test07.64.nopie.dynamic.sym`
 
 To use an example instrumentation file, copy the file to `src/points/` before executing `uroboros.py`.
 To generate all the `test*` executables, execute the following command in the project root: `./test/test_all.py -a -c`.
-As an example, the executable `test00.32.nopie.dynamic.sym` can be found in `src/test/test00/` after executing the above command. 
+As an example, the executable `test00.32.nopie.dynamic.sym` can be found in `src/test/test00/` after executing the previous command.
 
 Following is the Table of Contents:
 
@@ -48,16 +48,32 @@ beginning with a hash "#" may follow.
 
 `action` is one of `{insert, insertcall, delete, replace, printargs, include}`.
 `action` is case-insensitive, e.g., `insert` or `INSERT`.
+* `insert`: insert user-specified code.
+* `insertcall`: insert user-specified code that is specifically a function call.
+* `delete`: delete existing code.
+* `replace`: delete existing code and insert user-specified code in its place.
+* `printargs`: print the argument values of an existing function call.
+* `include`: include additional C, assembly, or object files into the instrumented executable binary. Following is an example for including c or assembly files file1.c, file2.c, and file3.s, located in different folders: `INCLUDE file1.o file2.o file3.o "gcc -no-pie -c a/b/c/file1.c && gcc -no-pie -c a/b/c/file2.c && gcc -c file3.s -o file3.o"`
 
 `direction` is one of `{before, after, at}`.
 `direction` is case-insensitive.
 If not used, then `x`.
 It is not used for action `delete` or `replace`.
+* `before`: instrument at location before the specified address.
+* `after`: instrument at location after the specified address.
+* `at`: instrument at location that is the specified address. If the instruction at the specified address contains a label, the label will be moved to the beginning of the instrumented instructions.
 
 `loc` is a list like `[address, symbol, address1-address2]`.
+* `address`: the specified address for the instrumentation.
+* `symbol`: the specified symbol for the instrumentation. This option is only available for executable binaries that are not stripped.
+* `address1-address2`: the specified range of addresses.
 
 `loc-modifier` is one of `{self, callsite, funentry, funexit}`.
 `loc-modifier` is case-insensitive.
+* `self`: instrument at the specified address.
+* `callsite`: instrument at the callsites of the specified function symbol.
+* `funentry`: instrument at the function entry of the specified function symbol.
+* `funexit`: instrument at the function exit of the specified function symbol.
 
 `stack` is a list like `[int:10,char*:DEFINED_IN_CODE]` where an argument
 is specified with its type and value, separated by colon.
@@ -67,11 +83,11 @@ For `printargs`, the argument value is not required and can be left as `-`,
 e.g., `[int:-,char*:-]`.
 If not used, then it is empty `[]`.
 
-`cmd` is the compiler command and options to compile the instrumentation code. The command is surrounded by quotes like `"gcc -no-pie -c to_insert.c"` which compiles `to_insert.c` to `to_insert.o`. If not used, then it is empty `""`.
+`cmd` is the compiler command and options to compile the source code to instrument. The command is surrounded by quotes like `"gcc -no-pie -c to_insert.c"` which compiles `to_insert.c` to `to_insert.o`. If not used, then it is empty `""`.
 
 `language` is one of `{asm, C}`. If not used, then `x`.
 `language` is case-insensitive.
-For `asm`, it needs to be written in AT&T syntax.
+For `asm`, it must be written in AT&T syntax.
 
 `code-entry-point` is the function to call in file name `code`. If not used, then `x`.
 
@@ -88,7 +104,7 @@ Semicolon denotes the end of an instrumentation point.
 
 ### Examples
 
-<details><summary>:point_right: <b>example 1 (points.test05.64.ins)</b></summary>
+<details><summary>:point_right: <b>example 1 (points.test05.32.ins and points.test05.64.ins)</b></summary>
 
 ```
 INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c ./instr_modules/c/fun.c" C before_print_info ./instr_modules/c/fun.c;
@@ -121,7 +137,7 @@ xor %ecx, %ecx";
 ```
 The above will insert before the function exit of `print_info` (i.e., before the `ret` instruction in `print_info`) with the three `xor` instructions.
 
-Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/point_examples`). For the binary `test/test05/test05.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/point_examples/`). For the binary `test/test05/test05.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
 ```
 name: Jinquan Zhang
 age: 26
@@ -144,26 +160,26 @@ called 2 times
 
 </details>
 
-<details><summary>:point_right: <b>example 2 (points.test00.64.ins)</b></summary>
+<details><summary>:point_right: <b>example 2 (points.test00.32.ins and points.test00.64.ins)</b></summary>
 
 In the following, we will discuss examples for `INSERTCALL` to insert user-defined functions that takes arguments.
 
 ```
-INSERTCALL BEFORE [printf] CALLSITE [] "gcc -c ./fun.c" C print_args ./fun.c;
+INSERTCALL BEFORE [printf] CALLSITE [] "gcc -c ./instr_modules/c/fun.c" C print_args ./instr_modules/c/fun.c;
 ```
 The above will insert a call to `print_args` (defined in `fun.c`) using arguments already assigned in code, which are the arguments for printf, before printf's callsites.
 
 ```
-INSERTCALL BEFORE [printf] CALLSITE [var:A] "gcc -c ./fun.c" C print_int ./fun.c;
+INSERTCALL BEFORE [printf] CALLSITE [var:A] "gcc -c ./instr_modules/c/fun.c" C print_int ./instr_modules/c/fun.c;
 ```
 The above will insert a call to `print_int` (defined in `fun.c`) with argument `A` (defined in the binary) before printf's callsites.
 
 ```
-INSERTCALL BEFORE [puts] CALLSITE [var:X] "gcc -c ./fun.c" C print_string ./fun.c;
+INSERTCALL BEFORE [puts] CALLSITE [var:X] "gcc -c ./instr_modules/c/fun.c" C print_string ./instr_modules/c/fun.c;
 ```
 The above will insert a call to `print_string` (defined in `fun.c`) with argument `X` (defined in the binary) before puts' callsites.
 
-Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/point_examples`). For the binary `test/test00/test00.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/point_examples/`). For the binary `test/test00/test00.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
 ```
 10
 hello world
@@ -185,7 +201,7 @@ hello world
 
 </details>
 
-<details><summary>:point_right: <b>example 3 (points.test07.64.ins)</b></summary>
+<details><summary>:point_right: <b>example 3 (points.test07.32.ins and points.test07.64.ins)</b></summary>
 
 In the following, we will discuss examples for `PRINTARGS` to print arguments of
 a function before the callsite.
@@ -202,7 +218,7 @@ PRINTARGS BEFORE [printf] CALLSITE [char*:-,int:-] "" C x x;
 Similarly, the above ainserts instructions to print the two arguments of printf before its call.
 
 Overall, the combined examples can be found in the provided `points.test07.64.ins`
-(located in `src/point_examples`). For the binary `test/test07/test07.64.nopie.dynamic.sym`
+(located in `src/point_examples/`). For the binary `test/test07/test07.64.nopie.dynamic.sym`
 (source is located at `test/test07.c`), its output is the following
 ```
 3628800

@@ -4,7 +4,7 @@ all:
 	test/test_all.py -a -c || true
 	test/test_instrument.sh 2>&1 | tee test.instrument || true
 	rm src/fun.o || true
-	find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} + || true
+	find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -perm /111 -exec rm -v {} + || true
 	test/test_action.sh 2>&1 | tee test.all || true
 	test/test_coreutils.sh 2>&1 | tee test.coreutils
 
