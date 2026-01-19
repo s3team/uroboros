@@ -975,22 +975,47 @@ let arg_order_64
 let set_arg
     (instr_type : string)
     (i : int) 
-    (arg : exp)
+    (arg : (string * string))
   : instr =
   let module EU = ELF_utils in
+  let _type, _value = arg in
+  let exp_type =
+    match _type with
+    | "int" ->
+      ( try Const (Normal (int_of_string _value))
+      with _ -> Label _value )
+    | "char*" | "char *" | "int*" | "int *" | "void*" | "void *" ->
+      Label _value
+    | "print-arg" ->
+      if EU.elf_32 () then
+        failwith ("for PRINTARGS 32-bits, should not reach here. Failure at "
+                  ^ __LOC__)
+      else
+        Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
+  in
+  let opcode =
+    if EU.elf_32 () then
+      Intel_OP (Intel_StackOP PUSH)
+    else
+      match _type with
+      | "void*" | "void *" ->
+        Intel_OP (Intel_CommonOP (Intel_Assign LEA))
+      | _ ->
+        Intel_OP (Intel_CommonOP (Intel_Assign MOV))
+  in
   if EU.elf_32 () then
     DoubleInstr
-      ( Intel_OP (Intel_StackOP PUSH),
-        arg,
+      ( opcode,
+        exp_type,
         stub_loc,
         None,
         (create_comment instr_type) )
   else
     let dest_arg_reg = arg_order_64 i in
     TripleInstr
-      ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+      ( opcode,
         Reg (Intel_Reg dest_arg_reg),
-        arg,
+        exp_type,
         stub_loc,
         None,
         (create_comment instr_type) )
@@ -1015,31 +1040,12 @@ let add_call_seq_arg
     ~(ret_type : c_ret_type)
   : instr list =
   let module EU = ELF_utils in
-  let parse_arg arg =
-    let _type, _value = arg in
-    match _type with
-    | "int" -> 
-      ( try Const (Normal (int_of_string _value))
-      with _ -> Label _value )
-    | "char*" | "char *" | "int*" | "int *" ->
-      Label _value
-    | "print-arg" ->
-      if EU.elf_32 () then
-        failwith ("for PRINTARGS 32-bits, should not reach here. Failure at "
-                  ^ __LOC__)
-      else
-        Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
-  in
-  let args' = List.map (
-    parse_arg
-  ) args
-  in
   if EU.elf_32 () then
     List.rev
       ( (caller_saved_before_regs instr_type ret_type)
       @ List.mapi (
         set_arg instr_type
-      ) args'
+      ) args
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -1066,7 +1072,7 @@ let add_call_seq_arg
       ( (caller_saved_before_regs instr_type ret_type)
       @ List.mapi (
         set_arg instr_type
-      ) args'
+      ) args
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
