@@ -1473,7 +1473,10 @@ let get_ret_type
                       ^ __LOC__)
     | line :: rest -> begin
       let line_trimmed = String.trim line in
-      if contains ~str:line_trimmed ~sub:(" " ^ code_ep ^ " ") then
+      if contains ~str:line_trimmed ~sub:(" " ^ code_ep ^ " ")
+        || contains ~str:line_trimmed ~sub:(" " ^ code_ep ^ "(")
+        || contains ~str:line_trimmed ~sub:(" " ^ code_ep ^ " (")
+      then
         match String.split_on_char ' ' line_trimmed with
         | ret_type :: line_rest ->
           begin match ret_type with
