@@ -102,7 +102,7 @@ def run_uroboros(binary: Path, isa: str):
     uroboros_args = [uroboros, binary]
     if isa == "arm":
         uroboros_args.append("--arch")
-        uroboros_args.append("arm")
+        uroboros_args.append("thumb")
 
     logger.debug(f"Running Uroboros with args: {uroboros_args}")
     res = subprocess.run(uroboros_args, capture_output=True, cwd=uroboros_dir)
@@ -218,11 +218,11 @@ def uroboros_all(targets: list, args):
                             / f"{source.stem}.{isa}.{arch}.{'pie' if pie else 'nopie'}.{'static' if static else 'dynamic'}"
                         )
 
-                    # always compile
-                    #if binary.exists() is False or args.force:
-                    compile_bin(source, binary, arch, pie, static, isa)
-                    if not args.compile:
-                        run_uroboros(binary, isa)
+                        # always compile
+                        #if binary.exists() is False or args.force:
+                        compile_bin(source, binary, arch, pie, static, isa)
+                        if not args.compile:
+                            run_uroboros(binary, isa)
 
 
 if __name__ == "__main__":
