@@ -16,7 +16,7 @@ clean:
 	find . -type f -name "*.help" -delete || true
 	find . -type f -name "*.res" -delete || true
 	find . -type f -name "*.out" -delete || true
-    find src -maxdepth 1 -name '*.result' -delete || true
+	find src -maxdepth 1 -name '*.result' -delete || true
 	( cd src && ls | grep '\.info$$' | xargs -r rm -f || true )
 	( cd src && ls | grep '\.disassemble$$' | xargs -r rm -f || true )
 	( cd src && ls | grep '\.temp$$' | xargs -r rm -f || true )
