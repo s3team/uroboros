@@ -45,6 +45,15 @@ def run(executable_binaries: list[str], arch):
 
         print(f"Time taken: %.2f" % time_diff)
 
+        # Check if final.s and a.out are generated
+        if not os.path.exists(f"{PROJ_ROOT_PATH}/src/final.s"):
+            print(f"final.s not generated for {binary_only_name}\n")
+            continue
+
+        if not os.path.exists(f"{PROJ_ROOT_PATH}/src/a.out"):
+            print(f"a.out not generated for {binary_only_name}\n")
+            continue
+
         # Run qemu-arm -L /usr/arm-linux-gnueabihf/ ~/work/research/Uroboros_ws/AIL/src/a.out --help
         # and record if it runs successfully or not
         print("Running qemu-arm to verify the binary...", flush=True)
@@ -71,16 +80,20 @@ def run(executable_binaries: list[str], arch):
         else:
             print(f"qemu-arm failed: {binary_only_name}\n")
 
+        # Remove the a.out and final.s files
+        os.remove(f"{PROJ_ROOT_PATH}/src/a.out")
+        os.remove(f"{PROJ_ROOT_PATH}/src/final.s")
 
-def get_binaries(arch: str, programs: list[str]) -> list[str]:
+
+def get_binaries(arch: str, programs: list[str], dir_path: str = None) -> list[str]:
     # Set the directory path based on architecture
-    dir_path = ""
-    if arch == "thumb":
-        dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-thumb", "src")
-    elif arch == "arm":
-        dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-32bit", "src")
-    elif arch == "aarch64":
-        dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-64bit", "src")
+    if dir_path is None:
+        if arch == "thumb":
+            dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-thumb", "src")
+        elif arch == "arm":
+            dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-32bit", "src")
+        elif arch == "aarch64":
+            dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-64bit", "src")
 
     # Get all executable binaries in the `dir_path`
     executable_binaries = glob.glob(os.path.join(dir_path, "*"))
@@ -118,9 +131,13 @@ def dry_run(uroboros_path: str, executable_binaries: list[str], arch):
 def main(args):
     arch = args.arch
     programs = args.programs
-    print(f"Running tests with architecture: {arch}")
-    executable_binaries = get_binaries(arch, programs)
+    target_dir_path = args.dir_path
+    if target_dir_path is not None:
+        target_dir_path = os.path.abspath(target_dir_path)
 
+    executable_binaries = get_binaries(arch, programs, target_dir_path)
+
+    print(f"Running tests with architecture: {arch}")
     # dry_run(uroboros_path, executable_binaries, arch)
     run(executable_binaries, arch)
 
@@ -140,6 +157,12 @@ if __name__ == "__main__":
         type=str,
         nargs="*",
         help="List of binary names to test (default: all binaries)",
+    )
+    parser.add_argument(
+        "--dir-path",
+        type=str,
+        default=None,
+        help="Directory path to get binaries (default: install/coreutils*)",
     )
     args = parser.parse_args()
     main(args)

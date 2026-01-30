@@ -192,7 +192,7 @@ def compare_size(raw: Path, recompiled: Path):
 
 def uroboros_all(targets: list, args):
     arches = [args.m] if args.m is not None else [32, 64]
-    isas = [args.arch] if args.arch is not None else ["intel", "arm"]
+    isas = [args.arch] if args.arch is not None else ["intel"]
     pies = [not args.no_pie] if args.no_pie is True else [False]  # TODO: pie support
     statics = [args.static] if args.static is True else [True, False]
     for isa in isas:

@@ -19,17 +19,17 @@ specify the set of instrumentation points in a file placed in `src/points/`.
 `src/point_examples/` contains multiple example instrumentation files:
 
 - `points.test00.32.ins` and `points.test00.64.ins`
-for executables `test00.32.nopie.dynamic.sym` and `test00.64.nopie.dynamic.sym`
+for executables `test00.intel.32.nopie.dynamic.sym` and `test00.intel.64.nopie.dynamic.sym`
 - `points.test01.32.ins` and `points.test01.64.ins`
-for executables `test01.32.nopie.dynamic.sym` and `test01.64.nopie.dynamic.sym`
+for executables `test01.intel.32.nopie.dynamic.sym` and `test01.intel.64.nopie.dynamic.sym`
 - `points.test05.32.ins` and `points.test05.64.ins`
-for executables `test05.32.nopie.dynamic.sym` and `test05.64.nopie.dynamic.sym`
+for executables `test05.intel.32.nopie.dynamic.sym` and `test05.intel.64.nopie.dynamic.sym`
 - `points.test07.32.ins` and `points.test07.64.ins`
-for executables `test07.32.nopie.dynamic.sym` and `test07.64.nopie.dynamic.sym`
+for executables `test07.intel.32.nopie.dynamic.sym` and `test07.intel.64.nopie.dynamic.sym`
 
 To use an example instrumentation file, copy the file to `src/points/` before executing `uroboros.py`.
 To generate all the `test*` executables, execute the following command in the project root: `./test/test_all.py -a -c`.
-As an example, the executable `test00.32.nopie.dynamic.sym` can be found in `src/test/test00/` after executing the previous command.
+As an example, the executable `test00.intel.32.nopie.dynamic.sym` can be found in `src/test/test00/` after executing the previous command.
 
 Following is the Table of Contents:
 
@@ -137,7 +137,7 @@ xor %ecx, %ecx";
 ```
 The above will insert before the function exit of `print_info` (i.e., before the `ret` instruction in `print_info`) with the three `xor` instructions.
 
-Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/point_examples/`). For the binary `test/test05/test05.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/point_examples/`). For the binary `test/test05/test05.intel.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
 ```
 name: Jinquan Zhang
 age: 26
@@ -146,7 +146,7 @@ gender: m
 After placing the provided `points.test05.64.ins` in `src/points/` and running Uroboros:
 ```
 cp src/point_examples/points.test05.64.ins src/points/
-python3 uroboros.py test/test05/test05.64.nopie.dynamic.sym
+python3 uroboros.py test/test05/test05.intel.64.nopie.dynamic.sym
 ```
 the output of the recompiled `a.out` is the following:
 ```
@@ -179,7 +179,7 @@ INSERTCALL BEFORE [puts] CALLSITE [var:X] "gcc -c ./instr_modules/c/fun.c" C pri
 ```
 The above will insert a call to `print_string` (defined in `fun.c`) with argument `X` (defined in the binary) before puts' callsites.
 
-Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/point_examples/`). For the binary `test/test00/test00.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/point_examples/`). For the binary `test/test00/test00.intel.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
 ```
 10
 hello world
@@ -187,7 +187,7 @@ hello world
 After placing the provided `points.test00.64.ins` in `src/points/` and running Uroboros:
 ```
 cp src/point_examples/points.test00.64.ins src/points
-python3 uroboros.py test/test00/test00.64.nopie.dynamic.sym
+python3 uroboros.py test/test00/test00.intel.64.nopie.dynamic.sym
 ```
 the output of the recompiled `a.out` is the following:
 ```
@@ -218,7 +218,7 @@ PRINTARGS BEFORE [printf] CALLSITE [char*:-,int:-] "" C x x;
 Similarly, the above ainserts instructions to print the two arguments of printf before its call.
 
 Overall, the combined examples can be found in the provided `points.test07.64.ins`
-(located in `src/point_examples/`). For the binary `test/test07/test07.64.nopie.dynamic.sym`
+(located in `src/point_examples/`). For the binary `test/test07/test07.intel.64.nopie.dynamic.sym`
 (source is located at `test/test07.c`), its output is the following
 ```
 3628800
@@ -268,7 +268,7 @@ user instr_modules/instr_c.ml;
 
 The instrumentation files `points.test01.32.ins` and `points.test01.64.ins`
 contain the above two instrumentation points to insert both user-defined C and
-assembly code in the executables `test01.32.nopie.dynamic.sym` and `test01.64.nopie.dynamic.sym`, respectively:
+assembly code in the executables `test01.intel.32.nopie.dynamic.sym` and `test01.intel.64.nopie.dynamic.sym`, respectively:
 ```
 user instr_modules/instr_asm.ml;
 user instr_modules/instr_c.ml;

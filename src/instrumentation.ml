@@ -742,6 +742,7 @@ let create_points_f1
     (linenum : string)
     (pidx : int)
     (filepath : string)
+    (main_symbol : string)
     (loc : string)
   : unit =
   let locations : location list =
@@ -1084,7 +1085,7 @@ let arg_order_64
 let set_arg
     (instr_type : string)
     (i : int)
-    (arg : exp)
+    (arg : string * string)
   : instr list =
   let module EU = ELF_utils in
   let _type, _value = arg in
@@ -1113,13 +1114,13 @@ let set_arg
         Intel_OP (Intel_CommonOP (Intel_Assign MOV))
   in
     if EU.elf_arm () then
-    match arg with
+    match exp_type with
     | Label _ ->
       let dest_arg_reg = arg_order_arm i in
       [
         TripleInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None),
-            arg,
+            exp_type,
             Reg (Arm_Reg dest_arg_reg),
             stub_loc,
             None,
@@ -1139,7 +1140,7 @@ let set_arg
       [
         TripleInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign MOV), None, None),
-            arg,
+            exp_type,
             Reg (Arm_Reg dest_arg_reg),
             stub_loc,
             None,
@@ -1239,7 +1240,7 @@ let add_call_seq_arg
       ( (caller_saved_before_regs instr_type ret_type)
       @ List.flatten ( List.mapi (
         set_arg instr_type
-      ) args' )
+      ) args )
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (
@@ -1268,7 +1269,7 @@ let add_call_seq_arg
       ( (caller_saved_before_regs instr_type ret_type)
       @ List.flatten ( List.mapi (
         set_arg instr_type
-      ) args
+      ) args )
       @ [ DoubleInstr
           ( Intel_OP (Intel_ControlOP (CALL)),
             Symbol (

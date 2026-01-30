@@ -81,7 +81,7 @@ echo ">>> test00"
 pushd $(pwd)/src
 cp point_examples/points.test00.32.ins points/
 tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test00/test00.32.nopie.dynamic.sym &> /dev/null
+python3 uroboros.py $(pwd)/../test/test00/test00.intel.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
 
 if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
@@ -98,7 +98,7 @@ popd
 pushd $(pwd)/src
 cp point_examples/points.test00.64.ins points/
 tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test00/test00.64.nopie.dynamic.sym &> /dev/null
+python3 uroboros.py $(pwd)/../test/test00/test00.intel.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
 
 if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
@@ -122,7 +122,7 @@ popd
 #cp point_examples/points.test01.32.ins points/
 #echo "0x804919d" > instrument_locs.ins
 #tmpfile=$(mktemp)
-#python3 uroboros.py $(pwd)/../test/test01/test01.32.nopie.dynamic.sym &> /dev/null
+#python3 uroboros.py $(pwd)/../test/test01/test01.intel.32.nopie.dynamic.sym &> /dev/null
 #$(pwd)/a.out &> "$tmpfile"
 #
 #if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
@@ -140,7 +140,7 @@ popd
 #cp point_examples/points.test01.64.ins points/
 #echo "0x401162" > instrument_locs.ins
 #tmpfile=$(mktemp)
-#python3 uroboros.py $(pwd)/../test/test01/test01.64.nopie.dynamic.sym &> /dev/null
+#python3 uroboros.py $(pwd)/../test/test01/test01.intel.64.nopie.dynamic.sym &> /dev/null
 #$(pwd)/a.out &> "$tmpfile"
 #
 #if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
@@ -162,7 +162,7 @@ echo ">>> test05"
 pushd $(pwd)/src
 cp point_examples/points.test05.32.ins points/
 tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test05/test05.32.nopie.dynamic.sym &> /dev/null
+python3 uroboros.py $(pwd)/../test/test05/test05.intel.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
 
 if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
@@ -179,7 +179,7 @@ popd
 pushd $(pwd)/src
 cp point_examples/points.test05.64.ins points/
 tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test05/test05.64.nopie.dynamic.sym &> /dev/null
+python3 uroboros.py $(pwd)/../test/test05/test05.intel.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
 
 if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
@@ -201,7 +201,7 @@ echo ">>> test07"
 pushd $(pwd)/src
 cp point_examples/points.test07.32.ins points/
 tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test07/test07.32.nopie.dynamic.sym &> /dev/null
+python3 uroboros.py $(pwd)/../test/test07/test07.intel.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
 
 if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
@@ -218,7 +218,7 @@ popd
 pushd $(pwd)/src
 cp point_examples/points.test07.64.ins points/
 tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test07/test07.64.nopie.dynamic.sym &> /dev/null
+python3 uroboros.py $(pwd)/../test/test07/test07.intel.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
 
 if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then

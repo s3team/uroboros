@@ -62,6 +62,10 @@ $ python3 uroboros.py bzip -i 500 -k
 A subfolder will be created in `./src` folder, with input binary name and
 timestamp (e.g., `test_fold_bzip_2021-09-19_05:51:00`).
 
+3. --arch (architecture):
+
+Uroboros supports both **x86** (`--arch intel`) and **ARM Thumb** (`--arch thumb`). `--arch intel` is applied by default. To work with ARM Thumb binaries, please refer to [ARM.md](ARM.md).
+
 ## Instrumentation
 
 One application of Uroboros is binary code instrumentation.

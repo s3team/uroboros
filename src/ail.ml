@@ -22,7 +22,7 @@ let merge_func (funcs : func list) (il : instr list) : func list =
       begin
         if i_addr = f_ba then
           match hi with
-          | TripleInstr (p, e1, e2, _, _, _) -> (
+          | TripleInstr (p, e1, e2, _, _, _, _) -> (
               match (p, e1, e2) with
               | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
               | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->
@@ -84,7 +84,7 @@ let merge_func (funcs : func list) (il : instr list) : func list =
       begin
         if i_addr = f_ba then
           match hi with
-          | TripleInstr (p, e1, e2, _, _, _) -> (
+          | TripleInstr (p, e1, e2, _, _, _, _) -> (
               match (p, e1, e2) with
               | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
               | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->
