@@ -45,6 +45,15 @@ def run(executable_binaries: list[str], arch):
 
         print(f"Time taken: %.2f" % time_diff)
 
+        # Check if final.s and a.out are generated
+        if not os.path.exists(f"{PROJ_ROOT_PATH}/src/final.s"):
+            print(f"final.s not generated for {binary_only_name}\n")
+            continue
+
+        if not os.path.exists(f"{PROJ_ROOT_PATH}/src/a.out"):
+            print(f"a.out not generated for {binary_only_name}\n")
+            continue
+
         # Run qemu-arm -L /usr/arm-linux-gnueabihf/ ~/work/research/Uroboros_ws/AIL/src/a.out --help
         # and record if it runs successfully or not
         print("Running qemu-arm to verify the binary...", flush=True)
@@ -70,6 +79,10 @@ def run(executable_binaries: list[str], arch):
             print(f"qemu-arm succeeded: {binary_only_name}\n")
         else:
             print(f"qemu-arm failed: {binary_only_name}\n")
+
+        # Remove the a.out and final.s files
+        os.remove(f"{PROJ_ROOT_PATH}/src/a.out")
+        os.remove(f"{PROJ_ROOT_PATH}/src/final.s")
 
 
 def get_binaries(arch: str, programs: list[str]) -> list[str]:
