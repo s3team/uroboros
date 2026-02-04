@@ -2211,7 +2211,7 @@ class arm_reassemble =
                       match self#check_sec deref_value with
                       | Some deref_s ->
                           if deref_s.sec_name = ".data.rel.ro" then deref_instr
-                          else if deref_s.sec_name = ".bss" then deref_instr
+                          else if deref_s.sec_name = ".bss" then pointer_instr
                           else pointer_instr
                       | None -> begin
                           if arch = "thumb" then begin
