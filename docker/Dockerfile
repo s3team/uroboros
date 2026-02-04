@@ -18,8 +18,6 @@ RUN apt-get install -y -q \
     m4 \
     gcc \
     g++ \
-    gcc-multilib \
-    g++-multilib \
     build-essential \
     wget \
     python3 \
