@@ -1196,6 +1196,8 @@ object (self)
       let instr = cat_tail items in
       if arch = "thumb" && is_illegal_instr instr then
         ()
+      else if arch = "intel" && contains ~str:instr ~sub:"undefined" then
+        ()
       else
         instrs <- (p#parse_instr instr loc arch)::instrs;
     in

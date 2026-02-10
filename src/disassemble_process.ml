@@ -127,8 +127,8 @@ module Disam = struct
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
       ail_parser#set_arch arch;
+
       let instr_list = read_file "instrs.info" in
-      
       (* remove_literal_pools is here *)
       ail_parser#process_instrs instr_list arch;
       re#instr_addrs_collect ail_parser#get_instrs;
@@ -185,35 +185,23 @@ module Disam = struct
           GA.result
         else if EU.elf_32 () && (arch = "thumb" || arch = "arm") then
           let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
-
-          (* debug *)
-          (* let sorted =
-          Hashtbl.to_seq func2cfg_table
-            |> List.of_seq
-            |> List.sort (fun (f1, _) (f2, _) -> String.compare f1 f2)
-        in
-        let _ = List.iter (
-                fun (k, v) ->
-                  let _ = Printf.printf "func2cfg_table: %s\n%!" k in
-                  ()
-              ) sorted in *)
-        (* end debug *)
-
-        let _ = Hashtbl.iter (
-          fun f cfg ->
-            let _ = AD.flow_analysis f cfg in
-            ()
-        ) func2cfg_table in
-        AGA.result
+          let _ = Hashtbl.iter (
+            fun f cfg ->
+              let _ = AD.flow_analysis f cfg in
+              ()
+          ) func2cfg_table in
+          AGA.result
         else Hashtbl.create 1
       in
 
       let arm_postprocess (ilist : instr list) : instr list =
         if arch = "thumb" then AP.adjust_thumb_function_pointer ilist else ilist
       in
+
       let rewriting_result = got_rewrite il_init in
+
       il :=
-        if EU.elf_32 () && arch = "intel" then
+        (if EU.elf_32 () && arch = "intel" then
           ( FnU.replace_got_ref rewriting_result @@ il_init )
           |> re#jmp_table_rewrite
           (* second call to got_rewrite account switch dests in CFGs *)
@@ -228,6 +216,7 @@ module Disam = struct
              * If something wrong happens, AP functions might need to be moved to [ail.ml#post_process].
              *)
           end
+        )
         |> re#visit_heuristic_analysis
         |> TU.process_tags (* should be located after visit_heuristic_analysis *)
         |> re#adjust_loclabel |> re#adjust_jmpref
