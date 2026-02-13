@@ -91,8 +91,7 @@ if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm -rf points
-mkdir points
+find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 pushd $(pwd)/src
@@ -108,8 +107,7 @@ if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm -rf points
-mkdir points
+find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 ##########
@@ -132,8 +130,7 @@ popd
 #  has_failed="true"
 #fi
 #rm "$tmpfile"
-#rm -rf points
-#mkdir points
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #popd
 #
 #pushd $(pwd)/src
@@ -150,8 +147,7 @@ popd
 #  has_failed="true"
 #fi
 #rm "$tmpfile"
-#rm -rf points
-#mkdir points
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #popd
 
 ##########
@@ -172,8 +168,7 @@ if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm -rf points
-mkdir points
+find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 pushd $(pwd)/src
@@ -189,8 +184,7 @@ if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm -rf points
-mkdir points
+find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 ##########
@@ -211,8 +205,7 @@ if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm -rf points
-mkdir points
+find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 pushd $(pwd)/src
@@ -228,8 +221,7 @@ if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
   has_failed="true"
 fi
 rm "$tmpfile"
-rm -rf points
-mkdir points
+find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 if [[ "$has_failed" == "true" ]]; then
@@ -254,9 +246,8 @@ fi
 #  has_failed="true"
 #fi
 #rm "$tmpfile"
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #rm capture.c
-#rm -rf points
-#mkdir points
 #popd
 #
 #echo ">>> 64-bit simul_io"
@@ -274,9 +265,8 @@ fi
 #  has_failed="true"
 #fi
 #rm "$tmpfile"
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #rm capture.c
-#rm -rf points
-#mkdir points
 #popd
 
 ###################
@@ -306,8 +296,7 @@ fi
 #popd
 #pushd ${rware_dir}
 #make clean
-#rm -rf points
-#mkdir points
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #popd
 #
 #echo ">>> 64-bit rware"
@@ -334,8 +323,7 @@ fi
 #popd
 #pushd ${rware_dir}
 #make clean
-#rm -rf points
-#mkdir points
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #popd
 
 
@@ -361,8 +349,7 @@ fi
 #  has_failed="true"
 #fi
 #rm "$tmpfile"
-#rm -rf points
-#mkdir points
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #popd
 #pushd ${rware_dir}
 #make clean
@@ -387,8 +374,7 @@ fi
 #  has_failed="true"
 #fi
 #rm "$tmpfile"
-#rm -rf points
-#mkdir points
+#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 #popd
 #pushd ${rware_dir}
 #make clean

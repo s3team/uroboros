@@ -21,17 +21,3 @@ pushd $(pwd)/coreutils-64bit
 ./configure
 make -j 4
 popd
-
-export CC="arm-linux-gnueabihf-gcc"
-export CFLAGS="-mthumb -no-pie"
-pushd $(pwd)/coreutils-arm-thumb
-./configure --host=arm
-make -j 4
-popd
-
-export CC="aarch64-linux-gnu-gcc"
-export CFLAGS="-no-pie"
-pushd $(pwd)/coreutils-arm-64bit
-./configure --host=arm64
-make -j 4
-popd
