@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BINDIR=$(pwd)/test/coreutils-32bit/src
+BINDIR=$(pwd)/coreutils-32bit/src
 SRCDIR=$(pwd)/src
 
 # Define a list of programs to skip (e.g., dcgen, program2, program3)
@@ -70,7 +70,7 @@ rm *.help
 
 popd
 
-BINDIR=$(pwd)/test/coreutils-64bit/src
+BINDIR=$(pwd)/coreutils-64bit/src
 SRCDIR=$(pwd)/src
 
 pushd $SRCDIR
