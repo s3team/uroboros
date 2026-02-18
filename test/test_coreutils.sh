@@ -3,6 +3,12 @@
 BINDIR=$(pwd)/coreutils-32bit/src
 SRCDIR=$(pwd)/src
 
+if [[ ! -d "$BINDIR" ]]; then
+    pushd $(pwd)/install
+    bash install_coreutils.sh
+    popd
+fi
+
 # Define a list of programs to skip (e.g., dcgen, program2, program3)
 SKIP_PROGRAMS=("dcgen" "libstdbuf.so")
 
