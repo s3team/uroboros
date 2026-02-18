@@ -440,7 +440,7 @@ class func_slicer instrs funcs =
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
            end
-        | DoubleInstr (p, e, l, _, _, _) when (is_s_begin p e) ->
+        (*| DoubleInstr (p, e, l, _, _, _) when (is_s_begin p e) ->
            begin
              last_nop <- false;
              last_ret <- false;
@@ -448,8 +448,8 @@ class func_slicer instrs funcs =
              last_jmp <- false;
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
-           end
-        | SingleInstr (p, l, _, _, _) when (is_cet_begin p) ->
+           end*)
+        (*| SingleInstr (p, l, _, _, _) when (is_cet_begin p) ->
           begin
             let int_to_hex n =
               Printf.sprintf "0x%X" n
@@ -460,7 +460,7 @@ class func_slicer instrs funcs =
              last_jmp <- false;
              last_special <- false;
              func_begins <- l.loc_addr::func_begins
-          end
+          end*)
         | DoubleInstr (p, e, l, _, _, _) when (is_c_begin p e) ->
            begin
              last_nop <- false;
