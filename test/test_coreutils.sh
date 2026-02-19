@@ -4,9 +4,7 @@ BINDIR=$(pwd)/coreutils-32bit/src
 SRCDIR=$(pwd)/src
 
 if [[ ! -d "$BINDIR" ]]; then
-    pushd $(pwd)/install
-    bash install_coreutils.sh
-    popd
+    ./install/install_coreutils.sh
 fi
 
 # Define a list of programs to skip (e.g., dcgen, program2, program3)
