@@ -49,7 +49,7 @@ object (self)
     let ret = ref 0 in
 	  print_endline "1: linearly disassemble";
 
-    if arch = "thumb" || arch = "arm" then
+    if arch = "thumb" || (arch = "arm" && !is_32) then
       disassemble_arm_binary f
     else
       ret := Sys.command(objdump_command ^ " -Dr -j .text "^f^" > "^f^".temp");

@@ -54,7 +54,7 @@ def reassemble():
         os.system(f'{compiler} -no-pie final.s -lm -lrt -lpthread {compile_option} 2> final.error')
     else:
         # 64-bit binary
-        os.system(f'{compiler} -no-pie final.s -lm -lrt -lpthread -lcrypt -lgmp {compile_option} 2> final.error')
+        os.system(f'{compiler} -no-pie final.s -lm -lrt -lpthread {compile_option} 2> final.error')
 
 
 def parse_error():

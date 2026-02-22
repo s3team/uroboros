@@ -1209,9 +1209,6 @@ let add_call_seq_arg
       else
         Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
   in
-  let args' = List.map (
-    parse_arg
-  ) args
   in
   if EU.elf_arm () then
     (* first four arguments are on the stack *)

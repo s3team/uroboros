@@ -1,3 +1,12 @@
+def is_32():
+    lines = []
+    with open("elf.info") as f:
+        lines = f.readlines()
+    if "32-bit" in lines[0]:
+        return True
+    else:
+        return False
+
 def check_switch_pattern(lines):
     """
     Check if lines contain a switch table pattern.
@@ -316,7 +325,8 @@ def main(argv):
     handle_switch_tables(assembly_path)
     remove_unused_literal_pools_in_data(assembly_path)
     remove_caret(assembly_path)
-    insert_ltorg_directive(assembly_path)
+    if is_32():
+        insert_ltorg_directive(assembly_path)
     # remove_invalid_d2c_labels(assembly_path)
 
 
