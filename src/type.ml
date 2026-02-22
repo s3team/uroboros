@@ -377,11 +377,14 @@ and arm_arithmop =
   | VNMLS | VNMLA | VADD | VSUB | VDIV | VABS | VNEG
   | VSQRT | VRHADD | VADDL | VRADDHN | VMAX
   (* AArch64 *)
-  | ABS | ADDG | ADDPT | ADRP
+  | ABS | ADDG | ADDPT | ADRP | SXTW | SCVTF | FDIV
+  | FCVT | FSUB | FMUL | FADD
 and arm_logicop =
   | BIC | BICS | EOR | EORS | ORN | ORNS | ORR | ORRS
   | PKHBT | PKHTB | RBIT | REV | REV16 | REVSH | SBFX
   | UBFX
+  (* AArch64 *)
+  | UBFIZ
 and arm_rolop =
   | ASR | ASRS | LSL | LSLS | LSR | LSRS | ROR | RORS | RRX | RRXS
   | VQRSHL
@@ -408,12 +411,15 @@ and arm_assignop =
   | VSWP
   | FLDMIAX | FSTMIAX
   (* AArch64 *)
-  | STP | LDP
+  | STP | LDP | MOVI | FMOV | LDRSW | CSET | CSEL | LDUR
+  | STUR
 and arm_compareop =
   | CMN | CMP
   | TEQ
   | TST | VCMPE | VCMP
   | CMEQ
+  (* AArch64 *)
+  | FCMPE
 and arm_conditionop =
   | IT
   | ITE | ITT
@@ -728,7 +734,8 @@ let show_intel_reg = function
             | VMUL -> "vmul" | VNMUL -> "vnmul" | VMLA -> "vmla" | VMLS -> "vmls"
             | VNMLS -> "vnmls" | VNMLA -> "vnmla" | VADD -> "vadd" | VSUB -> "vsub" | VDIV -> "vdiv" | VABS -> "vabs" | VNEG -> "vneg"
             | VSQRT -> "vsqrt" | VRHADD -> "vrhadd" | VADDL -> "vaddl" | VRADDHN -> "vraddhn" | VMAX -> "vmax"
-            | ABS -> "abs" | ADDG -> "addg" | ADDPT -> "addpt" | ADRP -> "adrp"
+            | ABS -> "abs" | ADDG -> "addg" | ADDPT -> "addpt" | ADRP -> "adrp" | SXTW -> "sxtw" | SCVTF -> "scvtf" | FDIV -> "fdiv"
+            | FCVT -> "fcvt" | FSUB -> "fsub" | FMUL -> "fmul" | FADD -> "fadd"
           end
         | Arm_Logic acommon_logic ->
           begin
@@ -736,6 +743,7 @@ let show_intel_reg = function
             | BIC -> "bic" | BICS -> "bics" | EOR -> "eor" | EORS -> "eors" | ORN -> "orn" | ORNS -> "orns" | ORR -> "orr" | ORRS -> "orrs"
             | PKHBT -> "pkhbt" | PKHTB -> "pkhtb" | RBIT -> "rbit" | REV -> "rev" | REV16 -> "rev16" | REVSH -> "revsh" | SBFX -> "sbfx"
             | UBFX -> "ubfx"
+            | UBFIZ -> "ubfiz"
           end
         | Arm_Rol acommon_rol->
           begin
@@ -767,7 +775,8 @@ let show_intel_reg = function
             | VREV16 -> "vrev16" | VREV32 -> "vrev32" | VREV64 -> "vrev64"
             | VSWP -> "vswp"
             | FLDMIAX -> "fldmiax" | FSTMIAX -> "fstmiax"
-            | STP -> "stp" | LDP -> "ldp"
+            | STP -> "stp" | LDP -> "ldp" | MOVI -> "movi" | FMOV -> "fmov" | LDRSW -> "ldrsw" | CSET -> "cset" | CSEL -> "csel"
+            | LDUR -> "ldur" | STUR -> "stur"
           end
         | Arm_Compare acommon_compare ->
           begin
@@ -776,6 +785,7 @@ let show_intel_reg = function
             | TEQ -> "teq"
             | TST -> "tst" | VCMPE -> "vcmpe" | VCMP -> "vcmp"
             | CMEQ -> "cmeq"
+            | FCMPE -> "fcmpe"
           end
         | Arm_Other acommon_other ->
           begin

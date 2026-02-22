@@ -549,6 +549,13 @@ class arm_parse =
     | "addg" -> ADDG
     | "addpt" -> ADDPT
     | "adrp" -> ADRP
+    | "sxtw" -> SXTW
+    | "scvtf" -> SCVTF
+    | "fdiv" -> FDIV
+    | "fcvt" -> FCVT
+    | "fsub" -> FSUB
+    | "fmul" -> FMUL
+    | "fadd" -> FADD
     | _ -> raise ParseError
   and logicop_symb = function
     | "bic" -> BIC
@@ -567,6 +574,7 @@ class arm_parse =
     | "revsh" -> REVSH
     | "sbfx" -> SBFX
     | "ubfx" -> UBFX
+    | "ubfiz" -> UBFIZ
     | _ -> raise ParseError
   and rolop_symb = function
     | "asr" -> ASR
@@ -665,6 +673,13 @@ class arm_parse =
     | "vswp" -> VSWP
     | "fldmiax" -> FLDMIAX
     | "fstmiax" -> FSTMIAX
+    | "movi" -> MOVI
+    | "fmov" -> FMOV
+    | "ldrsw" -> LDRSW
+    | "cset" -> CSET
+    | "csel" -> CSEL
+    | "ldur" -> LDUR
+    | "stur" -> STUR
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmn" -> CMN
@@ -674,6 +689,7 @@ class arm_parse =
     | "vcmpe" -> VCMPE
     | "vcmp" -> VCMP
     | "cmeq" -> CMEQ
+    | "fcmpe" -> FCMPE
     | _ -> raise ParseError
   and conditionop_symb = function
     | "it" -> IT
