@@ -18,6 +18,141 @@ module Disam = struct
   open Type
   open Pp_print
 
+  let convert_adrp_to_abs_addr (il : instr list) : instr list =
+    let rec traverse il acc =
+      match il with
+      | [] -> acc
+      | h :: [] -> h :: acc
+      | h1 :: h2 :: t ->
+        begin
+          match h1, h2 with
+          | TripleInstr
+              ( Arm_OP (Arm_CommonOP Arm_Arithm ADRP, condsuff1, widthsuff1)
+              , Symbol JumpDes base_addr
+              , Reg exp1_reg
+              , loc1
+              , pre1
+              , tag1
+              , tags1
+              ),
+            FourInstr
+              ( Arm_OP (Arm_CommonOP Arm_Arithm ADD, condsuff2, widthsuff2)
+              , Const Immediate offset
+              , Reg exp2_reg1
+              , Reg exp2_reg2
+              , loc2
+              , pre2
+              , tag2
+              , tags2
+              ) when p_reg exp1_reg = p_reg exp2_reg1
+              ->
+                let abs_addr = base_addr + offset in
+                let pseudo_instr : instr =
+                  TripleInstr
+                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2)
+                    , Const (Point abs_addr)
+                    , Reg exp2_reg2
+                    , loc1
+                    , pre1
+                    , tag1
+                    , tags1
+                    )
+                in
+                traverse t (pseudo_instr :: acc)
+          | TripleInstr
+              ( Arm_OP (Arm_CommonOP Arm_Arithm ADRP, condsuff1, widthsuff1)
+              , Symbol (JumpDes base_addr)
+              , Reg exp1_reg
+              , loc1
+              , pre1
+              , tag1
+              , tags1
+              ),
+            TripleInstr
+              ( Arm_OP (Arm_CommonOP Arm_Assign LDR, condsuff2, widthsuff2)
+              , Ptr BinOP_PLUS (exp2_offset_reg, offset)
+              , Reg exp2_reg
+              , loc2
+              , pre2
+              , tag2
+              , tags2
+              ) when p_reg exp1_reg = p_reg exp2_reg && p_reg exp2_reg = p_reg exp2_offset_reg
+              ->
+                let abs_addr : int = base_addr + offset in
+                let pseudo_instr1 : instr =
+                  TripleInstr
+                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1)
+                    , Const (Point abs_addr)
+                    , Reg exp1_reg
+                    , loc1
+                    , pre1
+                    , tag1
+                    , tags1
+                    )
+                in
+                let pseudo_instr2 : instr =
+                  TripleInstr
+                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2)
+                    , Ptr (UnOP (exp1_reg))
+                    , Reg exp1_reg
+                    , loc2
+                    , pre2
+                    , tag2
+                    , tags2
+                    )
+                in
+                traverse t (pseudo_instr1 :: acc)
+          | TripleInstr
+              ( Arm_OP (Arm_CommonOP Arm_Arithm ADRP, condsuff1, widthsuff1)
+              , Symbol (JumpDes base_addr)
+              , Reg exp1_reg
+              , loc1
+              , pre1
+              , tag1
+              , tags1
+              ),
+            TripleInstr
+              ( Arm_OP (Arm_CommonOP Arm_Assign LDRB, condsuff2, widthsuff2)
+              , Ptr BinOP_PLUS (exp2_offset_reg, offset)
+              , Reg exp2_reg
+              , loc2
+              , pre2
+              , tag2
+              , tags2
+              ) when p_reg exp1_reg = p_reg exp2_offset_reg
+              ->
+                let abs_addr : int = base_addr + offset in
+                let pseudo_instr1 : instr =
+                  TripleInstr
+                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1)
+                    , Const (Point abs_addr)
+                    , Reg exp1_reg
+                    , loc1
+                    , pre1
+                    , tag1
+                    , tags1
+                    )
+                in
+                let pseudo_instr2 : instr =
+                  TripleInstr
+                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDRB), condsuff2, widthsuff2)
+                    , Ptr (UnOP (exp1_reg))
+                    , Reg exp2_reg
+                    , loc2
+                    , pre2
+                    , tag2
+                    , tags2
+                    )
+                in
+                traverse t (pseudo_instr1 :: acc)
+
+          | _ -> (
+            traverse (h2 :: t) (h1 :: acc)
+          )
+        end
+    in
+    List.rev (traverse il [])
+
   let disasm_skip f ba ea =
     let ba = string_of_int ba in
     let ea = string_of_int ea in
