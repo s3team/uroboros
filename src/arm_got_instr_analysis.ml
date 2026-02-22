@@ -44,10 +44,11 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
 
   (** Initialize ArmGotAbs struct *)
   let init () =
+    let module EU = ELF_utils in
     if not !initialized then begin
       initialized := true;
       Hashtbl.clear result;
-      init_literal_pools ();
+      if EU.elf_32 () then init_literal_pools ();
       init_got_addr ()
     end
     else ()

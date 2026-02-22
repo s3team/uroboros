@@ -1696,7 +1696,12 @@ class arm_reassemble =
       Enum.iter help filelines
 
     method text_as_data_collect =
-      let filelines = File.lines_of "text_section_as_data.txt"
+      let module EU = ELF_utils in
+      let filelines =
+        if EU.elf_32 () then
+          File.lines_of "text_section_as_data.txt"
+        else
+          BatEnum.empty ()
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -1707,7 +1712,12 @@ class arm_reassemble =
       Enum.iter help filelines
 
     method got_as_data_collect =
-      let filelines = File.lines_of "got_section_as_data.txt"
+      let module EU = ELF_utils in
+      let filelines =
+        if EU.elf_32 () then
+          File.lines_of "got_section_as_data.txt"
+        else
+          BatEnum.empty ()
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in

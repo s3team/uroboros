@@ -1,6 +1,16 @@
 from arm_inst import Inst
 
 
+def is_32():
+    lines = []
+    with open("elf.info") as f:
+        lines = f.readlines()
+    if "32-bit" in lines[0]:
+        return True
+    else:
+        return False
+
+
 class ArmConcreteEval(object):
     def __init_reg_dict(self):
         self.reg_value_dict = {}
@@ -9,13 +19,14 @@ class ArmConcreteEval(object):
             self.reg_value_dict[reg] = -1
 
     def init_code_data(self):
-        with open("text_section_as_data.txt", "r") as f:
-            lines = f.readlines()
-            for line in lines:
-                line = line.rstrip("\n")
-                line_arr = line.split(":")
-                addr = int(line_arr[0], 16)
-                self.__data_dict[addr] = line_arr[1]
+        if is_32():
+            with open("text_section_as_data.txt", "r") as f:
+                lines = f.readlines()
+                for line in lines:
+                    line = line.rstrip("\n")
+                    line_arr = line.split(":")
+                    addr = int(line_arr[0], 16)
+                    self.__data_dict[addr] = line_arr[1]
 
     def init_got_data(self):
         got_start_addr = None
