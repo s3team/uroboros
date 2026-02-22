@@ -153,6 +153,13 @@ module Disam = struct
         else
           ail_parser#get_instrs
       in
+      let il_init =
+        if EU.elf_arm () && EU.elf_64 () then
+          (* ARM64 specific *)
+          convert_adrp_to_abs_addr il_init
+        else
+          il_init
+      in
 
       let got_rewrite (il : instr list) =
         if EU.elf_32 () && arch = "intel" then
@@ -209,7 +216,7 @@ module Disam = struct
         else if EU.elf_64 () && arch = "intel" then
           re#jmp_table_rewrite64 @@ il_init
         else begin
-            FnU.replace_got_ref AGA.result @@ ail_parser#get_instrs
+            FnU.replace_got_ref AGA.result @@ il_init
             (* The postprocess should be executed after symbolization completed.
              * Note that the symbolization-related functions such as vinst2 and v_exp2
              * are called by visit_type_infer_analysis and visit_heuristic_analysis.
