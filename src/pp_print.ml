@@ -1,5 +1,24 @@
 open Type
 
+let read_file (filename : string) : string list =
+  let lines = ref [] in
+  let chan = open_in filename in
+  try
+    while true do
+      lines := input_line chan :: !lines
+    done;
+    []
+  with End_of_file ->
+    close_in chan;
+    List.rev !lines
+
+let elf_64 () =
+  (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
+  try
+    ignore (Str.search_forward (Str.regexp_string "ELF 64-bit") l 0);
+    true
+  with Not_found -> false
+
 let flip f x y = f y x
 let comment_sym = ref ""
 
@@ -16,7 +35,7 @@ let p_condsuff condsuff = match condsuff with
     |> last_ele
     |> String.lowercase_ascii
 
-let p_op p = match p with
+let p_op = function
   | Undefined_OP -> "undefined op" (* only for debugging messages *)
   | Intel_OP ip ->
     show_intel_op ip
@@ -42,10 +61,16 @@ let p_op p = match p with
           |> String.lowercase_ascii in
         ao1_str^"."^ao2_str
     in
-    if widthsuff_str = "" then
-      (ap_str^condsuff_str)
+    if elf_64 () then
+      if condsuff_str = "" then
+        ap_str
+      else
+        (ap_str^"."^condsuff_str)
     else
-      (ap_str^condsuff_str^"."^widthsuff_str)
+      if widthsuff_str = "" then
+        (ap_str^condsuff_str)
+      else
+        (ap_str^condsuff_str^"."^widthsuff_str)
 
 let p_reg p =
   let p_intel_reg' p =

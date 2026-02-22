@@ -41,6 +41,8 @@ RUN apt-get install -y -q \
     gdb-multiarch \
     gcc-arm-linux-gnueabihf \
     g++-arm-linux-gnueabihf \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
     binutils-arm-linux-gnueabihf \
     libgmp-dev
 

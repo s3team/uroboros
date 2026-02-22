@@ -1122,6 +1122,7 @@ object (self)
     ) lines;
 
   method process_instrs (l : string list) (arch : string) =
+    let module EU = ELF_utils in
     let cat_tail s =
       match s with
       | [] -> "" (* this will never happen*)
@@ -1204,7 +1205,7 @@ object (self)
     List.iter help l';
     if arch = "arm" || arch = "thumb" then begin
       self#build_address_hex_map ();
-      self#remove_literal_pools instrs;
+      if EU.elf_32 () then self#remove_literal_pools instrs;
       instrs <- self#adjust_width_specifier instrs;
     end;
     if arch = "thumb" then begin

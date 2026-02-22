@@ -79,7 +79,7 @@ has_failed="false"
 echo ">>> test00"
 
 pushd $(pwd)/src
-cp point_examples/points.test00.32.ins points/
+cp point_examples/points.test00.intel.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test00/test00.intel.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -95,7 +95,7 @@ find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 pushd $(pwd)/src
-cp point_examples/points.test00.64.ins points/
+cp point_examples/points.test00.intel.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test00/test00.intel.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -113,11 +113,11 @@ popd
 ##########
 # test01 #
 ##########
-# old instrumentation
+# test old instrumentation approach
 #echo ">>> test01"
 #
 #pushd $(pwd)/src
-#cp point_examples/points.test01.32.ins points/
+#cp point_examples/points.test01.intel.32.ins points/
 #echo "0x804919d" > instrument_locs.ins
 #tmpfile=$(mktemp)
 #python3 uroboros.py $(pwd)/../test/test01/test01.intel.32.nopie.dynamic.sym &> /dev/null
@@ -134,7 +134,7 @@ popd
 #popd
 #
 #pushd $(pwd)/src
-#cp point_examples/points.test01.64.ins points/
+#cp point_examples/points.test01.intel.64.ins points/
 #echo "0x401162" > instrument_locs.ins
 #tmpfile=$(mktemp)
 #python3 uroboros.py $(pwd)/../test/test01/test01.intel.64.nopie.dynamic.sym &> /dev/null
@@ -156,7 +156,7 @@ popd
 echo ">>> test05"
 
 pushd $(pwd)/src
-cp point_examples/points.test05.32.ins points/
+cp point_examples/points.test05.intel.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test05/test05.intel.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -172,7 +172,7 @@ find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 pushd $(pwd)/src
-cp point_examples/points.test05.64.ins points/
+cp point_examples/points.test05.intel.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test05/test05.intel.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -193,7 +193,7 @@ popd
 echo ">>> test07"
 
 pushd $(pwd)/src
-cp point_examples/points.test07.32.ins points/
+cp point_examples/points.test07.intel.32.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test07/test07.intel.32.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -209,7 +209,7 @@ find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 popd
 
 pushd $(pwd)/src
-cp point_examples/points.test07.64.ins points/
+cp point_examples/points.test07.intel.64.ins points/
 tmpfile=$(mktemp)
 python3 uroboros.py $(pwd)/../test/test07/test07.intel.64.nopie.dynamic.sym &> /dev/null
 $(pwd)/a.out &> "$tmpfile"
@@ -233,7 +233,7 @@ fi
 ############
 #echo ">>> 32-bit simul_io"
 #pushd $(pwd)/src
-#cp ../test/simul_io/points.float_capture.32.ins points/
+#cp ../test/simul_io/points.float_capture.intel.32.ins points/
 #cp ../test/simul_io/capture.c capture.c
 #tmpfile=$(mktemp)
 #python3 uroboros.py $(pwd)/../test/simul_io/simul_io.32.nopie.dynamic.sym &> /dev/null
@@ -252,7 +252,7 @@ fi
 #
 #echo ">>> 64-bit simul_io"
 #pushd $(pwd)/src
-#cp ../test/simul_io/points.float_capture.64.ins points/
+#cp ../test/simul_io/points.float_capture.intel.64.ins points/
 #cp ../test/simul_io/capture.c capture.c
 #tmpfile=$(mktemp)
 #python3 uroboros.py $(pwd)/../test/simul_io/simul_io.64.nopie.dynamic.sym &> /dev/null
@@ -279,7 +279,7 @@ fi
 #make
 #popd
 #pushd $(pwd)/src
-#cp ${rware_dir}/points.rware.32.ins points/
+#cp ${rware_dir}/points.rware.intel.32.ins points/
 #tmpfile=$(mktemp)
 #python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
 #$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
@@ -306,7 +306,7 @@ fi
 #make -f Makefile64
 #popd
 #pushd $(pwd)/src
-#cp ${rware_dir}/points.rware.64.ins points/
+#cp ${rware_dir}/points.rware.intel.64.ins points/
 #tmpfile=$(mktemp)
 #python3 uroboros.py ${rware_dir}/build/rware &> /dev/null
 #$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
@@ -337,7 +337,7 @@ fi
 #make
 #popd
 #pushd $(pwd)/src
-#cp ${rware_dir}/points.genecdh.32.ins points/
+#cp ${rware_dir}/points.genecdh.intel.32.ins points/
 #tmpfile=$(mktemp)
 #python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
 #$(pwd)/a.out genkey &> "$tmpfile"
@@ -362,7 +362,7 @@ fi
 #make -f Makefile64
 #popd
 #pushd $(pwd)/src
-#cp ${rware_dir}/points.genecdh.64.ins points/
+#cp ${rware_dir}/points.genecdh.intel.64.ins points/
 #tmpfile=$(mktemp)
 #python3 uroboros.py ${rware_dir}/build/genecdh &> /dev/null
 #$(pwd)/a.out genkey &> "$tmpfile"

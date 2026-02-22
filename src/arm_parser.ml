@@ -549,6 +549,13 @@ class arm_parse =
     | "addg" -> ADDG
     | "addpt" -> ADDPT
     | "adrp" -> ADRP
+    | "sxtw" -> SXTW
+    | "scvtf" -> SCVTF
+    | "fdiv" -> FDIV
+    | "fcvt" -> FCVT
+    | "fsub" -> FSUB
+    | "fmul" -> FMUL
+    | "fadd" -> FADD
     | _ -> raise ParseError
   and logicop_symb = function
     | "bic" -> BIC
@@ -567,6 +574,7 @@ class arm_parse =
     | "revsh" -> REVSH
     | "sbfx" -> SBFX
     | "ubfx" -> UBFX
+    | "ubfiz" -> UBFIZ
     | _ -> raise ParseError
   and rolop_symb = function
     | "asr" -> ASR
@@ -665,6 +673,13 @@ class arm_parse =
     | "vswp" -> VSWP
     | "fldmiax" -> FLDMIAX
     | "fstmiax" -> FSTMIAX
+    | "movi" -> MOVI
+    | "fmov" -> FMOV
+    | "ldrsw" -> LDRSW
+    | "cset" -> CSET
+    | "csel" -> CSEL
+    | "ldur" -> LDUR
+    | "stur" -> STUR
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmn" -> CMN
@@ -674,6 +689,7 @@ class arm_parse =
     | "vcmpe" -> VCMPE
     | "vcmp" -> VCMP
     | "cmeq" -> CMEQ
+    | "fcmpe" -> FCMPE
     | _ -> raise ParseError
   and conditionop_symb = function
     | "it" -> IT
@@ -801,6 +817,13 @@ class arm_parse =
   in
 
   let op_cond_symb (s : string) (is_special : bool) =
+    let strip_trailing_dot (s : string) : string =
+      let len = String.length s in
+      if len > 0 && s.[len - 1] = '.' then
+        String.sub s 0 (len - 1)
+      else
+        s
+    in
     try (op_symb s is_special, None)
     with _ -> (
       try
@@ -817,7 +840,8 @@ class arm_parse =
           else
             let cond_str = String.sub s (len-2) 2 in
             let op_str = String.sub s 0 (len-2) in
-            let op = op_symb op_str is_special in
+            let op_str' = strip_trailing_dot op_str in
+            let op = op_symb op_str' is_special in
             let cond = condsuff_symb cond_str in
             (op, Some cond)
       with _ -> raise ParseError)
@@ -1026,31 +1050,38 @@ class arm_parse =
 
   (** [is_special] is used to make stmdb and ldmia opcodes parsed to stackop *)
   method push_stack lex (is_special : bool) =
+    let module EU = ELF_utils in
     match lex with
     | Lop s ->
       let str_list = Str.split (Str.regexp_string ".") in
       if contains ~str:s ~sub_str:"undefined" then
         Op (Undefined_OP)
       else
-        if (List.length (str_list s)) = 2 then
-        let op_str = List.nth (str_list s) 0 in
-        let widthsuff_str = List.nth (str_list s) 1 in
-        let widthsuff = widthsuff_symb widthsuff_str in
-        let op, cond = op_cond_symb op_str is_special in
-        Op (Arm_OP (op, cond, Some (widthsuff)))
-      else if (List.length (str_list s)) = 3 then
-        let op_str = List.nth (str_list s) 0 in
-        let qualifier_str =
-          (List.nth (str_list s) 1) ^ "." ^ (List.nth (str_list s) 2)
-        in
-        let op, cond = op_cond_symb op_str is_special in
-        let suffix = widthsuff_symb qualifier_str in
-        Op (Arm_OP (op, cond, Some (suffix)))
-      else
-        let op, cond = op_cond_symb s is_special in
-        Op (Arm_OP (op, cond, None))
-    | Lexp s -> Exp (self#exp_symb s)
-    | Lloc s -> Loc (loc_symb s)
+        if EU.elf_32 () then
+          if (List.length (str_list s)) = 2 then
+            let op_str = List.nth (str_list s) 0 in
+            let widthsuff_str = List.nth (str_list s) 1 in
+            let widthsuff = widthsuff_symb widthsuff_str in
+            let op, cond = op_cond_symb op_str is_special in
+            Op (Arm_OP (op, cond, Some (widthsuff)))
+          else if (List.length (str_list s)) = 3 then
+            let op_str = List.nth (str_list s) 0 in
+            let qualifier_str =
+              (List.nth (str_list s) 1) ^ "." ^ (List.nth (str_list s) 2)
+            in
+            let op, cond = op_cond_symb op_str is_special in
+            let suffix = widthsuff_symb qualifier_str in
+            Op (Arm_OP (op, cond, Some (suffix)))
+          else
+            let op, cond = op_cond_symb s is_special in
+            Op (Arm_OP (op, cond, None))
+        else
+          let op, cond = op_cond_symb s is_special in
+          Op (Arm_OP (op, cond, None))
+    | Lexp s ->
+      Exp (self#exp_symb s)
+    | Lloc s ->
+      Loc (loc_symb s)
     | _ -> raise ParseError
 
     method reduce_stack stack pre (tag : tag option) =
@@ -1117,6 +1148,11 @@ class arm_parse =
 
   method parse_instr instr loc (arch : string) =
     self#init_process;
+    let remove_comment (s : string) : string =
+      match Str.split (Str.regexp "//") s with
+      | [] -> ""
+      | first :: _ -> first
+    in
     let compact (instr : string) =
       (* See [arm_postprocess.py#remove_caret] *)
       let instr' = Str.global_replace (Str.regexp ", ") "," instr in
@@ -1125,7 +1161,7 @@ class arm_parse =
         instr'
       else instr'
     in
-    let compact_instr = compact instr in
+    let compact_instr = remove_comment (compact instr) in
     let pre = prefix_identify compact_instr in
     (* let (compact_instr, tag) = tag_identify compact_instr in *)
     let compact_instr' = prefix_sub compact_instr in

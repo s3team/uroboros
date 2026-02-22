@@ -64,7 +64,7 @@ timestamp (e.g., `test_fold_bzip_2021-09-19_05:51:00`).
 
 3. --arch (architecture):
 
-Uroboros supports both **x86** (`--arch intel`) and **ARM Thumb** (`--arch thumb`). `--arch intel` is applied by default. To work with ARM Thumb binaries, please refer to [ARM.md](ARM.md).
+Uroboros supports **x86** (`--arch intel`), **ARM Thumb** (`--arch thumb`), and **ARM64** (`--arch arm`). `--arch intel` is applied by default. To work with ARM Thumb and ARM64 binaries, please refer to [ARM.md](ARM.md).
 
 ## Instrumentation
 

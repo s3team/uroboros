@@ -1696,7 +1696,12 @@ class arm_reassemble =
       Enum.iter help filelines
 
     method text_as_data_collect =
-      let filelines = File.lines_of "text_section_as_data.txt"
+      let module EU = ELF_utils in
+      let filelines =
+        if EU.elf_32 () then
+          File.lines_of "text_section_as_data.txt"
+        else
+          BatEnum.empty ()
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -1707,7 +1712,12 @@ class arm_reassemble =
       Enum.iter help filelines
 
     method got_as_data_collect =
-      let filelines = File.lines_of "got_section_as_data.txt"
+      let module EU = ELF_utils in
+      let filelines =
+        if EU.elf_32 () then
+          File.lines_of "got_section_as_data.txt"
+        else
+          BatEnum.empty ()
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -2587,6 +2597,7 @@ class arm_reassemble =
     method reassemble_dump_1 = self#data_dump_1
 
     method add_func_label ufuncs instrs =
+      let module EU = ELF_utils in
       let rec help acc fl il =
         match (fl, il) with
         | [], il' -> List.rev_append il' acc
@@ -2594,10 +2605,16 @@ class arm_reassemble =
             let iloc = get_loc hi in
             if hf.func_begin_addr = iloc.loc_addr then
               let iloc' =
-                {
-                  iloc with
-                  loc_label = ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label;
-                }
+                if EU.elf_32 () then
+                  {
+                    iloc with
+                    loc_label = ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label;
+                  }
+                else
+                  {
+                    iloc with
+                    loc_label = hf.func_name ^ ":\n" ^ iloc.loc_label;
+                  }
               in
               let hi' = set_loc hi iloc' in
               help acc tf (hi' :: ti)

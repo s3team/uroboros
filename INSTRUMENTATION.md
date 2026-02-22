@@ -18,13 +18,13 @@ To use Uroboros for instrumentation,
 specify the set of instrumentation points in a file placed in `src/points/`.
 `src/point_examples/` contains multiple example instrumentation files:
 
-- `points.test00.32.ins` and `points.test00.64.ins`
+- `points.test00.intel.32.ins` and `points.test00.intel.64.ins`
 for executables `test00.intel.32.nopie.dynamic.sym` and `test00.intel.64.nopie.dynamic.sym`
-- `points.test01.32.ins` and `points.test01.64.ins`
+- `points.test01.intel.32.ins` and `points.test01.intel.64.ins`
 for executables `test01.intel.32.nopie.dynamic.sym` and `test01.intel.64.nopie.dynamic.sym`
-- `points.test05.32.ins` and `points.test05.64.ins`
+- `points.test05.intel.32.ins` and `points.test05.intel.64.ins`
 for executables `test05.intel.32.nopie.dynamic.sym` and `test05.intel.64.nopie.dynamic.sym`
-- `points.test07.32.ins` and `points.test07.64.ins`
+- `points.test07.intel.32.ins` and `points.test07.intel.64.ins`
 for executables `test07.intel.32.nopie.dynamic.sym` and `test07.intel.64.nopie.dynamic.sym`
 
 To use an example instrumentation file, copy the file to `src/points/` before executing `uroboros.py`.
@@ -104,7 +104,7 @@ Semicolon denotes the end of an instrumentation point.
 
 ### Examples
 
-<details><summary>:point_right: <b>example 1 (points.test05.32.ins and points.test05.64.ins)</b></summary>
+<details><summary>:point_right: <b>example 1 (points.test05.intel.32.ins and points.test05.intel.64.ins)</b></summary>
 
 ```
 INSERT BEFORE [print_info] CALLSITE [] "gcc -no-pie -c ./instr_modules/c/fun.c" C before_print_info ./instr_modules/c/fun.c;
@@ -137,15 +137,15 @@ xor %ecx, %ecx";
 ```
 The above will insert before the function exit of `print_info` (i.e., before the `ret` instruction in `print_info`) with the three `xor` instructions.
 
-Overall, the combined examples can be found in the provided `points.test05.64.ins` (located in `src/point_examples/`). For the binary `test/test05/test05.intel.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test05.intel.64.ins` (located in `src/point_examples/`). For the binary `test/test05/test05.intel.64.nopie.dynamic.sym` (source is located at `test/test05.c`), its output is the following
 ```
 name: Jinquan Zhang
 age: 26
 gender: m
 ```
-After placing the provided `points.test05.64.ins` in `src/points/` and running Uroboros:
+After placing the provided `points.test05.intel.64.ins` in `src/points/` and running Uroboros:
 ```
-cp src/point_examples/points.test05.64.ins src/points/
+cp src/point_examples/points.test05.intel.64.ins src/points/
 python3 uroboros.py test/test05/test05.intel.64.nopie.dynamic.sym
 ```
 the output of the recompiled `a.out` is the following:
@@ -160,7 +160,7 @@ called 2 times
 
 </details>
 
-<details><summary>:point_right: <b>example 2 (points.test00.32.ins and points.test00.64.ins)</b></summary>
+<details><summary>:point_right: <b>example 2 (points.test00.intel.32.ins and points.test00.intel.64.ins)</b></summary>
 
 In the following, we will discuss examples for `INSERTCALL` to insert user-defined functions that takes arguments.
 
@@ -179,14 +179,14 @@ INSERTCALL BEFORE [puts] CALLSITE [var:X] "gcc -c ./instr_modules/c/fun.c" C pri
 ```
 The above will insert a call to `print_string` (defined in `fun.c`) with argument `X` (defined in the binary) before puts' callsites.
 
-Overall, the combined examples can be found in the provided `points.test00.64.ins` (located in `src/point_examples/`). For the binary `test/test00/test00.intel.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
+Overall, the combined examples can be found in the provided `points.test00.intel.64.ins` (located in `src/point_examples/`). For the binary `test/test00/test00.intel.64.nopie.dynamic.sym` (source is located at `test/test00.c`), its output is the following
 ```
 10
 hello world
 ```
-After placing the provided `points.test00.64.ins` in `src/points/` and running Uroboros:
+After placing the provided `points.test00.intel.64.ins` in `src/points/` and running Uroboros:
 ```
-cp src/point_examples/points.test00.64.ins src/points
+cp src/point_examples/points.test00.intel.64.ins src/points
 python3 uroboros.py test/test00/test00.intel.64.nopie.dynamic.sym
 ```
 the output of the recompiled `a.out` is the following:
@@ -201,7 +201,7 @@ hello world
 
 </details>
 
-<details><summary>:point_right: <b>example 3 (points.test07.32.ins and points.test07.64.ins)</b></summary>
+<details><summary>:point_right: <b>example 3 (points.test07.intel.32.ins and points.test07.intel.64.ins)</b></summary>
 
 In the following, we will discuss examples for `PRINTARGS` to print arguments of
 a function before the callsite.
@@ -217,13 +217,13 @@ PRINTARGS BEFORE [printf] CALLSITE [char*:-,int:-] "" C x x;
 ```
 Similarly, the above ainserts instructions to print the two arguments of printf before its call.
 
-Overall, the combined examples can be found in the provided `points.test07.64.ins`
+Overall, the combined examples can be found in the provided `points.test07.intel.64.ins`
 (located in `src/point_examples/`). For the binary `test/test07/test07.intel.64.nopie.dynamic.sym`
 (source is located at `test/test07.c`), its output is the following
 ```
 3628800
 ```
-After placing the provided `points.test07.64.ins` in `src/points/` and running Uroboros:
+After placing the provided `points.test07.intel.64.ins` in `src/points/` and running Uroboros:
 ```
 int arg: 10
 int arg: 3628800
@@ -253,7 +253,7 @@ entrypoint. Examples OCaml modules can be found in the folder `src/instr_modules
 
 ### Examples
 
-<details><summary>:point_right: <b>example 1 (points.test01.32.ins and points.test01.64.ins)</b></summary>
+<details><summary>:point_right: <b>example 1 (points.test01.intel.32.ins and points.test01.intel.64.ins)</b></summary>
 
 ```
 user instr_modules/instr_asm.ml;
@@ -266,7 +266,7 @@ user instr_modules/instr_c.ml;
 ```
 `instr_c.ml` inserts the compiled C code for the C source defined in the file `generic_instr_fun.c` at locations defined in the file `instrument_locs.ins`.
 
-The instrumentation files `points.test01.32.ins` and `points.test01.64.ins`
+The instrumentation files `points.test01.intel.32.ins` and `points.test01.intel.64.ins`
 contain the above two instrumentation points to insert both user-defined C and
 assembly code in the executables `test01.intel.32.nopie.dynamic.sym` and `test01.intel.64.nopie.dynamic.sym`, respectively:
 ```
