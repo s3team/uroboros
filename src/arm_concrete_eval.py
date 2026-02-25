@@ -63,7 +63,9 @@ class ArmConcreteEval(object):
                 data_addr += 1
                 if data_addr % 4 == 0:
                     if self.arch == "thumb":
-                        word_data_str = hex(int(word_data_str, 16) - 1).replace("0x", "")
+                        word_data_str = hex(int(word_data_str, 16) - 1).replace(
+                            "0x", ""
+                        )
                     elif self.arch == "arm":
                         word_data_str = hex(int(word_data_str, 16)).replace("0x", "")
                     else:

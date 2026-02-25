@@ -24,7 +24,7 @@ void analogWrite(int pin, float value) {
 int main() {
     int counter = 0;
     int cycle = 0;
-    while (1) {
+    for (int i=0; i < 5; i++) {
     printf("Cycle: %d\n", cycle);
         int dv = digitalRead(counter);
         dv = dv ^ ((cycle & (1 << counter)) ? 1 : 0); 

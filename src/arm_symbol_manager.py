@@ -2,7 +2,6 @@
 
 import sys
 
-
 # Pre-compute all valid branch opcodes for O(1) lookup
 _VALID_BRANCH_OPCODES = None
 

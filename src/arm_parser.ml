@@ -556,6 +556,10 @@ class arm_parse =
     | "fsub" -> FSUB
     | "fmul" -> FMUL
     | "fadd" -> FADD
+    | "smulh" -> SMULH
+    | "umulh" -> UMULH
+    | "csinc" -> CSINC
+    | "dup" -> DUP
     | _ -> raise ParseError
   and logicop_symb = function
     | "bic" -> BIC
@@ -575,6 +579,11 @@ class arm_parse =
     | "sbfx" -> SBFX
     | "ubfx" -> UBFX
     | "ubfiz" -> UBFIZ
+    | "sbfiz" -> SBFIZ
+    | "sshl" -> SSHL
+    | "ushl" -> USHL
+    | "shl" -> SHL
+    | "extr" -> EXTR
     | _ -> raise ParseError
   and rolop_symb = function
     | "asr" -> ASR
@@ -680,6 +689,11 @@ class arm_parse =
     | "csel" -> CSEL
     | "ldur" -> LDUR
     | "stur" -> STUR
+    | "movk" -> MOVK
+    | "ldurb" -> LDURB
+    | "sturb" -> STURB
+    | "tbl" -> TBL
+    | "tbnz" -> TBNZ
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmn" -> CMN
@@ -690,6 +704,7 @@ class arm_parse =
     | "vcmp" -> VCMP
     | "cmeq" -> CMEQ
     | "fcmpe" -> FCMPE
+    | "ccmp" -> CCMP
     | _ -> raise ParseError
   and conditionop_symb = function
     | "it" -> IT
@@ -707,6 +722,7 @@ class arm_parse =
     | "itete" -> ITETE
     | "iteet" -> ITEET
     | "iteee" -> ITEEE
+    | "tbz" -> TBZ
     | _ -> raise ParseError
   and otherop_symb = function
     | "nop" -> NOP
@@ -745,6 +761,7 @@ class arm_parse =
     | "retabsppc" -> RETABSPPC
     | "retaasppcr" -> RETAASPPCR
     | "retabsppcr" -> RETABSPPCR
+    | "blr" -> BLR
     | _ -> raise ParseError
   in
 
@@ -819,10 +836,7 @@ class arm_parse =
   let op_cond_symb (s : string) (is_special : bool) =
     let strip_trailing_dot (s : string) : string =
       let len = String.length s in
-      if len > 0 && s.[len - 1] = '.' then
-        String.sub s 0 (len - 1)
-      else
-        s
+      if len > 0 && s.[len - 1] = '.' then String.sub s 0 (len - 1) else s
     in
     try (op_symb s is_special, None)
     with _ -> (
@@ -830,22 +844,21 @@ class arm_parse =
         (* get last two characters *)
         let len = String.length s in
         if len < 2 then raise ParseError
+        else if contains ~str:s ~sub_str:"<und>" then
+          let cond_str = String.sub s (len - 5) 5 in
+          let op_str = String.sub s 0 (len - 5) in
+          let op = op_symb op_str is_special in
+          let cond = condsuff_symb cond_str in
+          (op, Some cond)
         else
-          if contains ~str:s ~sub_str:"<und>" then
-            let cond_str = String.sub s (len-5) 5 in
-            let op_str = String.sub s 0 (len-5) in
-            let op = op_symb op_str is_special in
-            let cond = condsuff_symb cond_str in
-            (op, Some cond)
-          else
-            let cond_str = String.sub s (len-2) 2 in
-            let op_str = String.sub s 0 (len-2) in
-            let op_str' = strip_trailing_dot op_str in
-            let op = op_symb op_str' is_special in
-            let cond = condsuff_symb cond_str in
-            (op, Some cond)
+          let cond_str = String.sub s (len - 2) 2 in
+          let op_str = String.sub s 0 (len - 2) in
+          let op_str' = strip_trailing_dot op_str in
+          let op = op_symb op_str' is_special in
+          let cond = condsuff_symb cond_str in
+          (op, Some cond)
       with _ -> raise ParseError)
-    in
+  in
 
   let unptr_symb s =
     let l = String.length s in
@@ -1029,60 +1042,55 @@ class arm_parse =
         true
       with _ -> false
 
-  method exp_symb s =
-    (* To prevent the following instruction to be classified as a Symbol,
-     * check if an instruction contains an inline shift:
-     * andeq r0,r0,ip,lsl r0 *)
-    if self#is_inline_shift s then
-      Label (s)
-    else
-      try Ptr (self#ptr_symb s)
-      with _ ->
-        try Reg (Arm_Reg (reg_symb s))
-        with _ ->
-          try Const (const_symb s)
-          with _ ->
-            try Symbol (self#symbol_symb s)
-            with _ ->
-              try Label (s)   (* we just consider these as labels *)
-              with _ ->
-                raise ParseError
-
-  (** [is_special] is used to make stmdb and ldmia opcodes parsed to stackop *)
-  method push_stack lex (is_special : bool) =
-    let module EU = ELF_utils in
-    match lex with
-    | Lop s ->
-      let str_list = Str.split (Str.regexp_string ".") in
-      if contains ~str:s ~sub_str:"undefined" then
-        Op (Undefined_OP)
+    method exp_symb s =
+      (* To prevent the following instruction to be classified as a Symbol,
+       * check if an instruction contains an inline shift:
+       * andeq r0,r0,ip,lsl r0 *)
+      if self#is_inline_shift s then Label s
       else
-        if EU.elf_32 () then
-          if (List.length (str_list s)) = 2 then
-            let op_str = List.nth (str_list s) 0 in
-            let widthsuff_str = List.nth (str_list s) 1 in
-            let widthsuff = widthsuff_symb widthsuff_str in
-            let op, cond = op_cond_symb op_str is_special in
-            Op (Arm_OP (op, cond, Some (widthsuff)))
-          else if (List.length (str_list s)) = 3 then
-            let op_str = List.nth (str_list s) 0 in
-            let qualifier_str =
-              (List.nth (str_list s) 1) ^ "." ^ (List.nth (str_list s) 2)
-            in
-            let op, cond = op_cond_symb op_str is_special in
-            let suffix = widthsuff_symb qualifier_str in
-            Op (Arm_OP (op, cond, Some (suffix)))
+        try Ptr (self#ptr_symb s)
+        with _ -> (
+          try Reg (Arm_Reg (reg_symb s))
+          with _ -> (
+            try Const (const_symb s)
+            with _ -> (
+              try Symbol (self#symbol_symb s)
+              with _ -> (
+                try Label s (* we just consider these as labels *)
+                with _ -> raise ParseError))))
+
+    method push_stack lex (is_special : bool) =
+      let module EU = ELF_utils in
+      match lex with
+      | Lop s ->
+          let str_list = Str.split (Str.regexp_string ".") in
+          if contains ~str:s ~sub_str:"undefined" then Op Undefined_OP
+          else if EU.elf_32 () then
+            if List.length (str_list s) = 2 then
+              let op_str = List.nth (str_list s) 0 in
+              let widthsuff_str = List.nth (str_list s) 1 in
+              let widthsuff = widthsuff_symb widthsuff_str in
+              let op, cond = op_cond_symb op_str is_special in
+              Op (Arm_OP (op, cond, Some widthsuff))
+            else if List.length (str_list s) = 3 then
+              let op_str = List.nth (str_list s) 0 in
+              let qualifier_str =
+                List.nth (str_list s) 1 ^ "." ^ List.nth (str_list s) 2
+              in
+              let op, cond = op_cond_symb op_str is_special in
+              let suffix = widthsuff_symb qualifier_str in
+              Op (Arm_OP (op, cond, Some suffix))
+            else
+              let op, cond = op_cond_symb s is_special in
+              Op (Arm_OP (op, cond, None))
           else
             let op, cond = op_cond_symb s is_special in
             Op (Arm_OP (op, cond, None))
-        else
-          let op, cond = op_cond_symb s is_special in
-          Op (Arm_OP (op, cond, None))
-    | Lexp s ->
-      Exp (self#exp_symb s)
-    | Lloc s ->
-      Loc (loc_symb s)
-    | _ -> raise ParseError
+      | Lexp s -> Exp (self#exp_symb s)
+      | Lloc s -> Loc (loc_symb s)
+      | _ -> raise ParseError
+    (** [is_special] is used to make stmdb and ldmia opcodes parsed to stackop
+    *)
 
     method reduce_stack stack pre (tag : tag option) =
       match stack with
@@ -1146,42 +1154,40 @@ class arm_parse =
 
     method init_process = call_des := false
 
-  method parse_instr instr loc (arch : string) =
-    self#init_process;
-    let remove_comment (s : string) : string =
-      match Str.split (Str.regexp "//") s with
-      | [] -> ""
-      | first :: _ -> first
-    in
-    let compact (instr : string) =
-      (* See [arm_postprocess.py#remove_caret] *)
-      let instr' = Str.global_replace (Str.regexp ", ") "," instr in
-      if contains ~str:instr' ~sub_str:" " then
-        let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
-        instr'
-      else instr'
-    in
-    let compact_instr = remove_comment (compact instr) in
-    let pre = prefix_identify compact_instr in
-    (* let (compact_instr, tag) = tag_identify compact_instr in *)
-    let compact_instr' = prefix_sub compact_instr in
-    let is_special_stackop (i : string) =
-      if contains ~str:i ~sub_str:"stmdb" && contains ~str:i ~sub_str:"sp!" then
-        true
-      else if contains ~str:i ~sub_str:"ldmia" && contains ~str:i ~sub_str:"sp!" then
-        true
-      else false
-    in
-    let is_special = is_special_stackop compact_instr' in
-    let lexem_list = Array.to_list (lexer compact_instr' loc arch) in
-    let s : stack_type list = [] in
-    let parse_one s l =
-      match l with
-      | Lend -> s
-      | _ -> (self#push_stack l is_special)::s
-    in
-  let stack = List.fold_left parse_one s lexem_list in
-  let parsed_instr = self#reduce_stack stack pre None in
-  parsed_instr
-
-end
+    method parse_instr instr loc (arch : string) =
+      self#init_process;
+      let remove_comment (s : string) : string =
+        match Str.split (Str.regexp "//") s with
+        | [] -> ""
+        | first :: _ -> first
+      in
+      let compact (instr : string) =
+        (* See [arm_postprocess.py#remove_caret] *)
+        let instr' = Str.global_replace (Str.regexp ", ") "," instr in
+        if contains ~str:instr' ~sub_str:" " then
+          let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
+          instr'
+        else instr'
+      in
+      let compact_instr = remove_comment (compact instr) in
+      let pre = prefix_identify compact_instr in
+      (* let (compact_instr, tag) = tag_identify compact_instr in *)
+      let compact_instr' = prefix_sub compact_instr in
+      let is_special_stackop (i : string) =
+        if contains ~str:i ~sub_str:"stmdb" && contains ~str:i ~sub_str:"sp!"
+        then true
+        else if
+          contains ~str:i ~sub_str:"ldmia" && contains ~str:i ~sub_str:"sp!"
+        then true
+        else false
+      in
+      let is_special = is_special_stackop compact_instr' in
+      let lexem_list = Array.to_list (lexer compact_instr' loc arch) in
+      let s : stack_type list = [] in
+      let parse_one s l =
+        match l with Lend -> s | _ -> self#push_stack l is_special :: s
+      in
+      let stack = List.fold_left parse_one s lexem_list in
+      let parsed_instr = self#reduce_stack stack pre None in
+      parsed_instr
+  end

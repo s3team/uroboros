@@ -1,12 +1,26 @@
-# Local CI or Regression Testing
+# Local CI or Regression Testing + Cleaning
 
-all:
+intel:
 	test/test_all.py -a -c || true
-	test/test_instrument.sh 2>&1 | tee test.instrument || true
+	test/test_instrument.intel.sh 2>&1 | tee test.intel.instrument || true
 	rm $(CURDIR)/src/fun.o || true
 	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} + || true
-	test/test_action.sh 2>&1 | tee test.all || true
-	test/test_coreutils.sh 2>&1 | tee test.coreutils
+	test/test_action.sh 2>&1 | tee test.intel.handmade
+
+intel.coreutils:
+	test/test_coreutils.sh 2>&1 | tee test.intel.coreutils
+
+arm.thumb:
+	test/test_all.py -a -c --arch arm || true
+	test/test_instrument.arm.thumb.sh 2>&1 | tee test.arm.thumb.instrument || true
+	rm $(CURDIR)/src/fun.o || true
+	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
+
+arm.64:
+	test/test_all.py -a -c --arch arm || true
+	test/test_instrument.arm.64.sh 2>&1 | tee test.arm.64.instrument || true
+	rm $(CURDIR)/src/fun.o || true
+	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 
 clean:
 	rm src/fl_calls || true
@@ -16,6 +30,7 @@ clean:
 	find . -type f -name "*.help" -delete || true
 	find . -type f -name "*.res" -delete || true
 	find . -type f -name "*.out" -delete || true
+	find . -maxdepth 1 -type f -name "test.*" -delete || true
 	find src -maxdepth 1 -name '*.result' -delete || true
 	( cd src && ls | grep '\.info$$' | xargs -r rm -f || true )
 	( cd src && ls | grep '\.disassemble$$' | xargs -r rm -f || true )

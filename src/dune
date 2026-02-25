@@ -241,14 +241,6 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
- (name data_process)
- (modules data_process)
- (libraries batteries pp_print ail_utils visit)
- (wrapped false)
- (flags
-  (:standard -w -7-8-26-27-10-11-32-33-39)))
-
-(library
  (name symbol_table_get)
  (modules symbol_table_get)
  (libraries pp_print ail_utils)
@@ -273,7 +265,6 @@
   pp_print
   ail_utils
   share_lib_helper
-  data_process
   symbol_table_get)
  (wrapped false)
  (flags
@@ -292,8 +283,7 @@
   arm_utils
   tag_utils
   pp_print
-  share_lib_helper
-  data_process)
+  share_lib_helper)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))

@@ -18,141 +18,6 @@ module Disam = struct
   open Type
   open Pp_print
 
-  let convert_adrp_to_abs_addr (il : instr list) : instr list =
-    let rec traverse il acc =
-      match il with
-      | [] -> acc
-      | h :: [] -> h :: acc
-      | h1 :: h2 :: t ->
-        begin
-          match h1, h2 with
-          | TripleInstr
-              ( Arm_OP (Arm_CommonOP Arm_Arithm ADRP, condsuff1, widthsuff1)
-              , Symbol JumpDes base_addr
-              , Reg exp1_reg
-              , loc1
-              , pre1
-              , tag1
-              , tags1
-              ),
-            FourInstr
-              ( Arm_OP (Arm_CommonOP Arm_Arithm ADD, condsuff2, widthsuff2)
-              , Const Immediate offset
-              , Reg exp2_reg1
-              , Reg exp2_reg2
-              , loc2
-              , pre2
-              , tag2
-              , tags2
-              ) when p_reg exp1_reg = p_reg exp2_reg1
-              ->
-                let abs_addr = base_addr + offset in
-                let pseudo_instr : instr =
-                  TripleInstr
-                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2)
-                    , Const (Point abs_addr)
-                    , Reg exp2_reg2
-                    , loc1
-                    , pre1
-                    , tag1
-                    , tags1
-                    )
-                in
-                traverse t (pseudo_instr :: acc)
-          | TripleInstr
-              ( Arm_OP (Arm_CommonOP Arm_Arithm ADRP, condsuff1, widthsuff1)
-              , Symbol (JumpDes base_addr)
-              , Reg exp1_reg
-              , loc1
-              , pre1
-              , tag1
-              , tags1
-              ),
-            TripleInstr
-              ( Arm_OP (Arm_CommonOP Arm_Assign LDR, condsuff2, widthsuff2)
-              , Ptr BinOP_PLUS (exp2_offset_reg, offset)
-              , Reg exp2_reg
-              , loc2
-              , pre2
-              , tag2
-              , tags2
-              ) when p_reg exp1_reg = p_reg exp2_reg && p_reg exp2_reg = p_reg exp2_offset_reg
-              ->
-                let abs_addr : int = base_addr + offset in
-                let pseudo_instr1 : instr =
-                  TripleInstr
-                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1)
-                    , Const (Point abs_addr)
-                    , Reg exp1_reg
-                    , loc1
-                    , pre1
-                    , tag1
-                    , tags1
-                    )
-                in
-                let pseudo_instr2 : instr =
-                  TripleInstr
-                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2)
-                    , Ptr (UnOP (exp1_reg))
-                    , Reg exp1_reg
-                    , loc2
-                    , pre2
-                    , tag2
-                    , tags2
-                    )
-                in
-                traverse t (pseudo_instr1 :: acc)
-          | TripleInstr
-              ( Arm_OP (Arm_CommonOP Arm_Arithm ADRP, condsuff1, widthsuff1)
-              , Symbol (JumpDes base_addr)
-              , Reg exp1_reg
-              , loc1
-              , pre1
-              , tag1
-              , tags1
-              ),
-            TripleInstr
-              ( Arm_OP (Arm_CommonOP Arm_Assign LDRB, condsuff2, widthsuff2)
-              , Ptr BinOP_PLUS (exp2_offset_reg, offset)
-              , Reg exp2_reg
-              , loc2
-              , pre2
-              , tag2
-              , tags2
-              ) when p_reg exp1_reg = p_reg exp2_offset_reg
-              ->
-                let abs_addr : int = base_addr + offset in
-                let pseudo_instr1 : instr =
-                  TripleInstr
-                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1)
-                    , Const (Point abs_addr)
-                    , Reg exp1_reg
-                    , loc1
-                    , pre1
-                    , tag1
-                    , tags1
-                    )
-                in
-                let pseudo_instr2 : instr =
-                  TripleInstr
-                    ( Arm_OP (Arm_CommonOP (Arm_Assign LDRB), condsuff2, widthsuff2)
-                    , Ptr (UnOP (exp1_reg))
-                    , Reg exp2_reg
-                    , loc2
-                    , pre2
-                    , tag2
-                    , tags2
-                    )
-                in
-                traverse t (pseudo_instr1 :: acc)
-
-          | _ -> (
-            traverse (h2 :: t) (h1 :: acc)
-          )
-        end
-    in
-    List.rev (traverse il [])
-
   let disasm_skip f ba ea =
     let ba = string_of_int ba in
     let ea = string_of_int ea in
@@ -183,61 +48,6 @@ module Disam = struct
       end
     | _ -> failwith "unsupported architecture for reassemble"
 
-  let adjust_esp (il : instr list) : instr list =
-    let rec traverse il =
-      match il with
-      | i1 :: i2 :: i3 :: rest ->
-        begin
-          match i2, i3 with
-          | TripleInstr
-              ( Intel_OP (Intel_CommonOP (Intel_Arithm SUB)),
-                Reg (Intel_Reg (Intel_StackReg ESP)),
-                Const (Normal lab_i2),
-                loc_i2,
-                prefix_i2,
-                tag_i2,
-                tags_i2 ),
-            TripleInstr
-              ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
-                Reg dest_reg_i3,
-                Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), const_i3)),
-                loc_i3,
-                prefix_i3,
-                tag_i3,
-                tags_i3 )
-              when (p_op (get_op i1)) <> "push" && (p_op (get_op i1)) <> "add" ->
-            begin
-              (*
-              Printf.printf "@@@ ADJUST @ %s @ %s @\n"
-              (pp_print_instr' i2)
-              (pp_print_instr' i3);
-              *)
-              let new_tags = Hashtbl.create 0 in
-              let _ =
-                Hashtbl.replace new_tags "use"
-                  (Exp (Ptr (BinOP_PLUS
-                               (Intel_Reg (Intel_StackReg ESP),
-                                const_i3 - lab_i2))))
-              in
-              let _ = Hashtbl.replace new_tags "def" (Exp (Reg dest_reg_i3)) in
-              let i3_new =
-                TripleInstr
-                  ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
-                    Reg dest_reg_i3,
-                    Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), const_i3)),
-                    loc_i3,
-                    prefix_i3,
-                    tag_i3,
-                    new_tags )
-              in
-              i1 :: traverse (i2 :: i3_new :: rest)
-            end
-          | _ -> i1 :: traverse (i2 :: i3 :: rest)
-        end
-      | rest -> rest
-    in
-    traverse il
-
   let disassemble f funcs secs arch =
     let module TR = Time_Record in
     let re = create_re arch in
@@ -253,6 +63,7 @@ module Disam = struct
       let once = TR.get_utime () in
       let module FnU = Func_utils in
       let module EU = ELF_utils in
+      let module IV = Instr_visitor in
       let module GA = GotAbs in
       let module D = DFA (GA) in
       let module AGA = ArmGotAbsWithValues in
@@ -272,66 +83,48 @@ module Disam = struct
       let fl = ail_parser#get_funcs in
       print_endline "2: disassembly validates -->";
 
-      (*let _ = List.iter (
-        fun f ->
-          let name = f.func_name in
-          let addr = f.func_begin_addr in
-          let ea = f.func_end_addr in
-          let ba = dec_hex addr in
-          let ea = dec_hex ea in
-          print_endline (name ^ ", " ^ ba ^ ", " ^ ea);
-      ) fl in*)
-
       let il_init =
         if EU.elf_32 () && arch = "intel" then
-          adjust_esp ail_parser#get_instrs
-        else
-          ail_parser#get_instrs
+          IV.adjust_esp ail_parser#get_instrs
+        else ail_parser#get_instrs
       in
       let il_init =
         if EU.elf_arm () && EU.elf_64 () then
           (* ARM64 specific *)
-          convert_adrp_to_abs_addr il_init
-        else
-          il_init
+          IV.convert_adrp_to_abs_addr il_init
+        else il_init
       in
 
       let got_rewrite (il : instr list) =
         if EU.elf_32 () && arch = "intel" then
           let func2cfg = FnU.func2cfg il fl in
-          let _ = Hashtbl.iter (
-            fun f cfg ->
-              (* track GOT ptr in comment of result[0] NOP instr *)
-              let _ = Hashtbl.remove GA.result 0 in
-              (*
-              let _ =
-                (*if f = "S_0x80B879D" then*)
-                let _ = print_endline ("$$$ function: " ^ f) in
-                let cfg = Hashtbl.find func2cfg f in
-                List.iter (fun instr ->
-                  Printf.printf "instr: %s\n" (pp_print_instr' instr)
-                ) cfg.il
-              in
-              *)
-              let _ = D.flow_analysis f cfg in
-              if Hashtbl.mem GA.result 0 then
-                let tags = get_tags (Hashtbl.find GA.result 0) in
-                let got_reg = Hashtbl.find tags "got_reg" in
-                match got_reg with
-                | Str gr ->
-                  if not (is_reassign gr cfg.il) then
-                    (* perform flow-insensitive term rewriting *)
-                    got_rewrite gr cfg.il GA.result
-                | _ -> ()
-          ) func2cfg in
+          let _ =
+            Hashtbl.iter
+              (fun f cfg ->
+                (* track GOT ptr in comment of result[0] NOP instr *)
+                let _ = Hashtbl.remove GA.result 0 in
+                let _ = D.flow_analysis f cfg in
+                if Hashtbl.mem GA.result 0 then
+                  let tags = get_tags (Hashtbl.find GA.result 0) in
+                  let got_reg = Hashtbl.find tags "got_reg" in
+                  match got_reg with
+                  | Str gr ->
+                      if not (is_reassign gr cfg.il) then
+                        (* perform flow-insensitive term rewriting *)
+                        got_rewrite gr cfg.il GA.result
+                  | _ -> ())
+              func2cfg
+          in
           GA.result
         else if EU.elf_32 () && (arch = "thumb" || arch = "arm") then
           let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
-          let _ = Hashtbl.iter (
-            fun f cfg ->
-              let _ = AD.flow_analysis f cfg in
-              ()
-          ) func2cfg_table in
+          let _ =
+            Hashtbl.iter
+              (fun f cfg ->
+                let _ = AD.flow_analysis f cfg in
+                ())
+              func2cfg_table
+          in
           AGA.result
         else Hashtbl.create 1
       in
@@ -344,27 +137,25 @@ module Disam = struct
 
       il :=
         (if EU.elf_32 () && arch = "intel" then
-          ( FnU.replace_got_ref rewriting_result @@ il_init )
-          |> re#jmp_table_rewrite
-          (* second call to got_rewrite account switch dests in CFGs *)
-          (*|> (fun il -> FnU.replace_got_ref (got_rewrite il) @@ il )*)
-        else if EU.elf_64 () && arch = "intel" then
-          re#jmp_table_rewrite64 @@ il_init
-        else begin
-            FnU.replace_got_ref AGA.result @@ il_init
-            (* The postprocess should be executed after symbolization completed.
-             * Note that the symbolization-related functions such as vinst2 and v_exp2
-             * are called by visit_type_infer_analysis and visit_heuristic_analysis.
-             * If something wrong happens, AP functions might need to be moved to [ail.ml#post_process].
-             *)
-          end
-        )
+           FnU.replace_got_ref rewriting_result @@ il_init
+           |> re#jmp_table_rewrite
+           (* second call to got_rewrite account switch dests in CFGs *)
+           (*|> (fun il -> FnU.replace_got_ref (got_rewrite il) @@ il )*)
+         else if EU.elf_64 () && arch = "intel" then
+           re#jmp_table_rewrite64 @@ il_init
+         else begin FnU.replace_got_ref AGA.result @@ il_init
+           (* The postprocess should be executed after symbolization completed.
+            * Note that the symbolization-related functions such as vinst2 and v_exp2
+            * are called by visit_type_infer_analysis and visit_heuristic_analysis.
+            * If something wrong happens, AP functions might need to be moved to [ail.ml#post_process].
+            *)
+         end)
         |> re#visit_heuristic_analysis
-        |> TU.process_tags (* should be located after visit_heuristic_analysis *)
+        |> TU.process_tags
+           (* should be located after visit_heuristic_analysis *)
         |> re#adjust_loclabel |> re#adjust_jmpref
         |> re#add_func_label @@ get_userfuncs fl
-        |> dis_valid#visit
-        |> arm_postprocess;
+        |> dis_valid#visit |> arm_postprocess;
 
       let adjust_list = dis_valid#trim_results in
       if List.length adjust_list != 0 then (

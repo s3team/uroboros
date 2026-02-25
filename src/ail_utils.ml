@@ -34,7 +34,6 @@ let stub_loc : loc = { loc_label = ""; loc_addr = 0; loc_visible = true }
 let read_lines (filename : string) : string list =
   File.with_file_in filename (fun input -> List.of_enum (IO.lines_of input))
 
-
 let contains ~(str : string) ~(sub : string) : bool =
   let re = Str.regexp_string sub in
   try
@@ -42,25 +41,21 @@ let contains ~(str : string) ~(sub : string) : bool =
     true
   with Not_found -> false
 
-
 let unify_int_list (l : int list) : int list =
   let s = List.fold_left (fun s ele -> IntSet.add ele s) IntSet.empty l in
   (* remove dups *)
   (* elements should be returned in increasing order *)
   IntSet.elements s
 
-
 let unify_str_list (l : string list) : string list =
   let s = List.fold_left (fun s ele -> StringSet.add ele s) StringSet.empty l in
   (* elements should be returned in increasing order *)
   StringSet.elements s
 
-
 let unify_funclist_by_name (l : func list) : func list =
   let t = Hashtbl.create (List.length l * 2) in
   List.iter (fun f -> Hashtbl.replace t f.func_name f) l;
   Hashtbl.fold (fun k v s -> v :: s) t []
-
 
 (* this function must be called after the sort by addr*)
 let unify_funclist_by_addr (l : func list) : func list =
@@ -83,7 +78,6 @@ let unify_funclist_by_addr (l : func list) : func list =
   in
   help l []
 
-
 let unify_hash_list h =
   let l = Hashtbl.length h in
   let h' = Hashtbl.create (l + 1)
@@ -95,10 +89,8 @@ let unify_hash_list h =
   List.iter help (StringSet.elements se);
   h'
 
-
 (* on 32bit system, OCaml's maxinum integer is 0x3fffffff *)
 let string_to_int32 s = try Some (int_of_string s) with _ -> None
-
 let compare_loc l1 l2 = l1.loc_addr = l2.loc_addr && l1.loc_label = l2.loc_label
 
 let get_prefix (i : instr) =
@@ -108,7 +100,6 @@ let get_prefix (i : instr) =
   | TripleInstr (_, _, _, _, pre, _, _) -> pre
   | FourInstr (_, _, _, _, _, pre, _, _) -> pre
   | FifInstr (_, _, _, _, _, _, pre, _, _) -> pre
-
 
 let get_prefix (i : instr) =
   match i with
@@ -126,7 +117,6 @@ let get_tags i =
   | FourInstr (_, _, _, _, _, _, _, tags) -> tags
   | FifInstr (_, _, _, _, _, _, _, _, tags) -> tags
 
-
 let get_loc i =
   match i with
   | SingleInstr (_, l, _, _, _) -> l
@@ -135,34 +125,29 @@ let get_loc i =
   | FourInstr (_, _, _, _, l, _, _, _) -> l
   | FifInstr (_, _, _, _, _, l, _, _, _) -> l
 
-
 let set_loc i l =
   match i with
-  | SingleInstr (p, _, pre, tag, tags) ->
-    SingleInstr (p, l, pre, tag, tags)
+  | SingleInstr (p, _, pre, tag, tags) -> SingleInstr (p, l, pre, tag, tags)
   | DoubleInstr (p, e, _, pre, tag, tags) ->
-    DoubleInstr (p, e, l, pre, tag, tags)
+      DoubleInstr (p, e, l, pre, tag, tags)
   | TripleInstr (p, e1, e2, _, pre, tag, tags) ->
-    TripleInstr (p, e1, e2, l, pre, tag, tags)
+      TripleInstr (p, e1, e2, l, pre, tag, tags)
   | FourInstr (p, e1, e2, e3, _, pre, tag, tags) ->
-    FourInstr (p, e1, e2, e3, l, pre, tag, tags)
+      FourInstr (p, e1, e2, e3, l, pre, tag, tags)
   | FifInstr (p, e1, e2, e3, e4, _, pre, tag, tags) ->
-    FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags)
+      FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags)
 
 let get_addr i =
   let l = get_loc i in
   l.loc_addr
 
-
 let get_label i =
   let l = get_loc i in
   l.loc_label
 
-
 let update_label i l =
   let loc = get_loc i in
   set_loc i { loc with loc_label = l }
-
 
 let get_op i =
   match i with
@@ -184,7 +169,6 @@ let change_op i new_op =
   | FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags) ->
       FifInstr (new_op, e1, e2, e3, e4, l, pre, tag, tags)
 
-
 let change_condsuff i new_condsuff =
   let op = get_op i in
   match op with
@@ -193,10 +177,8 @@ let change_condsuff i new_condsuff =
       change_op i new_op
   | _ -> failwith "unsupported opcode"
 
-
 let get_cf_des i =
   match i with DoubleInstr (_, e, _, _, _, _) -> Some e | _ -> None
-
 
 (** Get the first exp. e.g.: bx r1 -> r1 mov r0, r1 -> r1 add r1, r2, r3 -> r3
 *)
@@ -208,7 +190,6 @@ let get_exp_1 i =
   | FourInstr (_, e, _, _, _, _, _, _) -> e
   | FifInstr (_, e, _, _, _, _, _, _, _) -> e
 
-
 (** Get the second exp. e.g.: mov r0, r1 -> r0 add r1, r2, r3 -> r2 *)
 let get_exp_2 i =
   match i with
@@ -218,7 +199,6 @@ let get_exp_2 i =
   | FourInstr (_, _, e, _, _, _, _, _) -> e
   | FifInstr (_, _, e, _, _, _, _, _, _) -> e
 
-
 let get_tag (i : instr) =
   match i with
   | SingleInstr (_, _, _, tag, _) -> tag
@@ -226,7 +206,6 @@ let get_tag (i : instr) =
   | TripleInstr (_, _, _, _, _, tag, _) -> tag
   | FourInstr (_, _, _, _, _, _, tag, _) -> tag
   | FifInstr (_, _, _, _, _, _, _, tag, _) -> tag
-
 
 let read_file (filename : string) : string list =
   let lines = ref [] in
@@ -240,7 +219,6 @@ let read_file (filename : string) : string list =
     close_in chan;
     List.rev !lines
 
-
 let dec_hex (s : int) : string = Printf.sprintf "0x%X" s
 let dec_hex_sym (s : int) : string = Printf.sprintf "S_0x%X" s
 
@@ -252,10 +230,8 @@ let print_loclist (ll : loc list) : unit =
       print_string (dec_hex l.loc_addr ^ "\n"))
     ll
 
-
 let print_addrlist (ll : int list) : unit =
   List.iter (fun l -> print_string (dec_hex l ^ "\n")) ll
-
 
 let zip lst1 lst2 =
   let rec aux lst1 lst2 acc =
@@ -266,13 +242,11 @@ let zip lst1 lst2 =
   in
   aux lst1 lst2 []
 
-
 let rec cat_from (l : string list) (f : int) (s : string) : string =
   (* For the reason of high efficiency, we don't write it tail-recursively*)
   match l with
   | h :: t -> if f == 0 then h ^ s ^ cat_from t 0 s else cat_from t (f - 1) s
   | [] -> ""
-
 
 let split_by_list (s : string) (pl : int list) =
   let rec help s last_p pl' acc =
@@ -286,10 +260,8 @@ let split_by_list (s : string) (pl : int list) =
   in
   help s (-1) pl []
 
-
 let int_of_string_opt (s : string) : int option =
   try Some (int_of_string s) with _ -> None
-
 
 let print_exp_type (e : exp) : unit =
   match e with
@@ -300,7 +272,6 @@ let print_exp_type (e : exp) : unit =
   | Ptr _ -> print_string "ptr"
   | Label _ -> print_string "label"
 
-
 let print_instr_type (i : instr) : unit =
   match i with
   | SingleInstr _ -> print_string "single instr"
@@ -309,11 +280,9 @@ let print_instr_type (i : instr) : unit =
   | FourInstr _ -> print_string "four instr"
   | FifInstr _ -> print_string "five instr"
 
-
 (* sort loc lost in ascending order *)
 let sort_loc (ll : loc list) : loc list =
   List.sort (fun l1 l2 -> l1.loc_addr - l2.loc_addr) ll
-
 
 (* suppose locs are sorted in ascending odder, and no same element exists
  * we assume no instructions share same location!
@@ -332,7 +301,6 @@ let get_instr_byloc (instrs : instr list) (locs : loc list) : instr list =
   in
   aux instrs locs []
 
-
 let recover_addr_from_label s =
   try
     assert (String.exists s "S_0x");
@@ -340,7 +308,6 @@ let recover_addr_from_label s =
     let s' = String.sub s 2 9 in
     int_of_string s'
   with _ -> -1
-
 
 let get_next_bb sn =
   assert (String.exists sn "BB_");
@@ -353,7 +320,6 @@ let get_next_bb sn =
   let index = String.sub sn 3 (String.length sn - 3) in
   let index' = int_of_string index + 1 in
   "BB_" ^ string_of_int index'
-
 
 (* we implement several functions to support section info querying *)
 (* let's implement them leveraging memo function *)
@@ -369,7 +335,6 @@ let memo_rec f =
   in
   g
 
-
 let memo f =
   let m = ref [] in
   fun x ->
@@ -378,7 +343,6 @@ let memo f =
       let y = f x in
       m := (x, y) :: !m;
       y
-
 
 let get_end_addr_sec sec =
   ignore (Sys.command "rm sec_all.info");
@@ -397,14 +361,12 @@ let get_end_addr_sec sec =
       else acc)
     0 secl
 
-
 let sec_end_memo = memo get_end_addr_sec
 
 (* some functions manipulating basic blocks *)
 let get_bbl cfg =
   let bbl = List.map (fun (b, _) -> b) cfg in
   unify_str_list bbl
-
 
 (*get all the instructions within one function as a list*)
 let f_instrs f instrs =
@@ -420,7 +382,6 @@ let f_instrs f instrs =
   in
   help instrs []
 
-
 let bb_successors cfg b =
   let aux acc edge =
     match edge with
@@ -434,7 +395,6 @@ let bb_successors cfg b =
   let dl = List.fold_left aux [] cfg in
   unify_str_list dl
 
-
 let bb_predecessors cfg b =
   let aux acc edge =
     match edge with
@@ -447,7 +407,6 @@ let bb_predecessors cfg b =
   in
   let sl = List.fold_left aux [] cfg in
   unify_str_list sl
-
 
 (*get all the instructions within one basic block as a list*)
 let bb_instrs b instrs =
@@ -464,7 +423,6 @@ let bb_instrs b instrs =
   in
   help instrs []
 
-
 (* this function remove element from list if this element appears more than once*)
 (*d = [x for x in d if d.count(x) == 1]*)
 let remove_over_once l =
@@ -479,7 +437,6 @@ let remove_over_once l =
     l;
   List.filter (fun ele -> if Hashtbl.find m ele > 1 then false else true) l
 
-
 let bbn_byloc e ls =
   (* implement a binary search, the original way seems too slow *)
   let rec bs min max =
@@ -493,7 +450,6 @@ let bbn_byloc e ls =
   in
   bs 0 (Array.length ls - 1)
 
-
 let ( @@ ) f x = f x
 
 module Algo = struct
@@ -506,7 +462,6 @@ module Algo = struct
       | [] -> acc
     in
     l |> List.sort cmp |> aux [] |> List.rev
-
 
   let b_search e ls cmp =
     (* a binary search with configurable cmp *)
@@ -528,41 +483,33 @@ module ELF_utils = struct
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l "ELF 32-bit"
 
-
   let elf_64 () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l "ELF 64-bit"
-
 
   let elf_dynamic () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l "dynamically linked"
 
-
   let elf_static () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l "statically linked"
-
 
   let elf_unstrip () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l "not stripped"
 
-
   let elf_strip () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l ", stripped"
-
 
   let elf_exe () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l "LSB executable"
 
-
   let elf_lib () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
     String.exists l "LSB shared object"
-
 
   let elf_arm () =
     (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
@@ -573,7 +520,6 @@ module Addr_utils = struct
   let compare_loc l1 l2 =
     l1.loc_addr = l2.loc_addr && l1.loc_label = l2.loc_label
 
-
   let get_loc i =
     match i with
     | SingleInstr (_, l, _, _, _) -> l
@@ -581,7 +527,6 @@ module Addr_utils = struct
     | TripleInstr (_, _, _, l, _, _, _) -> l
     | FourInstr (_, _, _, _, l, _, _, _) -> l
     | FifInstr (_, _, _, _, _, l, _, _, _) -> l
-
 
   let set_loc i l =
     match i with
@@ -595,16 +540,13 @@ module Addr_utils = struct
     | FifInstr (p, e1, e2, e3, e4, _, pre, tag, tags) ->
         FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags)
 
-
   let get_addr i =
     let l = get_loc i in
     l.loc_addr
 
-
   let get_label i =
     let l = get_loc i in
     l.loc_label
-
 
   let update_label i l =
     let loc = get_loc i in
@@ -619,18 +561,15 @@ module Opcode_utils = struct
     | Reg (Arm_Reg (Arm_LinkReg LR)) -> true
     | _ -> false
 
-
   let has_pc_reg (i : instr) =
     let exp = get_exp_1 i in
     match exp with
     | Label l -> if contains ~str:l ~sub:"pc" then true else false
     | _ -> false
 
-
   let is_control_des i =
     let aux s = String.exists s ":" in
     get_label i |> aux
-
 
   let is_func e = match e with Symbol (CallDes _) -> true | _ -> false
 
@@ -657,7 +596,6 @@ module Opcode_utils = struct
       end
     | _ -> false
 
-
   let is_cond_jmp op =
     match op with
     | Intel_OP io -> begin
@@ -679,7 +617,6 @@ module Opcode_utils = struct
         | _ -> false
       end
 
-
   (* this is a conservative judge *)
   let is_assign = function
     | Intel_OP io -> begin
@@ -687,18 +624,15 @@ module Opcode_utils = struct
       end
     | Arm_OP _ -> failwith "unsupported arm opcode"
 
-
   let rec is_mem_exp = function
     | Ptr _ -> true
     | Symbol (StarDes e) -> is_mem_exp e
     | _ -> false
 
-
   let is_push = function
     | Intel_OP (Intel_StackOP PUSH) -> true
     | Arm_OP (Arm_StackOP PUSH, _, _) -> true
     | _ -> false
-
 
   let is_stack_op = function
     | Intel_OP io -> begin
@@ -718,12 +652,10 @@ module Opcode_utils = struct
       end
     | _ -> false
 
-
   let is_mov = function
     | Intel_CommonOP (Intel_Assign MOV) | Intel_CommonOP (Intel_Assign MOVL) ->
         true
     | _ -> false
-
 
   let is_call op =
     match op with
@@ -743,20 +675,6 @@ module Opcode_utils = struct
       end
     | _ -> false
 
-      let is_ret_instr (i : instr) : bool =
-        match get_op i with
-        | Intel_OP iop -> begin
-            match iop with
-            | Intel_ControlOP c -> begin
-                match c with
-                | RET | RETN | RETQ -> true
-                | _ -> false
-              end
-            | _ -> false
-          end
-        | _ -> false
-
-
   let is_ret (i : instr) : bool =
     match get_op i with
     | Intel_OP iop -> begin
@@ -772,6 +690,7 @@ module Opcode_utils = struct
             match aco with
             (* TODO: ARM: This is naive because we need to check if BX uses LR register *)
             | BX when has_lr_reg i -> true
+            | RET -> true
             | _ -> false
           end
         | Arm_StackOP aso -> begin
@@ -784,7 +703,6 @@ module Opcode_utils = struct
       end
     | _ -> false
 
-
   let is_arm_ret (inst : instr) : bool =
     match inst with
     (* TODO: ARM: implement the case below: *)
@@ -792,10 +710,10 @@ module Opcode_utils = struct
     | DoubleInstr (op, e, _, _, _, _) -> (
         match op with
         | Arm_OP (Arm_ControlOP BX, _, _) -> e = Reg (Arm_Reg (Arm_LinkReg LR))
+        | Arm_OP (Arm_ControlOP RET, _, _) -> true
         | Arm_OP (Arm_StackOP POP, _, _) when has_pc_reg inst -> true
         | _ -> false)
     | _ -> false
-
 
   let is_indirect = function
     | Symbol s -> begin
@@ -812,11 +730,9 @@ module Opcode_utils = struct
       end
     | _ -> false
 
-
   let is_control_transfer_op (i : instr) =
     let op = get_op i in
     is_call op || is_jmp i || is_cond_jmp op || is_ret i
-
 
   let is_cmp_op = function
     | Intel_CommonOP (Intel_Compare _) -> true
@@ -838,7 +754,6 @@ module Instr_utils = struct
       (fun (_, l1, _, _) (_, l2, _, _) -> l1.loc_addr - l2.loc_addr)
       instrs_update
 
-
   type instr_update = SUB | INSERT
 
   let set_update_fold i l acc = [ (i, l, INSERT, "") ] :: acc
@@ -848,13 +763,11 @@ module Instr_utils = struct
     let i_s = pp_print_instr i' in
     [ (i, l, SUB, i_s) ] :: acc
 
-
   let eliminate_label i = update_label i ""
 
   let tem i =
     let _, _, _, s = i in
     s
-
 
   (* update inserted instruction at the front of target instruction *)
   let update_instrs_infront instrs instrs_update =
@@ -880,10 +793,8 @@ module Instr_utils = struct
     in
     help instrs_update instrs []
 
-
   let insert_instrument_instrs il il_update =
     il_update |> sort_il_update |> update_instrs_infront il
-
 
   let sub_single_instr i' il_update il =
     let loc = get_loc i' in
@@ -893,18 +804,15 @@ module Instr_utils = struct
     let acc' = List.flatten acc in
     insert_instrument_instrs il acc'
 
-
   let instrument_update il_update il = insert_instrument_instrs il il_update
 
   let instrument_instrs_func il il_update update_func =
     il_update |> sort_il_update |> update_func il
 
-
   let insert_instr_list d il_update il =
     match d with
     | BEFORE -> instrument_instrs_func il il_update update_instrs_infront
     | AFTER -> instrument_instrs_func il il_update update_instrs_infront
-
 
   let insert_single_instr d loc il_update il =
     let acc =
@@ -912,7 +820,6 @@ module Instr_utils = struct
     in
     let acc' = List.flatten acc in
     insert_instr_list d acc' il
-
 
   (* get basic block information from the last instruction of a basic
     block. This task has a quicker algorithm comparing with the more general
@@ -926,7 +833,6 @@ module Instr_utils = struct
       *)
     List.find (fun b -> b.bblock_end_loc.loc_addr = addr) bbl
 
-
   (* generate one byte no-op padding instruction *)
   let gen_nop loc =
     SingleInstr
@@ -935,7 +841,6 @@ module Instr_utils = struct
         None,
         None,
         Hashtbl.create 0 )
-
 
   (* generate four bytes no-op padding instruction *)
   let gen_4_lea loc =
@@ -948,7 +853,6 @@ module Instr_utils = struct
         None,
         Hashtbl.create 0 )
 
-
   (* generate six bytes no-op padding instruction *)
   let gen_6_lea loc =
     TripleInstr
@@ -960,7 +864,6 @@ module Instr_utils = struct
         None,
         Hashtbl.create 0 )
 
-
   let is_mem_write_instr i =
     match i with
     | DoubleInstr (p, _, _, _, _, _) when is_push p -> Some DOUBLE_WRITE
@@ -968,7 +871,6 @@ module Instr_utils = struct
     | TripleInstr (op, e1, _, _, _, _, _) when is_assign op && is_mem_exp e1 ->
         Some TRIPLE_WRITE
     | _ -> None
-
 
   let is_mem_read_instr instr =
     match instr with
@@ -997,7 +899,6 @@ module Instr_utils = struct
       end
     | _ -> None
 
-
   let is_mem_instr instr =
     match is_mem_write_instr instr with
     | Some t -> Some (MEM_WRITE_TYPE t)
@@ -1005,7 +906,6 @@ module Instr_utils = struct
         match is_mem_read_instr instr with
         | Some t -> Some (MEM_READ_TYPE t)
         | None -> None)
-
 
   let is_addr_or_label instr aols =
     let iloc = get_loc instr in
@@ -1035,7 +935,6 @@ module Instr_utils = struct
       (* instr matches addr or label *)
       true
 
-
   let is_jmp_instr i =
     match i with
     | SingleInstr (p, _, _, _, _) when is_ret i -> Some RET_TYPE
@@ -1058,7 +957,6 @@ module Instr_visitor = struct
     let aux i = match judge i with Some t -> visitor i t | None -> i in
     il |> List.rev_map aux |> List.rev
 
-
   let map_instr' judge visitor il labels =
     let rec aux il visited acc =
       match il with
@@ -1075,6 +973,177 @@ module Instr_visitor = struct
             | false -> aux t (h_addr :: visited) (h :: acc))
     in
     aux il [] []
+
+  let convert_adrp_to_abs_addr (il : instr list) : instr list =
+    let rec traverse il acc =
+      match il with
+      | [] -> acc
+      | h :: [] -> h :: acc
+      | h1 :: h2 :: t -> begin
+          match (h1, h2) with
+          | ( TripleInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADRP), condsuff1, widthsuff1),
+                  Symbol (JumpDes base_addr),
+                  Reg exp1_reg,
+                  loc1,
+                  pre1,
+                  tag1,
+                  tags1 ),
+              FourInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), condsuff2, widthsuff2),
+                  Const (Immediate offset),
+                  Reg exp2_reg1,
+                  Reg exp2_reg2,
+                  loc2,
+                  pre2,
+                  tag2,
+                  tags2 ) )
+            when p_reg exp1_reg = p_reg exp2_reg1 ->
+              let abs_addr = base_addr + offset in
+              let pseudo_instr : instr =
+                TripleInstr
+                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2),
+                    Const (Point abs_addr),
+                    Reg exp2_reg2,
+                    loc1,
+                    pre1,
+                    tag1,
+                    tags1 )
+              in
+              traverse t (pseudo_instr :: acc)
+          | ( TripleInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADRP), condsuff1, widthsuff1),
+                  Symbol (JumpDes base_addr),
+                  Reg exp1_reg,
+                  loc1,
+                  pre1,
+                  tag1,
+                  tags1 ),
+              TripleInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2),
+                  Ptr (BinOP_PLUS (exp2_offset_reg, offset)),
+                  Reg exp2_reg,
+                  loc2,
+                  pre2,
+                  tag2,
+                  tags2 ) )
+            when p_reg exp1_reg = p_reg exp2_offset_reg ->
+              let abs_addr : int = base_addr + offset in
+              let pseudo_instr1 : instr =
+                TripleInstr
+                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1),
+                    Const (Point abs_addr),
+                    Reg exp1_reg,
+                    loc1,
+                    pre1,
+                    tag1,
+                    tags1 )
+              in
+              let pseudo_instr2 : instr =
+                TripleInstr
+                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2),
+                    Ptr (UnOP exp1_reg),
+                    Reg exp1_reg,
+                    loc2,
+                    pre2,
+                    tag2,
+                    tags2 )
+              in
+              traverse t (pseudo_instr1 :: acc)
+          | ( TripleInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADRP), condsuff1, widthsuff1),
+                  Symbol (JumpDes base_addr),
+                  Reg exp1_reg,
+                  loc1,
+                  pre1,
+                  tag1,
+                  tags1 ),
+              TripleInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Assign LDRB), condsuff2, widthsuff2),
+                  Ptr (BinOP_PLUS (exp2_offset_reg, offset)),
+                  Reg exp2_reg,
+                  loc2,
+                  pre2,
+                  tag2,
+                  tags2 ) )
+            when p_reg exp1_reg = p_reg exp2_offset_reg ->
+              let abs_addr : int = base_addr + offset in
+              let pseudo_instr1 : instr =
+                TripleInstr
+                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1),
+                    Const (Point abs_addr),
+                    Reg exp1_reg,
+                    loc1,
+                    pre1,
+                    tag1,
+                    tags1 )
+              in
+              let pseudo_instr2 : instr =
+                TripleInstr
+                  ( Arm_OP
+                      (Arm_CommonOP (Arm_Assign LDRB), condsuff2, widthsuff2),
+                    Ptr (UnOP exp1_reg),
+                    Reg exp2_reg,
+                    loc2,
+                    pre2,
+                    tag2,
+                    tags2 )
+              in
+              traverse t (pseudo_instr1 :: acc)
+          | _ -> traverse (h2 :: t) (h1 :: acc)
+        end
+    in
+    List.rev (traverse il [])
+
+  let adjust_esp (il : instr list) : instr list =
+    let rec traverse il =
+      match il with
+      | i1 :: i2 :: i3 :: rest -> begin
+          match (i2, i3) with
+          | ( TripleInstr
+                ( Intel_OP (Intel_CommonOP (Intel_Arithm SUB)),
+                  Reg (Intel_Reg (Intel_StackReg ESP)),
+                  Const (Normal lab_i2),
+                  loc_i2,
+                  prefix_i2,
+                  tag_i2,
+                  tags_i2 ),
+              TripleInstr
+                ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+                  Reg dest_reg_i3,
+                  Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), const_i3)),
+                  loc_i3,
+                  prefix_i3,
+                  tag_i3,
+                  tags_i3 ) )
+            when p_op (get_op i1) <> "push" && p_op (get_op i1) <> "add" ->
+            begin
+              let new_tags = Hashtbl.create 0 in
+              let _ =
+                Hashtbl.replace new_tags "use"
+                  (Exp
+                     (Ptr
+                        (BinOP_PLUS
+                           (Intel_Reg (Intel_StackReg ESP), const_i3 - lab_i2))))
+              in
+              let _ = Hashtbl.replace new_tags "def" (Exp (Reg dest_reg_i3)) in
+              let i3_new =
+                TripleInstr
+                  ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+                    Reg dest_reg_i3,
+                    Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), const_i3)),
+                    loc_i3,
+                    prefix_i3,
+                    tag_i3,
+                    new_tags )
+              in
+              i1 :: traverse (i2 :: i3_new :: rest)
+            end
+          | _ -> i1 :: traverse (i2 :: i3 :: rest)
+        end
+      | rest -> rest
+    in
+    traverse il
 end
 
 module Instr_template = struct
@@ -1185,7 +1254,6 @@ module BB_utils = struct
     in
     aux bbl instrs []
 
-
   (*get all the instructions within one basic block as a list*)
   let bb_instrs b instrs =
     let bloc = b.bblock_begin_loc and eloc = b.bblock_end_loc in
@@ -1201,26 +1269,22 @@ module BB_utils = struct
     in
     help instrs []
 
-
   (* sort basic block list from smallest to largest  *)
   let bbl_sort bbl =
     List.sort
       (fun b1 b2 -> b1.bblock_begin_loc.loc_addr - b2.bblock_end_loc.loc_addr)
       bbl
 
-
   let get_range b =
     let a1 = b.bblock_begin_loc.loc_addr in
     let a2 = b.bblock_end_loc.loc_addr in
     a1 - a2
-
 
   (* the first instruction is a target of fall-through transfer  *)
   let start_with_fallthrough b bmap =
     let il = Hashtbl.find bmap b.bblock_name in
     let ifirst = List.nth il 0 in
     get_label ifirst = ""
-
 
   (* the first instruction is a target of control
     flow transfer  *)
@@ -1229,13 +1293,11 @@ module BB_utils = struct
     let ifirst = List.nth il 0 in
     get_label ifirst <> ""
 
-
   (* the last instruction is a target of fall-through transfer  *)
   let end_with_fallthrough b bmap =
     let il = Hashtbl.find bmap b.bblock_name in
     let ilast = List.nth il (List.length il - 1) in
     get_label ilast = ""
-
 
   (* the last instruction is a target of control
     flow transfer  *)
@@ -1244,13 +1306,11 @@ module BB_utils = struct
     let ilast = List.nth il (List.length il - 1) in
     get_label ilast <> ""
 
-
   let start_with_jmp b bmap =
     let module IU = Instr_utils in
     let il = Hashtbl.find bmap b.bblock_name in
     let ifirst = List.nth il 0 in
     IU.is_jmp_instr ifirst
-
 
   let start_with_mem_write b bmap =
     let module IU = Instr_utils in
@@ -1258,13 +1318,11 @@ module BB_utils = struct
     let ifirst = List.nth il 0 in
     IU.is_mem_write_instr ifirst
 
-
   let end_with_jmp b bmap =
     let module IU = Instr_utils in
     let il = Hashtbl.find bmap b.bblock_name in
     let ilast = List.nth il (List.length il - 1) in
     IU.is_jmp_instr ilast
-
 
   let end_with_mem_write b bmap =
     let module IU = Instr_utils in
@@ -1306,7 +1364,6 @@ module Func_utils = struct
     in
     aux fl instrs []
 
-
   (*
        sort func list from smallest to largest;
        Note that we need to first filter out lib function
@@ -1316,12 +1373,10 @@ module Func_utils = struct
     |> List.filter (fun f -> f.is_lib = false)
     |> List.sort (fun b1 b2 -> b1.func_begin_addr - b2.func_begin_addr)
 
-
   let get_range f =
     let a1 = f.func_begin_addr in
     let a2 = f.func_end_addr in
     a1 - a2
-
 
   (* the first instruction is a target of control
     flow transfer  *)
@@ -1330,7 +1385,6 @@ module Func_utils = struct
     let ifirst = List.nth il 0 in
     get_label ifirst <> ""
 
-
   (* the last instruction is a target of control
     flow transfer  *)
   let end_with_fallthrough f fmap =
@@ -1338,13 +1392,11 @@ module Func_utils = struct
     let ilast = List.nth il (List.length il - 1) in
     get_label ilast <> ""
 
-
   let start_with_jmp f fmap =
     let module IU = Instr_utils in
     let il = Hashtbl.find fmap f.name in
     let ifirst = List.nth il 0 in
     IU.is_jmp_instr ifirst
-
 
   let start_with_mem_write f fmap =
     let module IU = Instr_utils in
@@ -1352,20 +1404,17 @@ module Func_utils = struct
     let ifirst = List.nth il 0 in
     IU.is_mem_write_instr ifirst
 
-
   let end_with_jmp f fmap =
     let module IU = Instr_utils in
     let il = Hashtbl.find fmap f.func_name in
     let ilast = List.nth il (List.length il - 1) in
     IU.is_jmp_instr ilast
 
-
   let end_with_mem_write f fmap =
     let module IU = Instr_utils in
     let il = Hashtbl.find fmap f.func_name in
     let ilast = List.nth il (List.length il - 1) in
     IU.is_mem_write_instr ilast
-
 
   (* collect all the callers *)
   let caller_collect fn instrs =
@@ -1395,7 +1444,6 @@ module Func_utils = struct
       | _ -> acc
     in
     List.fold_left help [] instrs
-
 
   let pp_func2cfg func2cfg_table =
     let aux f (pred_cfg, succ_cfg, _) =
@@ -1430,7 +1478,6 @@ module Func_utils = struct
     in
     (*aux "S_0x80541C5" (Hashtbl.find func2cfg_table "S_0x80541C5")*)
     Hashtbl.iter aux func2cfg_table
-
 
   let func2cfg (il : instr list) (funcs : func list) : (string, cfgi) Hashtbl.t
       =
@@ -1617,7 +1664,6 @@ module Func_utils = struct
       funcs;
     func2cfg_table
 
-
   let replace_got_ref (addr2newi : (int, instr) Hashtbl.t) il =
     List.map
       (fun i ->
@@ -1695,7 +1741,6 @@ module Cfg_utils = struct
         end)
       [] cfg
 
-
   (* a visitor for control flow transfers; original jmp are rewritten into
     new format *)
   let map_jmp (visitor : instr -> jmp_type -> instr) instrs : instr list =
@@ -1717,7 +1762,6 @@ module Cfg_utils = struct
       | _ -> i
     in
     instrs |> List.rev_map aux |> List.rev
-
 
   (* a visitor for memory rewrite operation *)
   let map_mem_write (visitor : instr -> mem_write_type -> instr) instrs :
@@ -1742,7 +1786,6 @@ module Cg_utils = struct
     in
     Hashtbl.iter help cg
 
-
   (* this cfi_cg can support CFI transformation. *)
   let show_cfi_sepcified_graph cfi_cg =
     let help key value =
@@ -1750,7 +1793,6 @@ module Cg_utils = struct
       List.iter (fun l -> print_endline ("    " ^ dec_hex l)) value
     in
     Hashtbl.iter help cfi_cg
-
 
   (* visitor function for CFI transformation *)
   let map_cfi_des cfi_cg fn visit = Hashtbl.find cfi_cg fn |> List.map visit
@@ -1786,7 +1828,6 @@ https://github.com/rdicosmo/parmap/blob/642dc2bdd081cfdd3c3687c08851f3eafa09725c
     in
     Parmap.parmap ~ncores:nc f (Parmap.L il)
 
-
   let piter ?ncores f il =
     let nc =
       match ncores with
@@ -1795,7 +1836,6 @@ https://github.com/rdicosmo/parmap/blob/642dc2bdd081cfdd3c3687c08851f3eafa09725c
       | Some x -> x
     in
     Parmap.pariter ~ncores:nc f (Parmap.L il)
-
 
   let pfold ?ncores ?concat f il acc =
     let nc =
@@ -1812,7 +1852,6 @@ https://github.com/rdicosmo/parmap/blob/642dc2bdd081cfdd3c3687c08851f3eafa09725c
     in
     Parmap.parfold ~ncores:nc f (Parmap.L il) acc cc
 
-
   (* The parallel functions for array *)
   let pmap_arr ?ncores f il =
     let nc =
@@ -1823,7 +1862,6 @@ https://github.com/rdicosmo/parmap/blob/642dc2bdd081cfdd3c3687c08851f3eafa09725c
     in
     Parmap.parmap ~ncores:nc f (Parmap.A il)
 
-
   let piter_arr ?ncores f il =
     let nc =
       match ncores with
@@ -1832,7 +1870,6 @@ https://github.com/rdicosmo/parmap/blob/642dc2bdd081cfdd3c3687c08851f3eafa09725c
       | Some x -> x
     in
     Parmap.pariter ~ncores:nc f (Parmap.A il)
-
 
   let pfold_arr ?ncores ?concat f il acc =
     let nc =
@@ -1858,7 +1895,6 @@ module Time_Record = struct
     Printf.printf "stamp : %f sec\n" (Unix.gettimeofday ());
     ()
 
-
   let get_utime () = Unix.gettimeofday ()
 
   let elapsed t =
@@ -1880,7 +1916,6 @@ module UIO = struct
     with End_of_file ->
       close_in chan;
       List.rev !lines
-
 
   let write_file ll fn =
     let oc = open_out_gen [ Open_append; Open_creat ] 0o666 fn in

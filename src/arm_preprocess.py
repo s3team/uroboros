@@ -73,7 +73,6 @@ def disassemble_arm_thumb_binary(filename, output_dir):
         f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp.arm32"
     )
 
-
     call_weak_fn_pattern = [
         "adds",
         "b.n",
@@ -377,7 +376,9 @@ def disassemble_arm32_binary(filename, output_dir):
     Disassemble ARM32 binary and remove functions added by gcc compiler.
     """
 
-    os.system(f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp")
+    os.system(
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp"
+    )
     os.system(
         f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp.thumb"
     )

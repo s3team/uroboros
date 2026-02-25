@@ -8,7 +8,7 @@ from arm_inst import Inst
 fn = sys.argv[1]
 arch = sys.argv[2]
 
-os.system('file ' + fn + ' > elf.info')
+os.system("file " + fn + " > elf.info")
 
 
 def is_32():
@@ -42,11 +42,13 @@ def is_pie():
     else:
         return False
 
+
 def check_main_symbol():
     lines = []
     with open("elf.info") as f:
         lines = f.readlines()
     return "not stripped" in lines[0]
+
 
 def check_thumb_mode(arch: str, entry_point: int) -> bool:
     return arch == "thumb"
@@ -56,20 +58,21 @@ def get_entry_point_address() -> str:
     output = subprocess.getoutput("readelf -h " + fn)
     entry_point = ""
 
-    for line in output.split('\n'):
+    for line in output.split("\n"):
         if "Entry point address" in line:
             entry_point = line.split()[-1][2:]
             break
     return entry_point
 
+
 def find_intel_start_section(lines, entry_point_str):
     ll = len(lines)
     for i in range(ll):
-        if entry_point_str == lines[i].strip().split(':')[0]:
+        if entry_point_str == lines[i].strip().split(":")[0]:
             ln = i
             while (ln < ll) and "Cannot identify main function using entry point":
                 if "nop" in lines[ln] or "ret" in lines[ln]:
-                    return lines[i:ln+1]
+                    return lines[i : ln + 1]
                 ln += 1
 
 
@@ -82,14 +85,14 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
 
     ll = len(lines)
     for i in range(ll):
-        if entry_point_str == lines[i].strip().split(':')[0]:
+        if entry_point_str == lines[i].strip().split(":")[0]:
             ln = i
             if is_32bit_binary:
                 while (ln < ll) and "Cannot identify main function using entry point":
                     # There could be other forms of nop for ARM such as "nop", "movs r8, r8", etc.
                     # So far, did not handle those cases.
-                    if "movs" in lines[ln] and "movs" in lines[ln+1]:
-                        return lines[i:ln+1]
+                    if "movs" in lines[ln] and "movs" in lines[ln + 1]:
+                        return lines[i : ln + 1]
                     ln += 1
             else:
                 while (ln < ll) and "Cannot identify main function using entry point":
@@ -99,8 +102,8 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
                     # b       4005c4 <printf@plt+0x124>
                     # nop
                     # ret
-                    if "ret" in lines[ln] and "nop" in lines[ln-1]:
-                        return lines[i:ln+1]
+                    if "ret" in lines[ln] and "nop" in lines[ln - 1]:
+                        return lines[i : ln + 1]
                     ln += 1
 
 
@@ -108,7 +111,9 @@ def find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
     if arch == "intel":
         return find_intel_start_section(lines, entry_point_str)
     elif arch == "thumb" or arch == "arm":
-        return find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode)
+        return find_arm_start_section(
+            lines, entry_point_str, is_32bit_binary, is_thumb_mode
+        )
     else:
         print("find_start_section: Unknown architecture")
         raise Exception("Unknown architecture")
@@ -180,13 +185,14 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
 def get_intel_main_symbol(start_section):
     i = len(start_section) - 1
     while i > 0:
-        if 'call' in start_section[i] or 'callq' in start_section[i]:
-            main_symbol = start_section[i-1].split()[-1].split(',')[0]
-            if '0x' not in main_symbol:
-                main_symbol = start_section[i-2].split()[-1].split(',')[0]
+        if "call" in start_section[i] or "callq" in start_section[i]:
+            main_symbol = start_section[i - 1].split()[-1].split(",")[0]
+            if "0x" not in main_symbol:
+                main_symbol = start_section[i - 2].split()[-1].split(",")[0]
             break
         i -= 1
     return main_symbol
+
 
 def get_main_symbol(start_section, is_32bit_binary):
     if arch == "intel":
@@ -207,18 +213,18 @@ else:
 
     lines = []
 
-    with open(fn+".temp") as f:
+    with open(fn + ".temp") as f:
         lines = f.readlines()
 
     main_symbol = ""
 
     if check_main_symbol():
         # For not stripped binary, take advantage of the function discover result
-        with open('faddr_old.txt') as f:
+        with open("faddr_old.txt") as f:
             faddr_lines = f.readlines()
             for line in faddr_lines:
-                if '<main>' in line:
-                    main_symbol = '0x'+line.split()[0].lstrip('0')
+                if "<main>" in line:
+                    main_symbol = "0x" + line.split()[0].lstrip("0")
                     break
     elif is_pie():
         if is_32bit_binary:
@@ -234,7 +240,9 @@ else:
             #   10b8:	ff 15 22 2f 00 00    	callq  *0x2f22(%rip)        # 3fe0 <__libc_start_main@GLIBC_2.2.5>
             #   10be:	f4                   	hlt
             #   10bf:	90                   	nop
-            start_section = find_start_section(lines, entry_point_str, is_32bit_binary, False)
+            start_section = find_start_section(
+                lines, entry_point_str, is_32bit_binary, False
+            )
             i = len(start_section) - 1
 
             while i > 0:
@@ -247,9 +255,11 @@ else:
 
     else:
         # For stripped non-PIE binary, find the main function manually
-        start_section = find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb)
+        start_section = find_start_section(
+            lines, entry_point_str, is_32bit_binary, is_thumb
+        )
         main_symbol = get_main_symbol(start_section, is_32bit_binary)
-        i = len(start_section)-1
+        i = len(start_section) - 1
 
     # Some of the PIC code/module rely on typical pattern to locate
     # such as:
@@ -266,11 +276,11 @@ else:
     # _GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
     # ....
 
-    if os.path.exists('main.info'):
-        os.system('rm main.info')
+    if os.path.exists("main.info"):
+        os.system("rm main.info")
 
-    if '0x' in main_symbol:
-        main_symbol = main_symbol.split('0x')[1]
+    if "0x" in main_symbol:
+        main_symbol = main_symbol.split("0x")[1]
 
-    with open("main.info", 'w') as f:
-        f.writelines('S_0x'+main_symbol.upper()+"\n")
+    with open("main.info", "w") as f:
+        f.writelines("S_0x" + main_symbol.upper() + "\n")

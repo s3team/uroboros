@@ -23,3 +23,6 @@ void capture_analogRead(int val) {
 void capture_analogWrite(int val1, float val2) {
    printf("analogWrite called. pin=%d val=%f\n", val1, val2);
 }
+void capture_analogWrite_unused(int val1, float val2) {
+   printf("analogWrite called.\n");
+}

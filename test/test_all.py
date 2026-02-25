@@ -31,7 +31,9 @@ def get_inputs(args):
     return target_list
 
 
-def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool, isa: str):
+def compile_bin(
+    source: Path, binary: Path, arch: int, pie: bool, static: bool, isa: str
+):
     if source.exists() is False:
         logger.error(f"Source code not found at {source}")
         return
@@ -39,9 +41,9 @@ def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool, 
     compiler = None
     if isa == "intel":
         compiler = "gcc"
-    elif isa == "arm" and arch == 32:
+    elif isa == "arm" and (arch == "32" or arch == "thumb"):
         compiler = "arm-linux-gnueabihf-gcc"
-    elif isa == "arm" and arch == 64:
+    elif isa == "arm" and arch == "64":
         compiler = "aarch64-linux-gnu-gcc"
     else:
         logger.error(f"Unsupported architecture {isa} for {arch}-bit compilation")
@@ -50,7 +52,7 @@ def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool, 
     if isa == "intel":
         compile_args = [
             compiler,
-            "-m32" if arch == 32 else "-m64",
+            "-m32" if arch == "32" else "-m64",
             "-no-pie" if pie is False else "-pie",
             "-o",
             str(binary),
@@ -78,14 +80,16 @@ def compile_bin(source: Path, binary: Path, arch: int, pie: bool, static: bool, 
     subprocess.run(compile_args, check=True)
 
     strip_cmd = None
+    print(isa, arch)
     if isa == "intel":
         strip_cmd = "strip"
     elif isa == "arm":
-        if arch == 32:
+        if arch == "32" or arch == "thumb":
             strip_cmd = "arm-linux-gnueabihf-strip"
-        elif arch == 64:
+        elif arch == "64":
             strip_cmd = "aarch64-linux-gnu-strip"
-    subprocess.run(["cp", str(binary), str(binary)+".sym"], check=True)
+    subprocess.run(["cp", str(binary), str(binary) + ".sym"], check=True)
+    print(strip_cmd)
     subprocess.run([strip_cmd, str(binary)], check=True)
 
     if binary.exists() is False:
@@ -148,7 +152,9 @@ def test_recompiled_binary(raw: Path, recompiled: Path, isa: str):
         recompiled_cmd = ["script", "-q", "-c", str(recompiled)]
     elif isa == "arm":
         qemu_raw_cmd = f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(raw)}"
-        qemu_recompiled_command = f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(recompiled)}"
+        qemu_recompiled_command = (
+            f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(recompiled)}"
+        )
         raw_cmd = ["script", "-q", "-c", qemu_raw_cmd]
         recompiled_cmd = ["script", "-q", "-c", qemu_recompiled_command]
 
@@ -175,11 +181,13 @@ def test_recompiled_binary(raw: Path, recompiled: Path, isa: str):
 
     return True
 
+
 def human_readable_size(size, decimal_places=2):
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size < 1024:
             return f"{size:.{decimal_places}f} {unit}"
         size /= 1024
+
 
 def compare_size(raw: Path, recompiled: Path):
     raw_size = raw.stat().st_size
@@ -188,25 +196,27 @@ def compare_size(raw: Path, recompiled: Path):
 
     logger.info(f"Raw size:\t{human_readable_size(raw_size)}")
     logger.info(f"Recompiled size:\t{human_readable_size(recompiled_size)}")
-    logger.info(f"Size increment:\t{human_readable_size(recompiled_size - raw_size)}\t{size_inc/100/raw_size:.2%}")
+    logger.info(
+        f"Size increment:\t{human_readable_size(recompiled_size - raw_size)}\t{size_inc/100/raw_size:.2%}"
+    )
+
 
 def uroboros_all(targets: list, args):
-    arches = [args.m] if args.m is not None else [32, 64]
-    isas = [args.arch] if args.arch is not None else ["intel"]
+    arches = [args.m] if args.m is not None else ["thumb", "32", "64"]
+    isas = ["arm"] if args.arch is not None else ["intel"]
     pies = [not args.no_pie] if args.no_pie is True else [False]  # TODO: pie support
     statics = [args.static] if args.static is True else [True, False]
     for isa in isas:
         for arch in arches:
-            if isa == "arm" and arch == 64:
-                logger.warning("ARM 64-bit architecture is not supported")
-                continue
-
             for pie in pies:
                 for static in statics:
                     if isa == "arm" and static is True:
                         logger.warning(
                             f"Static linking is not supported for ARM architecture"
                         )
+                        continue
+                    if isa == "intel" and arch == "thumb":
+                        # this combination cannot happen
                         continue
 
                     for source in targets:
@@ -219,9 +229,9 @@ def uroboros_all(targets: list, args):
                         )
 
                         # always compile
-                        #if binary.exists() is False or args.force:
+                        # if binary.exists() is False or args.force:
                         compile_bin(source, binary, arch, pie, static, isa)
-                        if not args.compile:
+                        if not args.compile and isa == "intel":
                             run_uroboros(binary, isa)
 
 
@@ -253,7 +263,9 @@ if __name__ == "__main__":
     )
 
     test_args = parser.add_argument_group("Test options")
-    test_args.add_argument("-m", type=int, choices=[32, 64], help="32 bits or 64 bits")
+    test_args.add_argument(
+        "-m", type=str, choices=["32", "64", "thumb"], help="32 bits or 64 bits"
+    )
     test_args.add_argument("--no-pie", action="store_true", help="Disable PIE flag")
     test_args.add_argument("--stripped", action="store_true", help="Strip binary")
     test_args.add_argument("--static", action="store_true", help="Static binary")

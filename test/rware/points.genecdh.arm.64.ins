@@ -1,0 +1,6 @@
+INSERT BEFORE [getrandom] CALLSITE [] "" ASM x "ldp x0, x1, [sp, 0]
+add sp, sp, 16";
+INSERT BEFORE [getrandom] CALLSITE [] "aarch64-linux-gnu-gcc -no-pie -c ./instr_modules/c/fun.c" C print_int ./instr_modules/c/fun.c;
+INSERT BEFORE [getrandom] CALLSITE [] "" ASM x "sub sp, sp, 16
+stp x0, x1, [sp, 0]
+mov x0, x1";

@@ -7,6 +7,7 @@ def is_32():
     else:
         return False
 
+
 def check_switch_pattern(lines):
     """
     Check if lines contain a switch table pattern.
@@ -22,7 +23,10 @@ def check_switch_pattern(lines):
     for i, line in enumerate(lines):
         stripped = line.strip()
         # Skip lines that are only labels (end with : and don't contain instruction keywords)
-        if stripped.endswith(':') and not any(pattern in line.lower() for pattern in ['cmp', 'bhi', 'add', 'ldr', 'bx', 'mov', 'sub']):
+        if stripped.endswith(":") and not any(
+            pattern in line.lower()
+            for pattern in ["cmp", "bhi", "add", "ldr", "bx", "mov", "sub"]
+        ):
             continue
         instruction_indices.append(i)
 
@@ -113,7 +117,9 @@ def handle_switch_tables(filename):
                 # replace the add line with ldr line
                 dst_reg = add_pc_line.split(",")[0].strip().split(" ")[-1]
                 new_ldr_line = f"ldr {dst_reg},={switch_label}\n"
-                start_index_in_new_content = len(new_content) - (index - start_index) - 3
+                start_index_in_new_content = (
+                    len(new_content) - (index - start_index) - 3
+                )
                 new_content[start_index_in_new_content] = new_ldr_line
                 nop_offset = None
 
@@ -122,7 +128,9 @@ def handle_switch_tables(filename):
                 continue
 
             if "bx" in line:
-                is_pattern_found, pattern_length = check_switch_pattern(lines[index - 6:])
+                is_pattern_found, pattern_length = check_switch_pattern(
+                    lines[index - 6 :]
+                )
                 if is_pattern_found:
                     # find nop from start_index_to_find_nop to 3 lines after the pattern
                     start_index_to_find_nop = index - 7 + pattern_length

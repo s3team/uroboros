@@ -12,7 +12,6 @@ import arm_preprocess
 from argparse import RawTextHelpFormatter
 from argparse import ArgumentParser
 
-
 # keep the intermediate binary/final.s or not.
 k = False
 f_dic = ""
@@ -62,8 +61,10 @@ def is_static():
 
 
 def get_custom_objects(cleanup):
-    result = subprocess.run("ls | grep '\\.o$'", shell=True, capture_output=True, text=True)
-    result = result.stdout.strip().split('\n') if result.stdout else []
+    result = subprocess.run(
+        "ls | grep '\\.o$'", shell=True, capture_output=True, text=True
+    )
+    result = result.stdout.strip().split("\n") if result.stdout else []
     if cleanup or not os.path.exists("points.ins"):
         return list(set(result))
     with open("points.ins") as points:
@@ -122,8 +123,8 @@ def plt_changed():
 def get_plt_info(plt_sec_file):
     with open(plt_sec_file) as plt_sec, open("plt_entries.info") as plt_entries:
         plt_sec_line = plt_sec.readlines()[0]
-        plt_sec_start = int("0x"+plt_sec_line.split()[1], 16)
-        plt_sec_size = int("0x"+plt_sec_line.split()[3], 16)
+        plt_sec_start = int("0x" + plt_sec_line.split()[1], 16)
+        plt_sec_size = int("0x" + plt_sec_line.split()[3], 16)
         plt_sec_entry_num = int(plt_entries.readlines()[0])
         size_per_entry = int(plt_sec_size / plt_sec_entry_num)
         return plt_sec_start, plt_sec_entry_num, size_per_entry
@@ -155,7 +156,7 @@ def get_entry_point_address(fn) -> str:
     output = subprocess.getoutput("readelf -h " + fn)
     entry_point = ""
 
-    for line in output.split('\n'):
+    for line in output.split("\n"):
         if "Entry point address" in line:
             entry_point = line.split()[-1][2:]
             break
@@ -206,7 +207,9 @@ def process(f, i, arch):
 
         # suppose we use this method to obtain function information
         os.system("cp " + f + " func_discover/")
-        os.system(f"python3 func_discover/func_addr.py func_discover/{f} {str(i)} {arch}")
+        os.system(
+            f"python3 func_discover/func_addr.py func_discover/{f} {str(i)} {arch}"
+        )
         if os.path.exists("final_data.s"):
             os.system("rm final_data.s")
         if os.path.exists("useless_func.info"):
@@ -215,11 +218,13 @@ def process(f, i, arch):
         if i > 0:
             os.system(f"python3 useless_func_discover.py {f} {arch}")
 
-        os.system(f"echo \"{str(i)}\" > count.txt")
+        os.system(f'echo "{str(i)}" > count.txt')
         os.system(f"cp {f} {f}.sym")
         os.system(f"nm {f}.sym > nm.info 2> /dev/null")
         if is_static():
-            os.system(f"{objdump_commamnd} -d --section=.plt {f} > plt_whole.info 2> /dev/null")
+            os.system(
+                f"{objdump_commamnd} -d --section=.plt {f} > plt_whole.info 2> /dev/null"
+            )
             os.system(f"readelf -r {f} > rela_plt.info")
             os.system(f"readelf -l {f} > headers.info")
         os.system(f"{strip_command} {f}")
@@ -284,7 +289,7 @@ def process(f, i, arch):
         return True
 
 
-def iterate (f, iterations, arch):
+def iterate(f, iterations, arch):
     print("start to process binary: " + f)
 
     for i in range(0, iterations):
@@ -422,7 +427,11 @@ assumption two and three: -a 2 -a 3""",
         help="enable unstripped mode; expects the input binary to be unstripped",
         default=0,
     )
-    p.add_argument("--arch", help="specify the architecture of the input binary, intel or arm. default=intel", default="intel")
+    p.add_argument(
+        "--arch",
+        help="specify the architecture of the input binary, intel or arm. default=intel",
+        default="intel",
+    )
 
     args = p.parse_args()
     b = args.binary

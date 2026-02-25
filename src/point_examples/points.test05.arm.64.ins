@@ -1,0 +1,11 @@
+INSERT BEFORE [print_info] CALLSITE [] "aarch64-linux-gnu-gcc  -no-pie -c ./instr_modules/c/fun.c" C before_print_info ./instr_modules/c/fun.c;
+INSERT AFTER [print_info] FUNENTRY [] "aarch64-linux-gnu-gcc  -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;
+INSERT BEFORE [print_info] FUNEXIT [] "aarch64-linux-gnu-gcc  -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;
+INSERT AFTER [print_info] FUNENTRY [] "" asm x
+"mov x1, 0
+mov x1, 0
+mov x1, 0";
+INSERT BEFORE [print_info] FUNEXIT [] "" asm x
+"mov x1, 0
+mov x1, 0
+mov x1, 0";
