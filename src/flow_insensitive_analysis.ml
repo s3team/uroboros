@@ -11,7 +11,7 @@ let init_got () : int =
   int_of_string got_addr_str
 
 let got_rewrite_instr (got_reg : string) (got_addr : int)
-    (result : (int, instr) Hashtbl.t) (i : instr) : unit =
+    (result : (int, instr list) Hashtbl.t) (i : instr) : unit =
   (*let _ = print_endline (pp_print_instr' i) in*)
   let module U = UIO in
   match i with
@@ -30,13 +30,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
        *)
       let got_plus_offset = got_addr - const2 in
       Hashtbl.replace result loc.loc_addr
-        (DoubleInstr
-           ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
-             Symbol
-               (StarDes (Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)))),
-             loc,
-             prefix,
-             tags ))
+        [
+          DoubleInstr
+            ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
+              Symbol
+                (StarDes (Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)))),
+              loc,
+              prefix,
+              tags );
+        ]
   | DoubleInstr
       ( Intel_OP (Intel_ControlOP CALL),
         Symbol (StarDes (Ptr (BinOP_PLUS (reg, const)))),
@@ -46,12 +48,14 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (DoubleInstr
-           ( Intel_OP (Intel_ControlOP CALL),
-             Symbol (StarDes (Const (Point got_plus_offset))),
-             loc,
-             prefix,
-             tags ))
+        [
+          DoubleInstr
+            ( Intel_OP (Intel_ControlOP CALL),
+              Symbol (StarDes (Const (Point got_plus_offset))),
+              loc,
+              prefix,
+              tags );
+        ]
   | DoubleInstr
       ( Intel_OP (Intel_ControlOP CALL),
         Symbol (StarDes (Ptr (BinOP_MINUS (reg, const)))),
@@ -61,12 +65,14 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr - const in
       Hashtbl.replace result loc.loc_addr
-        (DoubleInstr
-           ( Intel_OP (Intel_ControlOP CALL),
-             Symbol (StarDes (Const (Point got_plus_offset))),
-             loc,
-             prefix,
-             tags ))
+        [
+          DoubleInstr
+            ( Intel_OP (Intel_ControlOP CALL),
+              Symbol (StarDes (Const (Point got_plus_offset))),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
         dest_ptr,
@@ -77,13 +83,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr - const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
-             dest_ptr,
-             Const (Point got_plus_offset),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
+              dest_ptr,
+              Const (Point got_plus_offset),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
         dest_ptr,
@@ -94,13 +102,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
-             dest_ptr,
-             Const (Point got_plus_offset),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
+              dest_ptr,
+              Const (Point got_plus_offset),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
         dest_ptr,
@@ -111,13 +121,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
-             dest_ptr,
-             Const (Point got_plus_offset),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
+              dest_ptr,
+              Const (Point got_plus_offset),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
         Reg reg1,
@@ -127,13 +139,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
         tags )
     when got_reg = p_exp (Reg reg2) ->
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
-             Reg reg1,
-             Const (Normal got_addr),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
+              Reg reg1,
+              Const (Normal got_addr),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
         dest_ptr,
@@ -144,13 +158,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg1) ->
       let got_plus_offset = got_addr + const2 in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
-             dest_ptr,
-             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+              dest_ptr,
+              Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
         dest_ptr,
@@ -162,13 +178,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg1) ->
       let got_plus_offset = got_addr - const2 in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
-             dest_ptr,
-             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+              dest_ptr,
+              Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
         Ptr (BinOP_PLUS (reg, const)),
@@ -179,13 +197,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
-             Const (Point got_plus_offset),
-             dest_ptr,
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
+              Const (Point got_plus_offset),
+              dest_ptr,
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
         dest_ptr,
@@ -196,13 +216,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
-             dest_ptr,
-             Const (Point got_plus_offset),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+              dest_ptr,
+              Const (Point got_plus_offset),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
         Ptr (BinOP_PLUS (reg, const)),
@@ -213,13 +235,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
-             Const (Point got_plus_offset),
-             dest_ptr,
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+              Const (Point got_plus_offset),
+              dest_ptr,
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
         dest_ptr,
@@ -230,13 +254,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
-             dest_ptr,
-             Const (Point got_plus_offset),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
+              dest_ptr,
+              Const (Point got_plus_offset),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
         Ptr (BinOP_PLUS (reg, const)),
@@ -247,13 +273,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
-             Const (Point got_plus_offset),
-             dest_ptr,
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
+              Const (Point got_plus_offset),
+              dest_ptr,
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
         Ptr (BinOP_PLUS (reg, const)),
@@ -264,13 +292,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
-             Const (Point got_plus_offset),
-             cmp_to,
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
+              Const (Point got_plus_offset),
+              cmp_to,
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
         cmp_to,
@@ -281,13 +311,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
-             cmp_to,
-             Const (Point got_plus_offset),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
+              cmp_to,
+              Const (Point got_plus_offset),
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
         Ptr (BinOP_MINUS (reg, const)),
@@ -298,13 +330,15 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
-             Const (Point got_plus_offset),
-             cmp_to,
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
+              Const (Point got_plus_offset),
+              cmp_to,
+              loc,
+              prefix,
+              tags );
+        ]
   | TripleInstr
       ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
         cmp_to,
@@ -315,20 +349,22 @@ let got_rewrite_instr (got_reg : string) (got_addr : int)
     when got_reg = p_exp (Reg reg) ->
       let got_plus_offset = got_addr + const in
       Hashtbl.replace result loc.loc_addr
-        (TripleInstr
-           ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
-             cmp_to,
-             Const (Point got_plus_offset),
-             loc,
-             prefix,
-             tags ))
+        [
+          TripleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
+              cmp_to,
+              Const (Point got_plus_offset),
+              loc,
+              prefix,
+              tags );
+        ]
   | _ -> ()
 
 (** assuming that initial register containing GOT, got_reg, is not overwritten *
     throughout the function, perform GOT rewriting without considering control *
     or data flow *)
 let got_rewrite (got_reg : string) (il : instr list)
-    (result : (int, instr) Hashtbl.t) : unit =
+    (result : (int, instr list) Hashtbl.t) : unit =
   List.iter
     (fun instr -> got_rewrite_instr got_reg (init_got ()) result instr)
     il

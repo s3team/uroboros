@@ -4,6 +4,8 @@ exception Pass_Validator
 
 module Disam = struct
   open Arm_got_instr_analysis
+  open Intel_got_instr_analysis
+  open Adrp_instr_analysis
   open Semantic_analysis
   open Common_reassemble_symbol_get
   open Arm_reassemble_symbol_get
@@ -67,7 +69,9 @@ module Disam = struct
       let module GA = GotAbs in
       let module D = DFA (GA) in
       let module AGA = ArmGotAbsWithValues in
-      let module AD = DFAWithValues (AGA) in
+      let module AD = DFA (AGA) in
+      let module ADRPA = AdrpAbs in
+      let module ADRPD = DFA (ADRPA) in
       let module AP = ArmPostprocess in
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
@@ -87,14 +91,22 @@ module Disam = struct
           IV.adjust_esp ail_parser#get_instrs
         else ail_parser#get_instrs
       in
-      let il_init =
-        if EU.elf_arm () && EU.elf_64 () then
-          (* ARM64 specific *)
-          IV.convert_adrp_to_abs_addr il_init
-        else il_init
+
+      let fl =
+        if EU.elf_64 () && EU.elf_arm () then
+          FnU.fix_underapprox fl il_init
+        else fl
       in
 
-      let got_rewrite (il : instr list) =
+      (*
+      List.iter
+        (fun f ->
+          Printf.printf "func: %s begin: 0x%x end: 0x%x\n"
+            f.func_name f.func_begin_addr f.func_end_addr)
+        fl;
+      *)
+
+      let rewrite (il : instr list) =
         if EU.elf_32 () && arch = "intel" then
           let func2cfg = FnU.func2cfg il fl in
           let _ =
@@ -104,7 +116,8 @@ module Disam = struct
                 let _ = Hashtbl.remove GA.result 0 in
                 let _ = D.flow_analysis f cfg in
                 if Hashtbl.mem GA.result 0 then
-                  let tags = get_tags (Hashtbl.find GA.result 0) in
+                  let got_ptr = List.nth (Hashtbl.find GA.result 0) 0 in
+                  let tags = get_tags got_ptr in
                   let got_reg = Hashtbl.find tags "got_reg" in
                   match got_reg with
                   | Str gr ->
@@ -116,7 +129,7 @@ module Disam = struct
           in
           GA.result
         else if EU.elf_32 () && (arch = "thumb" || arch = "arm") then
-          let func2cfg_table = FnU.func2cfg ail_parser#get_instrs fl in
+          let func2cfg_table = FnU.func2cfg il fl in
           let _ =
             Hashtbl.iter
               (fun f cfg ->
@@ -125,6 +138,16 @@ module Disam = struct
               func2cfg_table
           in
           AGA.result
+        else if EU.elf_64 () && arch = "arm" then
+          let func2cfg_table = FnU.func2cfg il fl in
+          let _ =
+            Hashtbl.iter
+              (fun f cfg ->
+                let _ = ADRPD.flow_analysis f cfg in
+                ())
+              func2cfg_table
+          in
+          ADRPA.result
         else Hashtbl.create 1
       in
 
@@ -132,17 +155,17 @@ module Disam = struct
         if arch = "thumb" then AP.adjust_thumb_function_pointer ilist else ilist
       in
 
-      let rewriting_result = got_rewrite il_init in
+      let rewriting_result = rewrite il_init in
 
       il :=
         (if EU.elf_32 () && arch = "intel" then
-           FnU.replace_got_ref rewriting_result @@ il_init
+           FnU.perform_dfa_rewrites rewriting_result @@ il_init
            |> re#jmp_table_rewrite
            (* second call to got_rewrite account switch dests in CFGs *)
-           (*|> (fun il -> FnU.replace_got_ref (got_rewrite il) @@ il )*)
+           (*|> (fun il -> FnU.perform_dfa_rewrites (got_rewrite il) @@ il )*)
          else if EU.elf_64 () && arch = "intel" then
            re#jmp_table_rewrite64 @@ il_init
-         else begin FnU.replace_got_ref AGA.result @@ il_init
+         else begin FnU.perform_dfa_rewrites rewriting_result @@ il_init
            (* The postprocess should be executed after symbolization completed.
             * Note that the symbolization-related functions such as vinst2 and v_exp2
             * are called by visit_type_infer_analysis and visit_heuristic_analysis.

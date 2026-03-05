@@ -8,7 +8,7 @@ Uroboros is an infrastructure for reassembleable disassembling and transformatio
 Uroboros can disassemble and reassemble an executable multiple times.
 Before reassembly, Uroboros can also perform code transformation, modifying the intended
 behavior of the executable.
-An example code transformation is [instrumentation](INSTRUMENTATION.md).
+An example code transformation is [instrumentation](doc/INSTRUMENTATION.md).
 
 ## Installation
 
@@ -64,13 +64,13 @@ timestamp (e.g., `test_fold_bzip_2021-09-19_05:51:00`).
 
 3. --arch (architecture):
 
-Uroboros supports **x86** (`--arch intel`), **ARM Thumb** (`--arch thumb`), and **ARM64** (`--arch arm`). `--arch intel` is applied by default. To work with ARM Thumb and ARM64 binaries, please refer to [ARM.md](ARM.md).
+Uroboros supports **x86** (`--arch intel`), **ARM Thumb** (`--arch thumb`), and **ARM64** (`--arch arm`). `--arch intel` is applied by default. To work with ARM Thumb and ARM64 binaries, please refer to [ARM.md](doc/ARM.md).
 
 ## Instrumentation
 
 One application of Uroboros is binary code instrumentation.
 The documentation for Uroboros' instrumentation framework
-can be found in [INSTRUMENTATION.md](INSTRUMENTATION.md).
+can be found in [INSTRUMENTATION.md](doc/INSTRUMENTATION.md).
 
 ## Publication
 ```

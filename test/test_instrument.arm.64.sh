@@ -266,6 +266,40 @@ pushd ${rware_dir}
 make clean -f Makefile.arm.64
 popd
 
+############################
+## statically-linked tests #
+############################
+
+############
+## genecdh #
+############
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make -f Makefile.arm.static.64
+popd
+
+echo ">>> arm64 genecdh (statically-linked)"
+
+pushd $(pwd)/src
+python3 uroboros.py ${rware_dir}/build/genecdh_sym --arch arm &> /dev/null
+qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out genkey &> /dev/null
+
+if [ ! -f public_key.h ]; then
+	echo "##### expected resulting file public_key.h for genecdh.arm.64 (static) not matching #####"
+  has_failed="true"
+fi
+if [ ! -f private.key ]; then
+	echo "##### expected resulting file private.key for genecdh.arm.64 (static) not matching #####"
+  has_failed="true"
+fi
+rm public_key.h
+rm private.key
+popd
+
+pushd ${rware_dir}
+make clean -f Makefile.arm.static.64
+popd
+
 ###########
 # closing #
 ###########

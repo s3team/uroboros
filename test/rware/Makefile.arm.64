@@ -1,6 +1,6 @@
 #:Compiler and flags
 CC = aarch64-linux-gnu-gcc
-CFLAGS = -no-pie -I./tiny-AES-c -I./tiny-ECDH-c
+CFLAGS = -O3 -no-pie -I./tiny-AES-c -I./tiny-ECDH-c
 
 # Source files
 GENECDH_SRC = src/genecdh.c tiny-ECDH-c/ecdh.c

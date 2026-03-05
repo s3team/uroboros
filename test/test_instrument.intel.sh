@@ -281,6 +281,14 @@ pushd $(pwd)/test/simul_io
 make clean
 popd
 
+##########################################
+## rware tests (genecdh, rware, unrware) #
+##########################################
+
+#############################
+## dynamically-linked tests #
+#############################
+
 #################
 ## rware 32-bit #
 #################
@@ -290,7 +298,7 @@ make clean -f Makefile.intel.32
 make -f Makefile.intel.32
 popd
 
-echo ">>> 32-bit rware"
+echo ">>> 32-bit rware (dynamically-linked)"
 
 pushd $(pwd)/src
 cp ${rware_dir}/points.rware.intel.32.ins points/
@@ -299,7 +307,7 @@ python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
 
 if [[ "$expected_rware" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.32 not matching #####"
+  echo "##### expected output for rware.intel.32 not matching #####"
   echo "~ actual:"
   cat "$tmpfile"
   has_failed="true"
@@ -311,7 +319,7 @@ popd
 pushd ${rware_dir}/hello
 if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
   # Not all files end with .CRYPT, so error
-  echo "##### expected encrypted output for rware.arm.64 not matching #####"
+  echo "##### expected encrypted output for rware.intel.64 not matching #####"
   has_failed="true"
 fi
 popd
@@ -319,7 +327,7 @@ popd
 ###################
 ## unrware 32-bit #
 ###################
-echo ">>> 32-bit unrware"
+echo ">>> 32-bit unrware (dynamically-linked)"
 
 pushd $(pwd)/src
 cp ${rware_dir}/points.unrware.intel.32.ins $(pwd)/points/
@@ -328,7 +336,7 @@ python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
 $(pwd)/a.out info.enc ${rware_dir}/keys &> "$tmpfile"
 
 if [[ "$expected_unrware" != $(cat "$tmpfile" | grep "called") ]]; then
-  echo "##### expected output for unrware.32 not matching #####"
+  echo "##### expected output for unrware.intel.32 not matching #####"
   echo "~ actual:"
   cat "$tmpfile"
   has_failed="true"
@@ -340,7 +348,7 @@ popd
 pushd ${rware_dir}/hello
 if find . -type f -name '*.CRYPT' -print -quit | read; then
   # At least one file ends with .CRYPT, so error
-  echo "##### expected decrypted output for unrware.arm.32 not matching #####"
+  echo "##### expected decrypted output for unrware.intel.32 not matching #####"
   has_failed="true"
 fi
 popd
@@ -356,7 +364,7 @@ pushd ${rware_dir}
 make -f Makefile.intel.64
 popd
 
-echo ">>> 64-bit rware"
+echo ">>> 64-bit rware (dynamically-linked)"
 
 pushd $(pwd)/src
 cp ${rware_dir}/points.rware.intel.64.ins $(pwd)/points/
@@ -365,7 +373,7 @@ python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
 
 if [[ "$expected_rware" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.64 not matching #####"
+  echo "##### expected output for rware.intel.64 not matching #####"
   echo "~ actual:"
   cat "$tmpfile"
   has_failed="true"
@@ -377,7 +385,7 @@ popd
 pushd ${rware_dir}/hello
 if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
   # Not all files end with .CRYPT, so error
-  echo "##### expected encrypted output for rware.arm.64 not matching #####"
+  echo "##### expected encrypted output for rware.intel.64 not matching #####"
   has_failed="true"
 fi
 popd
@@ -385,7 +393,7 @@ popd
 ###################
 ## unrware 64-bit #
 ###################
-echo ">>> 64-bit unrware"
+echo ">>> 64-bit unrware (dynamically-linked)"
 
 pushd $(pwd)/src
 cp ${rware_dir}/points.unrware.intel.64.ins $(pwd)/points/
@@ -394,7 +402,7 @@ python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
 $(pwd)/a.out info.enc ${rware_dir}/keys &> "$tmpfile"
 
 if [[ "$expected_unrware" != $(cat "$tmpfile" | grep "called") ]]; then
-  echo "##### expected output for unrware.64 not matching #####"
+  echo "##### expected output for unrware.intel.64 not matching #####"
   echo "~ actual:"
   cat "$tmpfile"
   has_failed="true"
@@ -406,7 +414,7 @@ popd
 pushd ${rware_dir}/hello
 if find . -type f -name '*.CRYPT' -print -quit | read; then
   # At least one file ends with .CRYPT, so error
-  echo "##### expected decrypted output for unrware.arm.64 not matching #####"
+  echo "##### expected decrypted output for unrware.intel.64 not matching #####"
   has_failed="true"
 fi
 popd
@@ -422,7 +430,7 @@ pushd ${rware_dir}
 make -f Makefile.intel.32
 popd
 
-echo ">>> 32-bit genecdh"
+echo ">>> 32-bit genecdh (dynamically-linked)"
 
 pushd $(pwd)/src
 cp ${rware_dir}/points.genecdh.intel.32.ins points/
@@ -431,7 +439,7 @@ python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
 $(pwd)/a.out genkey &> "$tmpfile"
 
 if [[ "$expected_genecdh" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.32 not matching #####"
+  echo "##### expected output for genecdh.intel.32 not matching #####"
   echo "~ actual:"
   cat "$tmpfile"
   has_failed="true"
@@ -456,7 +464,7 @@ make clean -f Makefile.intel.32
 make -f Makefile.intel.64
 popd
 
-echo ">>> 64-bit genecdh"
+echo ">>> 64-bit genecdh (dynamically-linked)"
 
 pushd $(pwd)/src
 cp ${rware_dir}/points.genecdh.intel.64.ins points/
@@ -465,7 +473,7 @@ python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
 $(pwd)/a.out genkey &> "$tmpfile"
 
 if [[ "$expected_genecdh" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.64 not matching #####"
+  echo "##### expected output for genecdh.intel.64 not matching #####"
   echo "~ actual:"
   cat "$tmpfile"
   has_failed="true"
@@ -487,6 +495,152 @@ popd
 
 pushd ${rware_dir}
 make clean -f Makefile.intel.64
+popd
+
+############################
+## statically-linked tests #
+############################
+
+#################
+## rware 32-bit #
+#################
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make clean -f Makefile.intel.static.32
+make -f Makefile.intel.static.32
+popd
+
+echo ">>> 32-bit rware (statically-linked)"
+
+pushd $(pwd)/src
+python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
+$(pwd)/a.out ${rware_dir}/hello &> /dev/null
+popd
+
+pushd ${rware_dir}/hello
+if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
+  # Not all files end with .CRYPT, so error
+  echo "##### expected encrypted output for rware.intel.static.64 not matching #####"
+  has_failed="true"
+fi
+popd
+
+###################
+## unrware 32-bit #
+###################
+echo ">>> 32-bit unrware (statically-linked)"
+
+pushd $(pwd)/src
+python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
+$(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
+popd
+
+pushd ${rware_dir}/hello
+if find . -type f -name '*.CRYPT' -print -quit | read; then
+  # At least one file ends with .CRYPT, so error
+  echo "##### expected decrypted output for unrware.intel.static.32 not matching #####"
+  has_failed="true"
+fi
+popd
+pushd ${rware_dir}
+make clean -f Makefile.intel.static.32
+popd
+
+#################
+## rware 64-bit #
+#################
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make -f Makefile.intel.static.64
+popd
+
+echo ">>> 64-bit rware (statically-linked)"
+
+pushd $(pwd)/src
+python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
+$(pwd)/a.out ${rware_dir}/hello &> /dev/null
+popd
+
+pushd ${rware_dir}/hello
+if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
+  # Not all files end with .CRYPT, so error
+  echo "##### expected encrypted output for rware.intel.static.64 not matching #####"
+  has_failed="true"
+fi
+popd
+
+###################
+## unrware 64-bit #
+###################
+echo ">>> 64-bit unrware (statically-linked)"
+
+pushd $(pwd)/src
+python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
+$(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
+popd
+
+pushd ${rware_dir}/hello
+if find . -type f -name '*.CRYPT' -print -quit | read; then
+  # At least one file ends with .CRYPT, so error
+  echo "##### expected decrypted output for unrware.intel.static.64 not matching #####"
+  has_failed="true"
+fi
+popd
+pushd ${rware_dir}
+make clean -f Makefile.intel.static.64
+popd
+
+############
+## genecdh #
+############
+rware_dir=$(pwd)/test/rware
+pushd ${rware_dir}
+make -f Makefile.intel.static.32
+popd
+
+echo ">>> 32-bit genecdh (statically-linked)"
+
+pushd $(pwd)/src
+python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
+$(pwd)/a.out genkey &> /dev/null
+
+if [ ! -f public_key.h ]; then
+  echo "##### expected resulting file public_key.h for genecdh.intel.static.32 not matching #####"
+  has_failed="true"
+fi
+if [ ! -f private.key ]; then
+  echo "##### expected resulting file private.key for genecdh.intel.static.32 not matching #####"
+  has_failed="true"
+fi
+rm public_key.h
+rm private.key
+popd
+
+pushd ${rware_dir}
+make clean -f Makefile.intel.static.32
+make -f Makefile.intel.static.64
+popd
+
+echo ">>> 64-bit genecdh (statically-linked)"
+
+pushd $(pwd)/src
+python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
+$(pwd)/a.out genkey &> /dev/null
+
+if [ ! -f public_key.h ]; then
+  echo "##### expected resulting file public_key.h for genecdh.intel.static.64 not matching #####"
+  has_failed="true"
+fi
+if [ ! -f private.key ]; then
+  echo "##### expected resulting file private.key for genecdh.intel.static.64 not matching #####"
+  has_failed="true"
+fi
+rm public_key.h
+rm private.key
+popd
+
+pushd ${rware_dir}
+make clean -f Makefile.intel.static.64
 popd
 
 ###########

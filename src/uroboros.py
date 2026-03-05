@@ -99,6 +99,7 @@ def reassemble(assembly_file, arch):
             compile_option += "-marm "
         else:
             compiler = "aarch64-linux-gnu-gcc"
+            compile_option += "-march=armv9-a "
 
     if is_static() == True:
         compile_option += "-static"
@@ -118,16 +119,6 @@ def plt_changed():
         plt_sec_size = plt_sec_line.split()[3]
         plt_sec_re_size = plt_sec_re_line.split()[3]
         return plt_sec_size != plt_sec_re_size
-
-
-def get_plt_info(plt_sec_file):
-    with open(plt_sec_file) as plt_sec, open("plt_entries.info") as plt_entries:
-        plt_sec_line = plt_sec.readlines()[0]
-        plt_sec_start = int("0x" + plt_sec_line.split()[1], 16)
-        plt_sec_size = int("0x" + plt_sec_line.split()[3], 16)
-        plt_sec_entry_num = int(plt_entries.readlines()[0])
-        size_per_entry = int(plt_sec_size / plt_sec_entry_num)
-        return plt_sec_start, plt_sec_entry_num, size_per_entry
 
 
 def update_final(plt_addr2entry, plt_new_entry2addr):
@@ -258,12 +249,12 @@ def process(f, i, arch):
             # FIXME!
             os.system("python3 gobmk_sub.py")
 
-        os.system(f"python3 compile_process.py {arch}")
         os.system("python3 label_adjust.py")
 
         if arch == "thumb" or arch == "arm":
             os.system("python3 arm_postprocess.py final.s")
 
+        os.system(f"python3 compile_process.py {arch}")
         reassemble("final.s", arch)
 
         custom_objects = get_custom_objects(cleanup=True)

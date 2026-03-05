@@ -48,15 +48,6 @@ class virtual common_func_slicer instrs funcs =
       | _ -> false
 
     method update =
-      (*           if List.mem baddr addr_set  then
-          (
-          print_string ((dec_hex baddr)^"\n");
-          ()
-          )
-        else *)
-      (* begin *)
-      (* used to be a bug here, function name in the parser is
-      * S_0xdeadbeef while here create function name as 0xdeadbeef *)
       let func = "S_" ^ dec_hex baddr in
       if Hashtbl.mem func_set func then
         let f' = Hashtbl.find func_set func in
@@ -83,11 +74,10 @@ class virtual common_func_slicer instrs funcs =
       ignore (Sys.command "python3 init_sec_adjust.py");
       let il = read_file "init_sec.info" in
       (* check if its empty *)
-      if List.length il = 0 then
-        begin
-          print_endline "init_sec.info is empty, exiting.";
-          bl
-        end
+      if List.length il = 0 then begin
+        print_endline "init_sec.info is empty, exiting.";
+        bl
+      end
       else begin
         let l = List.nth il 0 in
         let items = Str.split (Str.regexp " +") l in
@@ -154,11 +144,16 @@ class virtual common_func_slicer instrs funcs =
       Hashtbl.fold help func_set []
 
     method funcaddr_from_file =
+      let module EU = ELF_utils in
       let t = read_file "faddr.txt" in
       let t1 = read_file "faddr_call.txt" in
       let func_begins2 = List.map int_of_string t in
       let func_begins3 = List.map int_of_string t1 in
-      func_begins <- func_begins @ func_begins2 @ func_begins3;
+      if EU.elf_arm () && EU.elf_static () then
+        let t2 = read_file "plt_funcs.info" in
+        let func_begins4 = List.map int_of_string t2 in
+        func_begins <- func_begins @ func_begins2 @ func_begins3 @ func_begins4
+      else func_begins <- func_begins @ func_begins2 @ func_begins3
 
     method dump_funclist =
       let dec_hex (s : int) : string = "0x0" ^ Printf.sprintf "%x" s in
@@ -169,7 +164,6 @@ class virtual common_func_slicer instrs funcs =
 
     method get_funcs =
       self#process2;
-      (* self#dump_funclist; *)
       self#funcaddr_from_file;
       self#build_func_info;
       let fl = self#get_func_list in

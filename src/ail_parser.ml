@@ -267,11 +267,22 @@ class ailParser =
 
     (* some of the functions are allocated in .init section, in which case we don't have to record *)
     method filter_func_by_secs (fl : func list) : func list =
-      let il = read_file "text_sec.info" in
-      let l = List.nth il 0 in
-      let items = Str.split (Str.regexp " +") l in
-      let addr = int_of_string ("0x" ^ List.nth items 1)
-      and size = int_of_string ("0x" ^ List.nth items 3) in
+      let module EU = ELF_utils in
+      let text_info = read_file "text_sec.info" in
+      let text_info = List.nth text_info 0 in
+      let text_items = Str.split (Str.regexp " +") text_info in
+      let text_addr = int_of_string ("0x" ^ List.nth text_items 1)
+      and text_size = int_of_string ("0x" ^ List.nth text_items 3) in
+      let plt_range =
+        if EU.elf_arm () && EU.elf_static () then
+          let plt_info = read_file "plt_sec.info" in
+          let plt_info = List.nth plt_info 0 in
+          let plt_items = Str.split (Str.regexp " +") plt_info in
+          let plt_addr = int_of_string ("0x" ^ List.nth plt_items 1)
+          and plt_size = int_of_string ("0x" ^ List.nth plt_items 3) in
+          Some (plt_addr, plt_size)
+        else None
+      in
       List.filter
         (fun f ->
           let fl = String.length f.func_name in
@@ -279,7 +290,13 @@ class ailParser =
           else begin
             match int_of_string_opt (String.sub f.func_name 2 (fl - 2)) with
             | None -> true
-            | Some n -> n >= addr && n < addr + size
+            | Some n -> begin
+                match plt_range with
+                | Some (plt_addr, plt_size) ->
+                    (n >= text_addr && n < text_addr + text_size)
+                    || (n >= plt_addr && n < plt_addr + plt_size)
+                | None -> n >= text_addr && n < text_addr + text_size
+              end
           end)
         fl
 

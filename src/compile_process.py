@@ -4,6 +4,7 @@ import sys
 
 arch = sys.argv[1]
 
+
 def check_exe():
     lines = []
     with open("elf.info") as f:
@@ -15,6 +16,7 @@ def check_exe():
     else:
         return False
 
+
 def check_32():
     lines = []
     with open("elf.info") as f:
@@ -23,7 +25,6 @@ def check_32():
         return True
     else:
         return False
-
 
 
 def reassemble():
@@ -46,32 +47,40 @@ def reassemble():
             compile_option = "-marm "
         else:
             compiler = "aarch64-linux-gnu-gcc"
+            compile_option += "-march=armv9-a "
 
-    compiler_version = subprocess.getoutput(f'{compiler} --version').split('\n')[0].split()[-1]
+    compiler_version = (
+        subprocess.getoutput(f"{compiler} --version").split("\n")[0].split()[-1]
+    )
 
     if is_32bit_binary == True:
         # 32-bit binary
-        os.system(f'{compiler} -no-pie final.s -lm -lrt -lpthread {compile_option} 2> final.error')
+        os.system(
+            f"{compiler} -no-pie final.s -lm -lrt -lpthread {compile_option} 2> final.error"
+        )
     else:
         # 64-bit binary
-        os.system(f'{compiler} -no-pie final.s -lm -lrt -lpthread {compile_option} 2> final.error')
+        os.system(
+            f"{compiler} -no-pie final.s -lm -lrt -lpthread {compile_option} 2> final.error"
+        )
 
 
 def parse_error():
     errors = []
-    if os.path.isfile('final.error'):
+    if os.path.isfile("final.error"):
         with open("final.error") as f:
             errors = f.readlines()
             addrs = []
+
         def help(l):
-            if 'In function' in l:
+            if "In function" in l:
                 pass
-            elif 'undefined reference' in l and 'S_0x' in l:
+            elif "undefined reference" in l and "S_0x" in l:
                 addrs.append(l.split()[-1][1:-1])
+
         for l in errors:
             help(l)
         # map(lambda l : help(l), errors)
-
 
         return set(addrs)
 
@@ -80,15 +89,17 @@ def modify(errors):
     lines = []
     with open("final.s") as f:
         lines = f.readlines()
+
     def help(l):
-        e = list(filter(lambda e : e in l, errors))
+        e = list(filter(lambda e: e in l, errors))
         if e != []:
             addr = e[0][2:]
             # print("undefined label : "+addr)
             l = l.replace(e[0], addr)
         return l
-    lines = list(map(lambda l : help(l), lines))
-    with open("final.s", 'w') as f:
+
+    lines = list(map(lambda l: help(l), lines))
+    with open("final.s", "w") as f:
         f.writelines(lines)
 
 
@@ -99,5 +110,6 @@ def main():
     modify(errors)
     print("\tmodify finished")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

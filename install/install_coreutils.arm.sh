@@ -1,6 +1,5 @@
 #!/bin/bash
 
-wget ftp.gnu.org/gnu/coreutils/coreutils-9.6.tar.xz
 tar -xf coreutils-9.6.tar.xz
 cp -r coreutils-9.6 $(pwd)/coreutils-32bit
 cp -r coreutils-9.6 $(pwd)/coreutils-64bit

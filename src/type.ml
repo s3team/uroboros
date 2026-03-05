@@ -904,13 +904,6 @@ and arm_controlop =
   | BLXNS
   (* AArch64 *)
   | RET
-  | RETAA
-  | RETAB
-  | RETAASPPC
-  | RETABSPPC
-  | RETAASPPCR
-  | RETABSPPCR
-  | BLR
 
 and arm_stackop =
   | PUSH
@@ -949,6 +942,13 @@ and arm_systemop =
   | MRC
   | MRC2
   | SETPAN
+  (* AArch64 *)
+  | BRK
+  | PRFM
+  | DC
+  | XPACLRI
+  | AUTIA1716
+  | AUTIB1716
 
 and arm_arithmop =
   | ADC
@@ -1114,6 +1114,18 @@ and arm_arithmop =
   | UMULH
   | CSINC
   | DUP
+  | MADD
+  | MSUB
+  | CNEG
+  | CSETM
+  | MNEG
+  | CSNEG
+  | CINC
+  | ADDP
+  | SMADDL
+  | UMADDL
+  | ADDV
+  | UMSUBL
 
 and arm_logicop =
   | BIC
@@ -1139,6 +1151,11 @@ and arm_logicop =
   | USHL
   | SHL
   | EXTR
+  | BFXIL
+  | CSINV
+  | BIT
+  | CINV
+  | FABS
 
 and arm_rolop =
   | ASR
@@ -1250,6 +1267,44 @@ and arm_assignop =
   | STURB
   | TBL
   | TBNZ
+  | LDAR
+  | MOVZ
+  | LD1
+  | UMAXP
+  | EXT
+  | LDURH
+  | STURH
+  | WHILELO
+  | LD1B
+  | ST1B
+  | PTRUE
+  | UMINP
+  | STLR
+  | CNT
+  | CAS
+  | LDXR
+  | STXR
+  | LDAXR
+  | CASA
+  | CASL
+  | STLXR
+  | SWP
+  | SWPA
+  | LDADDA
+  | SWPL
+  | CNTD
+  | LDADD
+  | LDSETA
+  | LDURSH
+  | LDURSW
+  | RETAA
+  | RETAB
+  | RETAASPPC
+  | RETABSPPC
+  | RETAASPPCR
+  | RETABSPPCR
+  | BLR
+  | BTI
 
 and arm_compareop =
   | CMN
@@ -1262,6 +1317,10 @@ and arm_compareop =
   (* AArch64 *)
   | FCMPE
   | CCMP
+  | CCMN
+  | CMHS
+  | FCMP
+  | CMGE
 
 and arm_conditionop =
   | IT
@@ -1282,7 +1341,7 @@ and arm_conditionop =
   (* AArch64 *)
   | TBZ
 
-and arm_otherop = NOP | HLT | NOPW | NOPL | UD2 | SETEND | VSLI
+and arm_otherop = NOP | HLT | NOPW | NOPL | UD2 | SETEND | VSLI | CNTB
 
 and arm_condsuff =
   | EQ
@@ -1409,6 +1468,7 @@ and arm_commonreg =
   | X26
   | X27
   | X28
+  | XZR
 
 and arm_specialreg =
   | D0
@@ -2432,6 +2492,18 @@ let show_arm_op = function
           | UMULH -> "umulh"
           | CSINC -> "csinc"
           | DUP -> "dup"
+          | MADD -> "madd"
+          | MSUB -> "msub"
+          | CNEG -> "cneg"
+          | CSETM -> "csetm"
+          | MNEG -> "mneg"
+          | CSNEG -> "csneg"
+          | CINC -> "cinc"
+          | ADDP -> "addp"
+          | SMADDL -> "smaddl"
+          | UMADDL -> "umaddl"
+          | ADDV -> "addv"
+          | UMSUBL -> "umsubl"
         end
       | Arm_Logic acommon_logic -> begin
           match acommon_logic with
@@ -2457,6 +2529,11 @@ let show_arm_op = function
           | USHL -> "ushl"
           | SHL -> "shl"
           | EXTR -> "extr"
+          | BFXIL -> "bfxil"
+          | CSINV -> "csinv"
+          | BIT -> "bit"
+          | CINV -> "cinv"
+          | FABS -> "fabs"
         end
       | Arm_Rol acommon_rol -> begin
           match acommon_rol with
@@ -2569,6 +2646,44 @@ let show_arm_op = function
           | STURB -> "sturb"
           | TBL -> "tbl"
           | TBNZ -> "tbnz"
+          | LDAR -> "ldar"
+          | MOVZ -> "movz"
+          | LD1 -> "ld1"
+          | UMAXP -> "umaxp"
+          | EXT -> "ext"
+          | LDURH -> "ldurh"
+          | STURH -> "sturh"
+          | WHILELO -> "whilelo"
+          | LD1B -> "ld1b"
+          | ST1B -> "st1b"
+          | PTRUE -> "ptrue"
+          | UMINP -> "uminp"
+          | STLR -> "stlr"
+          | CNT -> "cnt"
+          | CAS -> "cas"
+          | LDXR -> "ldxr"
+          | STXR -> "stxr"
+          | LDAXR -> "ldaxr"
+          | CASA -> "casa"
+          | CASL -> "casl"
+          | STLXR -> "stlxr"
+          | SWP -> "swp"
+          | SWPA -> "swpa"
+          | LDADDA -> "ldadda"
+          | SWPL -> "swpl"
+          | CNTD -> "cntd"
+          | LDADD -> "ldadd"
+          | LDSETA -> "ldseta"
+          | LDURSH -> "ldursh"
+          | LDURSW -> "ldursw"
+          | RETAA -> "retaa"
+          | RETAB -> "retab"
+          | RETAASPPC -> "retaasppc"
+          | RETABSPPC -> "retabsppc"
+          | RETAASPPCR -> "retaasppcr"
+          | RETABSPPCR -> "retabsppcr"
+          | BLR -> "blr"
+          | BTI -> "bti"
         end
       | Arm_Compare acommon_compare -> begin
           match acommon_compare with
@@ -2581,6 +2696,10 @@ let show_arm_op = function
           | CMEQ -> "cmeq"
           | FCMPE -> "fcmpe"
           | CCMP -> "ccmp"
+          | CCMN -> "ccmn"
+          | CMHS -> "cmhs"
+          | FCMP -> "fcmp"
+          | CMGE -> "cmge"
         end
       | Arm_Other acommon_other -> begin
           match acommon_other with
@@ -2591,6 +2710,7 @@ let show_arm_op = function
           | UD2 -> "ud2"
           | SETEND -> "setend"
           | VSLI -> "vsli"
+          | CNTB -> "cntb"
         end
     end
   | Arm_StackOP astack -> begin
@@ -2617,13 +2737,6 @@ let show_arm_op = function
       | BXNS -> "bxns"
       | BLXNS -> "blxns"
       | RET -> "ret"
-      | RETAA -> "retaa"
-      | RETAB -> "retab"
-      | RETAASPPC -> "retaasppc"
-      | RETABSPPC -> "retabsppc"
-      | RETAASPPCR -> "retaasppcr"
-      | RETABSPPCR -> "retabsppcr"
-      | BLR -> "blr"
     end
   | Arm_Condition acondition -> begin
       match acondition with
@@ -2674,6 +2787,12 @@ let show_arm_op = function
       | MRC -> "mrc"
       | MRC2 -> "mrc2"
       | SETPAN -> "setpan"
+      | BRK -> "brk"
+      | PRFM -> "prfm"
+      | DC -> "dc"
+      | XPACLRI -> "xpaclri"
+      | AUTIA1716 -> "autia1716"
+      | AUTIB1716 -> "autib1716"
     end
   | Arm_ErrorOP aerror -> begin match aerror with BAD -> "BAD" end
 
@@ -2791,6 +2910,7 @@ let show_arm_reg = function
       | X26 -> "x26"
       | X27 -> "x27"
       | X28 -> "x28"
+      | XZR -> "xzr"
       | _ -> failwith "Unknown ARM common reg"
     end
   | Arm_SpecialReg aspecialr -> begin

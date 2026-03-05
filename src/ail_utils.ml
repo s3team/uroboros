@@ -29,6 +29,22 @@ end)
 
 module StringSet = Set.Make (String)
 
+let ( let* ) = Option.bind
+
+let global_bss () =
+  let filelines = read_file "globalbss.info"
+  and help acc l =
+    let items = Str.split (Str.regexp " +") l in
+    let t = List.nth items 0 in
+    let addr = String.sub t 1 (String.length t - 1) in
+    let addr' = String.uppercase_ascii addr
+    and value = String.trim (List.nth items 2) in
+    let rtype = String.trim (List.nth items 1) in
+    (addr', value, rtype) :: acc
+  in
+  List.fold_left help [] filelines
+  |> List.filter (fun (a, n, t) -> String.exists n "@")
+
 let stub_loc : loc = { loc_label = ""; loc_addr = 0; loc_visible = true }
 
 let read_lines (filename : string) : string list =
@@ -303,48 +319,6 @@ let get_next_bb sn =
   let index' = int_of_string index + 1 in
   "BB_" ^ string_of_int index'
 
-(* we implement several functions to support section info querying *)
-(* let's implement them leveraging memo function *)
-
-let memo_rec f =
-  let m = ref [] in
-  let rec g x =
-    try List.assoc x !m
-    with Not_found ->
-      let y = f g x in
-      m := (x, y) :: !m;
-      y
-  in
-  g
-
-let memo f =
-  let m = ref [] in
-  fun x ->
-    try List.assoc x !m
-    with Not_found ->
-      let y = f x in
-      m := (x, y) :: !m;
-      y
-
-let get_end_addr_sec sec =
-  ignore (Sys.command "rm sec_all.info");
-  ignore (Sys.command "cat text_sec.info >> sec_all.info");
-  ignore (Sys.command "cat sections.info >> sec_all.info");
-  let secl = read_file "sec_all.info" in
-  List.fold_left
-    (fun acc l ->
-      let split = Str.split (Str.regexp " +") in
-      let items = split l in
-      if List.nth items 0 = sec then
-        let baddrs = List.nth items 1 and sizes = List.nth items 3 in
-        let baddr = int_of_string ("0x" ^ baddrs) in
-        let size = int_of_string ("0x" ^ sizes) in
-        baddr + size
-      else acc)
-    0 secl
-
-let sec_end_memo = memo get_end_addr_sec
-
 (* some functions manipulating basic blocks *)
 let get_bbl cfg =
   let bbl = List.map (fun (b, _) -> b) cfg in
@@ -431,8 +405,6 @@ let bbn_byloc e ls =
       else bs (mid + 1) max
   in
   bs 0 (Array.length ls - 1)
-
-let ( @@ ) f x = f x
 
 module Algo = struct
   let sort_uniq cmp l =
@@ -547,6 +519,52 @@ module Opcode_utils = struct
     match exp with
     | Label l -> if contains ~str:l ~sub:"pc" then true else false
     | _ -> false
+
+  let is_ct op =
+    match op with
+    | Intel_OP io -> (
+        match io with
+        | Intel_ControlOP ico -> (
+            match ico with Intel_Jump _ -> true | _ -> false)
+        | _ -> false)
+    | Arm_OP (ao, _, _) -> (
+        match ao with
+        | Arm_ControlOP B -> true
+        | Arm_ControlOP CBNZ -> true
+        | Arm_ControlOP CBZ -> true
+        | Arm_Condition TBZ -> true
+        | Arm_CommonOP (Arm_Assign TBNZ) -> true
+        | _ -> false)
+    | _ -> false
+
+  let get_ct_des i : int option =
+    match i with
+    | DoubleInstr (p, e, l, _, _) when is_ct p -> (
+        match e with
+        | Symbol (JumpDes d)
+        | Const (Point d)
+        | Const (Normal d)
+        | Const (Immediate d) ->
+            Some d
+        | _ -> None)
+    | TripleInstr (p, e1, e2, l, _, _) when is_ct p -> (
+        (* ARM: cbz r3,0x10428 *)
+        match e1 with
+        | Symbol (JumpDes d)
+        | Const (Point d)
+        | Const (Normal d)
+        | Const (Immediate d) ->
+            Some d
+        | _ -> None)
+    | FourInstr (p, e1, e2, e3, l, _, _) when is_ct p -> (
+        match e1 with
+        | Symbol (JumpDes d)
+        | Const (Point d)
+        | Const (Normal d)
+        | Const (Immediate d) ->
+            Some d
+        | _ -> None)
+    | _ -> None
 
   let is_control_des i =
     let aux s = String.exists s ":" in
@@ -949,116 +967,6 @@ module Instr_visitor = struct
     in
     aux il [] []
 
-  let convert_adrp_to_abs_addr (il : instr list) : instr list =
-    let rec traverse il acc =
-      match il with
-      | [] -> acc
-      | h :: [] -> h :: acc
-      | h1 :: h2 :: t -> begin
-          match (h1, h2) with
-          | ( TripleInstr
-                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADRP), condsuff1, widthsuff1),
-                  Symbol (JumpDes base_addr),
-                  Reg exp1_reg,
-                  loc1,
-                  pre1,
-                  tags1 ),
-              FourInstr
-                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), condsuff2, widthsuff2),
-                  Const (Immediate offset),
-                  Reg exp2_reg1,
-                  Reg exp2_reg2,
-                  loc2,
-                  pre2,
-                  tags2 ) )
-            when p_reg exp1_reg = p_reg exp2_reg1 ->
-              let abs_addr = base_addr + offset in
-              let pseudo_instr : instr =
-                TripleInstr
-                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2),
-                    Const (Point abs_addr),
-                    Reg exp2_reg2,
-                    loc1,
-                    pre1,
-                    tags1 )
-              in
-              traverse t (pseudo_instr :: acc)
-          | ( TripleInstr
-                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADRP), condsuff1, widthsuff1),
-                  Symbol (JumpDes base_addr),
-                  Reg exp1_reg,
-                  loc1,
-                  pre1,
-                  tags1 ),
-              TripleInstr
-                ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2),
-                  Ptr (BinOP_PLUS (exp2_offset_reg, offset)),
-                  Reg exp2_reg,
-                  loc2,
-                  pre2,
-                  tags2 ) )
-            when p_reg exp1_reg = p_reg exp2_offset_reg ->
-              let abs_addr : int = base_addr + offset in
-              let pseudo_instr1 : instr =
-                TripleInstr
-                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1),
-                    Const (Point abs_addr),
-                    Reg exp1_reg,
-                    loc1,
-                    pre1,
-                    tags1 )
-              in
-              let pseudo_instr2 : instr =
-                TripleInstr
-                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff2, widthsuff2),
-                    Ptr (UnOP exp1_reg),
-                    Reg exp1_reg,
-                    loc2,
-                    pre2,
-                    tags2 )
-              in
-              traverse t (pseudo_instr1 :: acc)
-          | ( TripleInstr
-                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADRP), condsuff1, widthsuff1),
-                  Symbol (JumpDes base_addr),
-                  Reg exp1_reg,
-                  loc1,
-                  pre1,
-                  tags1 ),
-              TripleInstr
-                ( Arm_OP (Arm_CommonOP (Arm_Assign LDRB), condsuff2, widthsuff2),
-                  Ptr (BinOP_PLUS (exp2_offset_reg, offset)),
-                  Reg exp2_reg,
-                  loc2,
-                  pre2,
-                  tags2 ) )
-            when p_reg exp1_reg = p_reg exp2_offset_reg ->
-              let abs_addr : int = base_addr + offset in
-              let pseudo_instr1 : instr =
-                TripleInstr
-                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff1, widthsuff1),
-                    Const (Point abs_addr),
-                    Reg exp1_reg,
-                    loc1,
-                    pre1,
-                    tags1 )
-              in
-              let pseudo_instr2 : instr =
-                TripleInstr
-                  ( Arm_OP
-                      (Arm_CommonOP (Arm_Assign LDRB), condsuff2, widthsuff2),
-                    Ptr (UnOP exp1_reg),
-                    Reg exp2_reg,
-                    loc2,
-                    pre2,
-                    tags2 )
-              in
-              traverse t (pseudo_instr1 :: acc)
-          | _ -> traverse (h2 :: t) (h1 :: acc)
-        end
-    in
-    List.rev (traverse il [])
-
   let adjust_esp (il : instr list) : instr list =
     let rec traverse il =
       match il with
@@ -1400,6 +1308,71 @@ module Func_utils = struct
     in
     List.fold_left help [] instrs
 
+  (* fix function boundary detection. The func slicer underapproximates *)
+  let fix_underapprox fl il =
+    let module OU = Opcode_utils in
+    let text_start, text_end =
+      let line = List.hd (read_file "text_sec.info") in
+      let parts = String.split_on_char ' ' line in
+      let start = int_of_string ("0x" ^ List.nth parts 1) in
+      let size = int_of_string ("0x" ^ List.nth parts 3) in
+      (start, start + size)
+    in
+    let func_begin_addrs =
+      let tbl = Hashtbl.create (List.length fl) in
+      List.iter (fun f -> Hashtbl.replace tbl f.func_begin_addr ()) fl;
+      tbl
+    in
+    let rec update fl il acc =
+      match (fl, il) with
+      | [], _ -> List.rev acc
+      | fl', [] -> List.rev_append acc fl'
+      | hf :: tf, hi :: ti ->
+          let f_ea = hf.func_end_addr in
+          let f_ba = hf.func_begin_addr in
+          let i_addr = (get_loc hi).loc_addr in
+          if i_addr >= f_ea then
+            update tf il (hf :: acc)
+          else if i_addr < f_ba then
+            update fl ti acc
+          else begin
+            match OU.get_ct_des hi with
+            | Some des
+              when des >= f_ea
+                   && des >= text_start
+                   && des < text_end -> begin
+                match tf with
+                | [] ->
+                    update fl ti acc
+                | next_f :: rest_f -> (
+                    if
+                      des >= next_f.func_begin_addr
+                      && des < next_f.func_end_addr
+                    then
+                      let merged =
+                        { hf with func_end_addr = next_f.func_end_addr }
+                      in
+                      update (merged :: rest_f) il acc
+                    else
+                      match rest_f with
+                      | next_next_f :: rest_rest_f
+                        when des >= next_next_f.func_begin_addr
+                             && des < next_next_f.func_end_addr ->
+                          let merged =
+                            {
+                              hf with
+                              func_end_addr = next_next_f.func_end_addr;
+                            }
+                          in
+                          update (merged :: rest_rest_f) il acc
+                      | _ ->
+                          update fl ti acc)
+              end
+            | _ -> update fl ti acc
+          end
+    in
+    update fl il []
+
   let pp_func2cfg func2cfg_table =
     let aux f (pred_cfg, succ_cfg, _) =
       Hashtbl.iter
@@ -1436,29 +1409,16 @@ module Func_utils = struct
 
   let func2cfg (il : instr list) (funcs : func list) : (string, cfgi) Hashtbl.t
       =
-    let is_ct op =
-      match op with
-      | Intel_OP io -> (
-          match io with
-          | Intel_ControlOP ico -> (
-              match ico with Intel_Jump _ -> true | _ -> false)
-          | _ -> false)
-      | Arm_OP (ao, _, _) -> (
-          match ao with Arm_ControlOP _ -> true | _ -> false)
-      | _ -> false
+    let module OU = Opcode_utils in
+    let il =
+      List.sort
+        (fun i1 i2 -> compare (get_loc i1).loc_addr (get_loc i2).loc_addr)
+        il
     in
-    let get_ct_des i =
-      match i with
-      | DoubleInstr (p, e, l, _, _) when is_ct p -> (
-          match e with
-          | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
-          | _ -> None)
-      | TripleInstr (p, e1, e2, l, _, _) when is_ct p -> (
-          (* ARM: cbz r3,0x10428 *)
-          match e1 with
-          | Symbol (JumpDes d) | Const (Point d) | Const (Normal d) -> Some d
-          | _ -> None)
-      | _ -> None
+    let funcs =
+      List.sort
+        (fun f1 f2 -> compare f1.func_begin_addr f2.func_begin_addr)
+        funcs
     in
     let fb2fn funcs d =
       (* find the function name with the function begin address *)
@@ -1469,41 +1429,30 @@ module Func_utils = struct
     let func2il il =
       let func2il_table = Hashtbl.create 40 in
       let worklist = Queue.create () in
-      let rec slice_il (fl : func list) (il : instr list) :
-          (string, instr list) Hashtbl.t =
-        match (fl, il) with
-        | [], il' -> func2il_table
-        | hf :: tf, [] -> func2il_table
-        | hf :: tf, hi :: ti -> begin
-            let f_ba = hf.func_begin_addr in
-            let f_ea = hf.func_end_addr in
-            let i_loc = get_loc hi in
-            let i_addr = i_loc.loc_addr in
-            (* debug *)
-            (* let _ = Printf.printf "\tfunc: %s, 0x%x - 0x%x\n%!" hf.func_name f_ba f_ea in *)
-            (* let _ = Printf.printf "\tinstr: %s\n%!" (Pp_print.pp_print_instr' hi) in *)
-            (* end debug *)
-            if i_addr >= f_ba && i_addr < f_ea then begin
-              if Hashtbl.mem func2il_table hf.func_name then
-                let hf_il = Hashtbl.find func2il_table hf.func_name in
-                Hashtbl.replace func2il_table hf.func_name (hi :: hf_il)
-              else Hashtbl.add func2il_table hf.func_name [ hi ];
-              let _ =
-                match get_ct_des hi with
-                | Some d ->
-                    if d >= f_ea then begin
-                      match fb2fn funcs d with
-                      | Some fn -> Queue.push (hf.func_name, fn) worklist
-                      | None -> ()
-                    end
-                | None -> ()
-              in
-              slice_il fl ti
-            end
-            else slice_il tf il
-          end
-      in
-      let func2il' = slice_il funcs il in
+      List.iter (fun i ->
+        let i_addr = (get_loc i).loc_addr in
+        match List.find_opt (fun f ->
+          i_addr >= f.func_begin_addr && i_addr < f.func_end_addr
+        ) funcs with
+        | Some f ->
+            if Hashtbl.mem func2il_table f.func_name then
+              Hashtbl.replace func2il_table f.func_name
+                (i :: Hashtbl.find func2il_table f.func_name)
+            else Hashtbl.add func2il_table f.func_name [ i ];
+            let _ =
+              match OU.get_ct_des i with
+              | Some d ->
+                  if d >= f.func_end_addr then begin
+                    match fb2fn funcs d with
+                    | Some fn -> Queue.push (f.func_name, fn) worklist
+                    | None -> ()
+                  end
+              | None -> ()
+            in
+            ()
+        | None -> ()
+      ) il;
+      let func2il' = func2il_table in
       (* debug *)
       (* let _ = *)
       (*   Hashtbl.iter *)
@@ -1567,16 +1516,15 @@ module Func_utils = struct
             | Intel_OP (Intel_ControlOP LEAVE)
             | Intel_OP (Intel_ControlOP LEAVEQ) ->
                 ()
-            | Arm_OP (Arm_StackOP POP, _, _) ->
-                (* ARM Thumb *)
-                ()
+            | Arm_OP (Arm_StackOP POP, _, _) -> ()
+            | Arm_OP (Arm_ControlOP B, None, _) -> ()
             | _ ->
                 let pred_cfg = add_edge pred_cfg (Some i') (Some i) in
                 let succ_cfg = add_edge succ_cfg (Some i) (Some i') in
                 ()
           in
           let pred_cfg =
-            match get_ct_des i with
+            match OU.get_ct_des i with
             | Some d -> begin
                 let ils_full : instr list =
                   Hashtbl.find func2il_table f.func_name
@@ -1592,7 +1540,7 @@ module Func_utils = struct
             | None -> pred_cfg
           in
           let succ_cfg =
-            match get_ct_des i with
+            match OU.get_ct_des i with
             | Some d -> begin
                 let ils_full : instr list =
                   Hashtbl.find func2il_table f.func_name
@@ -1619,13 +1567,13 @@ module Func_utils = struct
       funcs;
     func2cfg_table
 
-  let replace_got_ref (addr2newi : (int, instr) Hashtbl.t) il =
-    List.map
+  let perform_dfa_rewrites (addr2newi : (int, instr list) Hashtbl.t) il =
+    List.concat_map
       (fun i ->
         let loc = get_loc i in
         if Hashtbl.mem addr2newi loc.loc_addr then
           Hashtbl.find addr2newi loc.loc_addr
-        else i)
+        else [ i ])
       il
 end
 

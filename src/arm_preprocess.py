@@ -653,6 +653,16 @@ def remove_literal_pools(fn):
         f.writelines(new_content)
 
 
+def is_64():
+    lines = []
+    with open("elf.info") as f:
+        lines = f.readlines()
+    if "64-bit" in lines[0]:
+        return True
+    else:
+        return False
+
+
 if __name__ == "__main__":
     filename = sys.argv[1]
     arch = sys.argv[2]
@@ -661,8 +671,9 @@ if __name__ == "__main__":
         disassemble_arm_thumb_binary(filename, output_dir)
     elif arch == "arm":
         disassemble_arm32_binary(filename, output_dir)
-    arm_symbol_manager.extract_arm32_instructions(filename)
-    disassemble_text_section_as_data(filename)
-    disassemble_got_section_as_data(filename)
-    adjust_floating_point_instructions(filename)
+    if not (arch == "arm" and is_64()):
+        arm_symbol_manager.extract_arm32_instructions(filename)
+        disassemble_text_section_as_data(filename)
+        disassemble_got_section_as_data(filename)
+        adjust_floating_point_instructions(filename)
     # remove_literal_pools(filename)

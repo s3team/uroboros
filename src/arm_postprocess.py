@@ -333,8 +333,7 @@ def main(argv):
     handle_switch_tables(assembly_path)
     remove_unused_literal_pools_in_data(assembly_path)
     remove_caret(assembly_path)
-    if is_32():
-        insert_ltorg_directive(assembly_path)
+    insert_ltorg_directive(assembly_path)
     # remove_invalid_d2c_labels(assembly_path)
 
 

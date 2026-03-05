@@ -459,27 +459,6 @@ class func_slicer instrs funcs =
             last_special <- false;
             func_begins <- l.loc_addr :: func_begins
           end
-        (*| DoubleInstr (p, e, l, _) when (is_s_begin p e) ->
-           begin
-             last_nop <- false;
-             last_ret <- false;
-             last_xchg <- false;
-             last_jmp <- false;
-             last_special <- false;
-             func_begins <- l.loc_addr::func_begins
-           end*)
-        (*| SingleInstr (p, l, _) when (is_cet_begin p) ->
-          begin
-            let int_to_hex n =
-              Printf.sprintf "0x%X" n
-            in
-             last_nop <- false;
-             last_ret <- false;
-             last_xchg <- false;
-             last_jmp <- false;
-             last_special <- false;
-             func_begins <- l.loc_addr::func_begins
-          end*)
         | DoubleInstr (p, e, l, _, _) when is_c_begin p e -> begin
             last_nop <- false;
             last_ret <- false;

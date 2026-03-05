@@ -37,6 +37,18 @@ let replace_instr_tag (i : instr) (new_tag : instr_tag option) : instr =
   | None -> Hashtbl.remove tags "instr_tag");
   i
 
+let set_tag_by_kv k v tags =
+  let new_tags =
+    Hashtbl.fold
+      (fun k v acc ->
+        Hashtbl.add acc k v;
+        acc)
+      tags
+      (Hashtbl.create (Hashtbl.length tags))
+  in
+  let _ = Hashtbl.add new_tags k v in
+  new_tags
+
 let has_sym_instr_tag (i : instr) : bool =
   match get_instr_tag i with Some (Sym _) -> true | _ -> false
 

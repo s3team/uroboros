@@ -107,10 +107,6 @@ class ailInit =
            ^ " | grep \"^ \" | cut -d \" \" -f3,4,5,6 > got_plt.info");
         ret :=
           Sys.command
-            (objdump_command ^ " -d -j .plt " ^ f
-           ^ " 2>/dev/null | grep jmp | wc -l > plt_entries.info");
-        ret :=
-          Sys.command
             (objdump_command ^ " -s -j __libc_IO_vtables " ^ f
            ^ " 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 > \
               __libc_IO_vtables.info");
@@ -172,11 +168,17 @@ class ailInit =
         (Sys.command
            ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f1,2 > hexcode.info"));
       let module EU = ELF_utils in
-      if EU.elf_static () then (
+      if EU.elf_static () then begin
         ignore
           (Sys.command
-             "cat plt_whole.info | grep \"^ \" | cut -f1,3 > plt_whole2.info");
-        ignore (Sys.command "cat plt_whole2.info >> instrs.info"));
+             "cat plt_whole.info | grep \"^ \" | cut -f1,3- > plt_whole2.info");
+        ignore (Sys.command "cat plt_whole2.info >> instrs.info");
+        if EU.elf_arm () && EU.elf_64 () then
+          ignore
+            (Sys.command
+               "cat plt_whole2.info | grep adrp | awk '{print $1}' | tr -d ':' \
+                | sed 's/^/0x/' > plt_funcs.info")
+      end;
       ignore (Sys.command "python3 filter_nop.py");
       ignore (Sys.command "cut -f 1 instrs.info > text_mem.info")
 

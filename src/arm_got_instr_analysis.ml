@@ -1,7 +1,9 @@
 open Semantic_analysis
 
+(* Module for register value tracking *)
+(* New DFA signature for tracking register values, not just names *)
 (* Value-based abstract state for ARM GOT analysis *)
-module ArmGotAbsWithValues : DfaAbsWithValues = struct
+module ArmGotAbsWithValues : DfaAbs = struct
   open Ail_utils
   open Arm_parser
   open Arm_reassemble_symbol_get
@@ -9,8 +11,10 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
   open Batteries
   open Pp_print
   open Type
+  module RegMap = Map.Make (String)
 
   type abs_state = int RegMap.t (* register name -> value *)
+  type abstraction = abs_state (* register name -> value *)
 
   let initial = RegMap.empty
   let equal = RegMap.equal ( = )
@@ -227,7 +231,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
                               prefix,
                               Hashtbl.create 0 )
                         in
-                        Hashtbl.replace result loc.loc_addr new_instr
+                        Hashtbl.replace result loc.loc_addr [ new_instr ]
                   | None ->
                       if arm_reassemble#check_text addr then
                         let ldr_op =
@@ -242,7 +246,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
                               prefix,
                               Hashtbl.create 0 )
                         in
-                        Hashtbl.replace result loc.loc_addr new_instr
+                        Hashtbl.replace result loc.loc_addr [ new_instr ]
                       else ()
                 in
                 (* compute the new register value *)
@@ -358,7 +362,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
                 tags
               in
               let new_instr = TripleInstr (p, e1, e2, loc, prefix, new_tags) in
-              Hashtbl.replace result (get_loc i).loc_addr new_instr;
+              Hashtbl.replace result (get_loc i).loc_addr [ new_instr ];
               ()
             end
             else ()
@@ -366,4 +370,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
         | _ -> ()
       end
     | _ -> ()
+
+  let print_abstraction abs =
+    RegMap.iter (fun k v -> print_endline (k ^ " -> " ^ dec_hex v)) abs
 end

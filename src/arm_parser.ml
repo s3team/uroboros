@@ -126,6 +126,7 @@ class arm_parse =
     | "x26" -> X26
     | "x27" -> X27
     | "x28" -> X28
+    | "xzr" -> XZR
     | _ -> raise ParseError
   and specialreg_symb = function
     | "d0" -> D0
@@ -560,6 +561,18 @@ class arm_parse =
     | "umulh" -> UMULH
     | "csinc" -> CSINC
     | "dup" -> DUP
+    | "madd" -> MADD
+    | "msub" -> MSUB
+    | "cneg" -> CNEG
+    | "csetm" -> CSETM
+    | "mneg" -> MNEG
+    | "csneg" -> CSNEG
+    | "cinc" -> CINC
+    | "addp" -> ADDP
+    | "smaddl" -> SMADDL
+    | "umaddl" -> UMADDL
+    | "addv" -> ADDV
+    | "umsubl" -> UMSUBL
     | _ -> raise ParseError
   and logicop_symb = function
     | "bic" -> BIC
@@ -584,6 +597,11 @@ class arm_parse =
     | "ushl" -> USHL
     | "shl" -> SHL
     | "extr" -> EXTR
+    | "bfxil" -> BFXIL
+    | "csinv" -> CSINV
+    | "bit" -> BIT
+    | "cinv" -> CINV
+    | "fabs" -> FABS
     | _ -> raise ParseError
   and rolop_symb = function
     | "asr" -> ASR
@@ -694,6 +712,44 @@ class arm_parse =
     | "sturb" -> STURB
     | "tbl" -> TBL
     | "tbnz" -> TBNZ
+    | "ldar" -> LDAR
+    | "movz" -> MOVZ
+    | "ld1" -> LD1
+    | "umaxp" -> UMAXP
+    | "ext" -> EXT
+    | "ldurh" -> LDURH
+    | "sturh" -> STURH
+    | "whilelo" -> WHILELO
+    | "ld1b" -> LD1B
+    | "st1b" -> ST1B
+    | "ptrue" -> PTRUE
+    | "uminp" -> UMINP
+    | "stlr" -> STLR
+    | "cnt" -> CNT
+    | "cas" -> CAS
+    | "ldxr" -> LDXR
+    | "stxr" -> STXR
+    | "ldaxr" -> LDAXR
+    | "casa" -> CASA
+    | "casl" -> CASL
+    | "stlxr" -> STLXR
+    | "swp" -> SWP
+    | "swpa" -> SWPA
+    | "ldadda" -> LDADDA
+    | "swpl" -> SWPL
+    | "cntd" -> CNTD
+    | "ldadd" -> LDADD
+    | "ldseta" -> LDSETA
+    | "ldursh" -> LDURSH
+    | "ldursw" -> LDURSW
+    | "retaa" -> RETAA
+    | "retab" -> RETAB
+    | "retaasppc" -> RETAASPPC
+    | "retabsppc" -> RETABSPPC
+    | "retaasppcr" -> RETAASPPCR
+    | "retabsppcr" -> RETABSPPCR
+    | "blr" -> BLR
+    | "bti" -> BTI
     | _ -> raise ParseError
   and compareop_symb = function
     | "cmn" -> CMN
@@ -705,6 +761,10 @@ class arm_parse =
     | "cmeq" -> CMEQ
     | "fcmpe" -> FCMPE
     | "ccmp" -> CCMP
+    | "ccmn" -> CCMN
+    | "cmhs" -> CMHS
+    | "fcmp" -> FCMP
+    | "cmge" -> CMGE
     | _ -> raise ParseError
   and conditionop_symb = function
     | "it" -> IT
@@ -732,6 +792,7 @@ class arm_parse =
     | "ud2" -> UD2
     | "setend" -> SETEND
     | "vsli" -> VSLI
+    | "cntb" -> CNTB
     | _ -> raise ParseError
   and stackop_symb = function
     | "push" -> PUSH
@@ -755,13 +816,6 @@ class arm_parse =
     | "bxns" -> BXNS
     | "blxns" -> BLXNS
     | "ret" -> RET
-    | "retaa" -> RETAA
-    | "retab" -> RETAB
-    | "retaasppc" -> RETAASPPC
-    | "retabsppc" -> RETABSPPC
-    | "retaasppcr" -> RETAASPPCR
-    | "retabsppcr" -> RETABSPPCR
-    | "blr" -> BLR
     | _ -> raise ParseError
   in
 
@@ -796,6 +850,12 @@ class arm_parse =
     | "mrc" -> MRC
     | "mrc2" -> MRC2
     | "setpan" -> SETPAN
+    | "brk" -> BRK
+    | "prfm" -> PRFM
+    | "dc" -> DC
+    | "xpaclri" -> XPACLRI
+    | "autia1716" -> AUTIA1716
+    | "autib1716" -> AUTIB1716
     | _ -> raise ParseError
   in
 
@@ -1155,39 +1215,49 @@ class arm_parse =
     method init_process = call_des := false
 
     method parse_instr instr loc (arch : string) =
-      self#init_process;
-      let remove_comment (s : string) : string =
-        match Str.split (Str.regexp "//") s with
-        | [] -> ""
-        | first :: _ -> first
-      in
-      let compact (instr : string) =
-        (* See [arm_postprocess.py#remove_caret] *)
-        let instr' = Str.global_replace (Str.regexp ", ") "," instr in
-        if contains ~str:instr' ~sub_str:" " then
-          let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
-          instr'
-        else instr'
-      in
-      let compact_instr = remove_comment (compact instr) in
-      let pre = prefix_identify compact_instr in
-      (* let (compact_instr, instr_tag) = tag_identify compact_instr in *)
-      let compact_instr' = prefix_sub compact_instr in
-      let is_special_stackop (i : string) =
-        if contains ~str:i ~sub_str:"stmdb" && contains ~str:i ~sub_str:"sp!"
-        then true
-        else if
-          contains ~str:i ~sub_str:"ldmia" && contains ~str:i ~sub_str:"sp!"
-        then true
-        else false
-      in
-      let is_special = is_special_stackop compact_instr' in
-      let lexem_list = Array.to_list (lexer compact_instr' loc arch) in
-      let s : stack_type list = [] in
-      let parse_one s l =
-        match l with Lend -> s | _ -> self#push_stack l is_special :: s
-      in
-      let stack = List.fold_left parse_one s lexem_list in
-      let parsed_instr = self#reduce_stack stack pre in
-      parsed_instr
+      try
+        self#init_process;
+        let remove_comment (s : string) : string =
+          match Str.split (Str.regexp "//") s with
+          | [] -> ""
+          | first :: _ -> first
+        in
+        let compact (instr : string) =
+          (* See [arm_postprocess.py#remove_caret] *)
+          let instr' = Str.global_replace (Str.regexp ", ") "," instr in
+          if contains ~str:instr' ~sub_str:" " then
+            let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
+            instr'
+          else instr'
+        in
+        let compact_instr = remove_comment (compact instr) in
+        let pre = prefix_identify compact_instr in
+        let compact_instr' = prefix_sub compact_instr in
+        let is_special_stackop (i : string) =
+          if contains ~str:i ~sub_str:"stmdb" && contains ~str:i ~sub_str:"sp!"
+          then true
+          else if
+            contains ~str:i ~sub_str:"ldmia" && contains ~str:i ~sub_str:"sp!"
+          then true
+          else false
+        in
+        let is_special = is_special_stackop compact_instr' in
+        let lexem_list = Array.to_list (lexer compact_instr' loc arch) in
+        let s : stack_type list = [] in
+        let parse_one s l =
+          match l with Lend -> s | _ -> self#push_stack l is_special :: s
+        in
+        let stack = List.fold_left parse_one s lexem_list in
+        let parsed_instr = self#reduce_stack stack pre in
+        parsed_instr
+      with ParseError ->
+        let nop_instr : instr =
+          SingleInstr
+            ( Arm_OP (Arm_CommonOP (Arm_Other NOP), None, None),
+              stub_loc,
+              None,
+              Hashtbl.create 1 )
+        in
+        let _ = print_endline ("^ parse error instr: " ^ instr) in
+        nop_instr
   end

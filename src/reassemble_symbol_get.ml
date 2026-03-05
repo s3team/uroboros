@@ -46,7 +46,6 @@ class datahandler
     val mutable rodata_cst32: string list = []
 
     val mutable text_mem_addrs: int list = []
-    val mutable plt_mem_addrs: int list = []  (* statically-linked only *)
     val mutable label_mem_addrs: int list = []
 
     val mutable data_labels : (string * int) list = []
@@ -92,7 +91,6 @@ class datahandler
     val mutable in_jmptable = false
 
     val mutable text_mem_arr = Array.make 1 0
-    val mutable plt_mem_arr = Array.make 1 0
     val mutable label_mem_arr = Array.make 1 0
     val mutable func_begin_arr = Array.make 1 0
     val mutable label_arr = Array.make 1 0
@@ -208,9 +206,9 @@ class datahandler
     method check_text addr =
       let judge_mem_list addr =
 	    bbn_byloc addr text_mem_arr in
-      let (tb, tsize) = text_sec in
+      let tb, tsize = text_sec in
       let te = tb + tsize in
-      let (pb, psize) = plt_sec in
+      let pb, psize = plt_sec in
       let pe = pb + psize in
       let module EU = ELF_utils in
       if addr = 0xffff then false
@@ -1303,14 +1301,6 @@ class datahandler
 
 
 class instrhandler instr_list des'  =
-  (* this class handle control flow transfer, change concrete addr in the .text section
-   * into symbols
-   * WATCH OUT:
-   *        basically as we use objdump to disassmble the binaries, then currently we can only
-   *        handle control flow transfer destination which is provided by objdump
-   *        Then if destination is inside one instruction (not one opcode!!), we cannot handle it!
-   *        Exceptions will be thrown in that case.
-  *)
   object (self)
     val mutable des: string list = des'
     val mutable locs : loc list = []
@@ -1346,8 +1336,6 @@ class instrhandler instr_list des'  =
       locs <- List.sort (
         fun loc1 loc2 -> compare loc1.loc_addr loc2.loc_addr
       ) locs
-      (* locs <- List.rev locs *)
-      (* self#print_loclist *)
 
     method pp_print l =
       let rec help l =
@@ -1390,7 +1378,6 @@ class instrhandler instr_list des'  =
       (* lld' is lld' without 0 *)
       let lld1 = unify_int_list lld' in
       List.sort Int.compare lld1
-
 
     method clean_sort_bdf ll =
       let ll' = List.map( fun l ->
@@ -1528,13 +1515,6 @@ class funchandler instr_list u_funcs'  =
       List.sort (fun f1 f2 -> f1.func_begin_addr - f2.func_begin_addr) ll
 
     method process2 =
- (*
-          let dec_hex (s:int) : string =
-              (Printf.sprintf "S_0x%X" s) in
-          let do_update s n =
-              if String.exists s n then s
-              else s^"\n"^n in
-*)
       let rec help acc llist flist =
         match (llist,flist) with
         | (llist',[]) -> List.rev_append llist' acc
@@ -1683,15 +1663,6 @@ class reassemble =
       in
       Enum.iter help filelines
 
-
-    (*          heriustic analysis
-     *        check_sec; check_text; check_plt
-     *        Heriustically, we consider any value that fall inside
-     *         the range of data/rodata/bss/text/plt sections as suspicious symbols
-     *  See this paper's table one for some examples
-     *  https://www.utdallas.edu/~zxl111930/file/CCS13.pdf
-    *)
-
     method check_sec addr =
       let rec help l addr =
         match l with
@@ -1717,11 +1688,6 @@ class reassemble =
       let pe = pb + psize in
       let module EU = ELF_utils in
       if addr = 0xffff then false
-      (* this is dangerous, when processing 64-bit shared object, for example,
-         ssh, the text section range includes memory address 0xffff. However, I
-         found instructions like this in the code:
-         cmp $0xffff,%eax
-      *)
       else if (EU.elf_static ())
         && ((addr >= tb && addr < te) || (addr >= pb && addr < pe))
         && (judge_mem_list addr) then true
@@ -1767,10 +1733,7 @@ class reassemble =
     method has_text l =
       Hashtbl.mem text_set l = true
 
-    (** [v_exp] *)
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
-      (* bug : test $0x70F0000, %eax  could be incorrectly symbolized; note
-       * that we should check { test | testl | testw | testb } + Const Normal v; *)
       let check_test_condition l chk =
         match (l,chk) with
         | (_,false) -> true
@@ -2210,15 +2173,6 @@ class reassemble =
       in
       let base_offset = const_base - rodata_sec.sec_begin_addr in
       let table_base = List.drop base_offset rodata_list in
-      (*
-      Printf.printf
-      "---: %s @ %s @ %d @ %s @ %d\n"
-      (dec_hex_sym rodata_sec.sec_begin_addr)
-      (dec_hex_sym const_base)
-      base_offset
-      (dec_hex_sym instr_base)
-      (List.length table_base);
-      *)
       let rec get_jmp_table_dests table offset =
         match table with
         | [] -> ()
@@ -2234,17 +2188,10 @@ class reassemble =
             Buffer.add_string b (get_v b2);
             Buffer.add_string b (get_v b1);
             let v_str = Buffer.contents b in
-            (*let _ = print_endline ("~~~~~~~~~ " ^ v_str) in*)
             match int_of_hex v_str with
             | v when v < -1 ->
               begin
                 let next_instr = instr_base + v in
-                (*
-                print_string "<<<< ";
-                print_int (v);
-                print_endline "";
-                print_endline ("^ " ^ string_of_int offset ^ ", " ^ dec_hex_sym next_instr);
-                *)
                 let next_instr_label = dec_hex_sym next_instr in
                 deslist <- next_instr_label :: deslist;
                 Hashtbl.replace rodata_rewrite offset next_instr_label;
@@ -2283,16 +2230,8 @@ class reassemble =
             when (p_reg dest_reg_i1 = p_reg dest_reg_i2)
               && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
             begin
-              (*
-              Printf.printf "^^^ %s @ %s @ %s\n"
-              (pp_print_instr' i1)
-              (pp_print_instr' i2)
-              (pp_print_instr' i3);
-              *)
               match (self#check_sec base_addr_i1) with
               | Some s when s.sec_name = ".rodata" ->
-                (* jump table constants are stored in a table (base_addr_il)
-                 * which is located in .rodata *)
                 begin
                   self#find_jmp_table_dests s base_addr_i1 lab_i2;
                   i1 :: rewrite3 (List.tl (List.tl instrs'))
@@ -2307,7 +2246,6 @@ class reassemble =
       rewrite3 instrs
 
     method jmp_table_rewrite64 (instrs: instr list) : instr list =
-      (*let _ = print_endline "~ calling jmp_table_rewrite64" in*)
       let rec rewrite3 instrs =
         match instrs with
         | i0 :: i1 :: i2 :: i3 :: x as instrs' when List.length instrs' >= 4 -> begin
@@ -2342,22 +2280,13 @@ class reassemble =
             when ((p_reg dest_reg_i1 = p_reg reg2_1_i2) || (p_reg dest_reg_i1 = p_reg reg2_2_i2))
               && (p_reg dest_reg_i2 = p_reg dest_reg_i3) ->
             begin
-              (*
-              Printf.printf "^^^ %s @ %s @ %s @ %s\n"
-              (pp_print_instr' i0)
-              (pp_print_instr' i1)
-              (pp_print_instr' i2)
-              (pp_print_instr' i3);
-              *)
               match (self#check_sec base_addr_i0) with
               | Some s when s.sec_name = ".rodata" ->
-                (* jump table constants are stored in a table (base_addr_il)
-                 * which is located in .rodata *)
                 begin
                   let i1' =
                     TripleInstr
                       ( Intel_OP (Intel_CommonOP (Intel_Assign MOVSLQ)),
-                        Reg dest_reg_i3,  (* make sure dest reg is same as indirect jmp's reg *)
+                        Reg dest_reg_i3,
                         Ptr (ThreeOP (reg2_1_i1, reg2_2_i1, 4)),
                         loc_i1,
                         prefix_i1,
@@ -2452,12 +2381,6 @@ class reassemble =
         begin
           let helper = new lib32_helper instrs in
           let labels = helper#traverse in
-          (*
-              let () = List.iter (fun addr -> print_string ((dec_hex addr)^"\n"))
-                                 labels in
-           *)
-
-          (* print_int (List.length labels); *)
           let aux addr =
             match (self#check_sec addr) with
             | Some s -> label <- (s.sec_name, addr)::label
@@ -2512,11 +2435,6 @@ class reassemble =
       self#dump_c2c_labels deslist_reloc;
       let t = List.rev_append (List.rev init_array_list) deslist in
       let p = new instrhandler instr_list t in
-      (*
-      self#update_deslist_with_ehframe;
-      self#update_deslist_with_excp_tbl;
-      let p = new instrhandler instr_list deslist in
-      *)
       p#set_instr_list;
       p#process;
       p#get_instr_list
@@ -2536,10 +2454,12 @@ class reassemble =
       p#get_instr_list
 
     method adjust_globallabel (g_bss : (string * string * string) list) instr_list =
+      (*
       let g_bss' = List.filter (fun (a,n,t) ->
           String.exists n "@") g_bss in
-      let labels = List.map (fun (a,n,t) -> a) g_bss'
-      and size = (List.length g_bss') + 1 in
+      *)
+      let labels = List.map (fun (a,n,t) -> a) g_bss
+      and size = (List.length g_bss) + 1 in
       let gbss_hs = Hashtbl.create size in
       let help (addr, n, t) =
         let addr' = "S_0x"^addr in
@@ -2564,7 +2484,7 @@ class reassemble =
         match check l with
         | Some k -> sub l k
         | None -> l in
-      List.iter help g_bss';
+      List.iter help g_bss;
       List.map help' instr_list
 
     method data_dump funcs =
@@ -2587,8 +2507,6 @@ class reassemble =
       List.iter (fun l -> Printf.fprintf oc "%s\n" (dec_hex l)) bs;
       close_out oc
 
-    (* unify symbol list and pattern match list, to get the unified function
-       list *)
     method unify_funclist sl1 sl2 =
       self#dump_funclist sl1 "union_1.txt";
       self#dump_funclist sl2 "union_2.txt";
@@ -2672,7 +2590,6 @@ class reassemble =
           end
         | (hf::tf, []) ->
           begin
-            (* failwith ("failed in adding function "^(hf.func_name)^" in add_func_label"); *)
             acc
           end in
       List.rev (help [] ufuncs instrs)
@@ -2739,9 +2656,6 @@ class reassemble =
             let lo = get_loc i in
             if lo.loc_label <> "" && lo.loc_label = last_label then (* remove it *)
               begin
-                (* bug :  new inserted instruction would have same location
-                            with the above instruction, which means it will remove
-                          the above instruction's label *)
                 remove_l <- (lo.loc_addr)::remove_l;
                 print_string last_label;
                 print_string "\n";

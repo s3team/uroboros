@@ -132,7 +132,7 @@ and p_sec s =
   else if s.sec_name = ".bss" then "ds"
   else failwith "p sec"
 
-and p_hex s = "0x" ^ Printf.sprintf "%x" s
+and p_hex s = Printf.sprintf "%d" s
 
 let p_ptraddr = function
   | WB r -> p_arm_reg r ^ "!"
@@ -153,7 +153,7 @@ let p_ptraddr = function
   | BinOP_PLUS_S (r, s) -> begin
       match r with
       | Intel_Reg r -> s ^ "(" ^ p_intel_reg r ^ ")"
-      | Arm_Reg r -> "[" ^ p_arm_reg r ^ ", #" ^ s ^ "]"
+      | Arm_Reg r -> "[" ^ p_arm_reg r ^ ", " ^ s ^ "]"
     end
   | BinOP_PLUS_WB (r, i) -> "[" ^ p_arm_reg r ^ ", #" ^ p_hex i ^ "]!"
   | BinOP_MINUS (r, i) -> begin
