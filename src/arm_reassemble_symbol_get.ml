@@ -5,7 +5,7 @@ open Common_reassemble_symbol_get
 open Type
 open Ail_utils
 open Arm_utils
-open Tag_utils
+open Tags_utils
 open Pp_print
 open Share_lib_helper
 
@@ -1030,44 +1030,50 @@ class datahandler (label' : (string * int) list) =
                       let off = l - fst text_sec in
                       let s' = dec_hex l in
                       let s, d = text_as_data_array.(off) in
-                      ( match Hashtbl.find_opt sym_addr2label l with
-                      | Some (sym_label, _) -> (text_as_data_array.(off) <- (sym_label^":\n"^s', d))
-                      | None -> (text_as_data_array.(off) <- (s', d)) );
+                      (match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) ->
+                          text_as_data_array.(off) <- (sym_label ^ ":\n" ^ s', d)
+                      | None -> text_as_data_array.(off) <- (s', d));
                       help t
                   | ".data" ->
                       let off = l - self#section_addr ".data" in
                       let s' = dec_hex l and s, d = data_array.(off) in
-                      ( match Hashtbl.find_opt sym_addr2label l with
-                      | Some (sym_label, _) -> (data_array.(off) <- (sym_label^":\n"^s', d))
-                      | None -> (data_array.(off) <- (s', d)) );
+                      (match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) ->
+                          data_array.(off) <- (sym_label ^ ":\n" ^ s', d)
+                      | None -> data_array.(off) <- (s', d));
                       help t
                   | ".rodata" ->
                       let off = l - self#section_addr ".rodata" in
                       let s' = dec_hex l and s, d = rodata_array.(off) in
-                      ( match Hashtbl.find_opt sym_addr2label l with
-                      | Some (sym_label, _) -> (rodata_array.(off) <- (sym_label^":\n"^s', d))
-                      | None -> (rodata_array.(off) <- (s', d)) );
+                      (match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) ->
+                          rodata_array.(off) <- (sym_label ^ ":\n" ^ s', d)
+                      | None -> rodata_array.(off) <- (s', d));
                       help t
                   | ".got" ->
                       let off = l - self#section_addr ".got" in
                       let s' = dec_hex l and s, d = got_array.(off) in
-                      ( match Hashtbl.find_opt sym_addr2label l with
-                      | Some (sym_label, _) -> (got_array.(off) <- (sym_label^":\n"^s', d))
-                      | None -> (got_array.(off) <- (s', d)) );
+                      (match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) ->
+                          got_array.(off) <- (sym_label ^ ":\n" ^ s', d)
+                      | None -> got_array.(off) <- (s', d));
                       help t
                   | ".bss" ->
                       let off = l - self#section_addr ".bss" in
                       let s' = dec_hex l and s, d = bss_array.(off) in
-                      ( match Hashtbl.find_opt sym_addr2label l with
-                      | Some (sym_label, _) -> (bss_array.(off) <- (sym_label^":\n"^s', d))
-                      | None -> (bss_array.(off) <- (s', d)) );
+                      (match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) ->
+                          bss_array.(off) <- (sym_label ^ ":\n" ^ s', d)
+                      | None -> bss_array.(off) <- (s', d));
                       help t
                   | ".data.rel.ro" ->
                       let off = l - self#section_addr ".data.rel.ro" in
                       let s' = dec_hex l and s, d = data_rel_ro_array.(off) in
-                      ( match Hashtbl.find_opt sym_addr2label l with
-                      | Some (sym_label, _) -> (data_rel_ro_array.(off) <- (sym_label^":\n"^s', d))
-                      | None -> (data_rel_ro_array.(off) <- (s', d)) );
+                      (match Hashtbl.find_opt sym_addr2label l with
+                      | Some (sym_label, _) ->
+                          data_rel_ro_array.(off) <- (sym_label ^ ":\n" ^ s', d)
+                      | None -> data_rel_ro_array.(off) <- (s', d));
                       help t
                   | _ ->
                       let module EU = ELF_utils in
@@ -1079,9 +1085,11 @@ class datahandler (label' : (string * int) list) =
                             in
                             let s' = dec_hex l
                             and s, d = __libc_IO_vtables_array.(off) in
-                            ( match Hashtbl.find_opt sym_addr2label l with
-                            | Some (sym_label, _) -> (__libc_IO_vtables_array.(off) <- (sym_label^":\n"^s', d))
-                            | None -> (__libc_IO_vtables_array.(off) <- (s', d)) );
+                            (match Hashtbl.find_opt sym_addr2label l with
+                            | Some (sym_label, _) ->
+                                __libc_IO_vtables_array.(off) <-
+                                  (sym_label ^ ":\n" ^ s', d)
+                            | None -> __libc_IO_vtables_array.(off) <- (s', d));
                             help t
                         | "__libc_freeres_ptrs" ->
                             let off =
@@ -1089,9 +1097,11 @@ class datahandler (label' : (string * int) list) =
                             in
                             let s' = dec_hex l
                             and s, d = __libc_freeres_ptrs_array.(off) in
-                            ( match Hashtbl.find_opt sym_addr2label l with
-                            | Some (sym_label, _) -> (__libc_freeres_ptrs_array.(off) <- (sym_label^":\n"^s', d))
-                            | None -> (__libc_freeres_ptrs_array.(off) <- (s', d)) );
+                            (match Hashtbl.find_opt sym_addr2label l with
+                            | Some (sym_label, _) ->
+                                __libc_freeres_ptrs_array.(off) <-
+                                  (sym_label ^ ":\n" ^ s', d)
+                            | None -> __libc_freeres_ptrs_array.(off) <- (s', d));
                             help t
                         | ".tbss" -> help t
                         | _ -> raise (Reassemble_Error ("data_output: " ^ n))
@@ -1697,10 +1707,8 @@ class arm_reassemble =
     method text_as_data_collect =
       let module EU = ELF_utils in
       let filelines =
-        if EU.elf_32 () then
-          File.lines_of "text_section_as_data.txt"
-        else
-          BatEnum.empty ()
+        if EU.elf_32 () then File.lines_of "text_section_as_data.txt"
+        else BatEnum.empty ()
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -1713,10 +1721,8 @@ class arm_reassemble =
     method got_as_data_collect =
       let module EU = ELF_utils in
       let filelines =
-        if EU.elf_32 () then
-          File.lines_of "got_section_as_data.txt"
-        else
-          BatEnum.empty ()
+        if EU.elf_32 () then File.lines_of "got_section_as_data.txt"
+        else BatEnum.empty ()
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -1825,13 +1831,12 @@ class arm_reassemble =
       with _ -> None
 
     method add_del_to_literal_pool_candidates (il : instr list) =
-      let module TU = TagUtils in
       List.map
         (fun i ->
           let loc = get_loc i in
           let addr = loc.loc_addr in
           if Hashtbl.mem literal_pool_candidates addr then
-            TU.replace_tag i (Some Del)
+            replace_instr_tag i (Some Del)
           else i)
         il
     (** Preprocessing step should be done. See
@@ -2152,8 +2157,8 @@ class arm_reassemble =
       | _ -> e
 
     method vinst2 (arch : string) (f : instr -> bool) (i : instr) : instr =
-      let tag' = get_tag i in
-      if tag' = Some Del then i
+      let instr_tag = get_instr_tag i in
+      if instr_tag = Some Del then i
       else
         let is_test op =
           match op with
@@ -2169,16 +2174,15 @@ class arm_reassemble =
           | Arm_OP _ -> false
         in
         match i with
-        | SingleInstr (p, l, pre, _, _) -> i
-        | DoubleInstr (p, e, l, pre, tag, tags) ->
-            DoubleInstr (p, self#v_exp2 e i f false, l, pre, tag, tags)
+        | SingleInstr (p, l, pre, _) -> i
+        | DoubleInstr (p, e, l, pre, tags) ->
+            DoubleInstr (p, self#v_exp2 e i f false, l, pre, tags)
         | TripleInstr
             ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
               Const (Point odd_addr),
               Reg (Arm_Reg (Arm_CommonReg reg)),
               l,
               pre,
-              tag,
               tags )
           when odd_addr mod 2 = 1 && self#check_text (odd_addr - 1) ->
             (* To handle odd addresses in Thumb mode *)
@@ -2191,9 +2195,9 @@ class arm_reassemble =
                 Reg (Arm_Reg (Arm_CommonReg reg)),
                 l,
                 pre,
-                tag,
                 tags )
-        | TripleInstr (p, e1, e2, l, pre, Some (Sym value), tags) -> begin
+        | TripleInstr (p, e1, e2, l, pre, tags) when has_sym_instr_tag i ->
+          begin
             (* The following patterns should not be handled here.
              * They might be converted into library calls.
              * For example:
@@ -2203,14 +2207,21 @@ class arm_reassemble =
              *)
             (* `Point value` will be symbolized
              * when vinst2 is called by visit_type_infer_analysis *)
+            let (Some value) = get_sym_addr i in
             let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
-            let pointer_instr =
-              TripleInstr (ldr_op, Const (Point value), e2, l, pre, None, tags)
+            let pointer_instr' =
+              TripleInstr (ldr_op, Const (Point value), e2, l, pre, tags)
             in
-            let deref_instr =
-              TripleInstr
-                (ldr_op, Const (Point value), e2, l, pre, Some Deref, tags)
+            let pointer_instr = remove_instr_tag pointer_instr' in
+            let deref_instr' =
+              TripleInstr (ldr_op, Const (Point value), e2, l, pre, tags)
             in
+            let deref_tag = InstrTag Deref in
+            let deref_added_tags =
+              Hashtbl.replace tags "instr_tag" deref_tag;
+              tags
+            in
+            let deref_instr = set_tags deref_instr' deref_added_tags in
             match self#check_sec value with
             | Some s ->
                 if s.sec_name = ".rodata" then pointer_instr
@@ -2240,33 +2251,25 @@ class arm_reassemble =
                 else deref_instr
             | None -> pointer_instr
           end
-        | TripleInstr (p, e1, e2, l, pre, tag, tags) when is_test p ->
+        | TripleInstr (p, e1, e2, l, pre, tags) when is_test p ->
             TripleInstr
-              ( p,
-                self#v_exp2 e1 i f true,
-                self#v_exp2 e2 i f true,
-                l,
-                pre,
-                tag,
-                tags )
-        | TripleInstr (p, e1, e2, l, pre, tag, tags) ->
+              (p, self#v_exp2 e1 i f true, self#v_exp2 e2 i f true, l, pre, tags)
+        | TripleInstr (p, e1, e2, l, pre, tags) ->
             TripleInstr
               ( p,
                 self#v_exp2 e1 i f false,
                 self#v_exp2 e2 i f false,
                 l,
                 pre,
-                tag,
                 tags )
-        | FourInstr (p, e1, e2, e3, l, pre, tag, tags) ->
-            FourInstr (p, e1, self#v_exp2 e2 i f false, e3, l, pre, tag, tags)
-        | FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags) ->
-            FifInstr (p, e1, self#v_exp2 e2 i f false, e3, e4, l, pre, tag, tags)
+        | FourInstr (p, e1, e2, e3, l, pre, tags) ->
+            FourInstr (p, e1, self#v_exp2 e2 i f false, e3, l, pre, tags)
+        | FifInstr (p, e1, e2, e3, e4, l, pre, tags) ->
+            FifInstr (p, e1, self#v_exp2 e2 i f false, e3, e4, l, pre, tags)
 
     method vinst_symbol (f : instr -> bool) (i : instr) : instr =
-      let module TU = TagUtils in
       match i with
-      | TripleInstr (p, Label label, e2, l, pre, tag, tags)
+      | TripleInstr (p, Label label, e2, l, pre, tags)
         when contains ~str:label ~sub:"=S_" -> begin
           let sub_label = String.sub label 3 (String.length label - 3) in
           let addr = int_of_string sub_label in
@@ -2277,12 +2280,12 @@ class arm_reassemble =
                 i
               else
                 (* Assume that the "dereferenced value" of the pointer matters *)
-                let new_instr = TU.replace_tag i (Some Deref) in
+                let new_instr = replace_instr_tag i (Some Deref) in
                 new_instr
             end
           | None ->
               if self#has_text_as_data addr then
-                let new_instr = TU.replace_tag i (Some Deref) in
+                let new_instr = replace_instr_tag i (Some Deref) in
                 new_instr
               else i
         end
@@ -2607,7 +2610,8 @@ class arm_reassemble =
                 if EU.elf_32 () then
                   {
                     iloc with
-                    loc_label = ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label;
+                    loc_label =
+                      ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label;
                   }
                 else
                   {

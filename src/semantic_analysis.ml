@@ -21,13 +21,13 @@ module type DfaAbs = sig
 end
 
 (* Module for register value tracking *)
-module RegMap = Map.Make(String)
+module RegMap = Map.Make (String)
 
 (* New DFA signature for tracking register values, not just names *)
 module type DfaAbsWithValues = sig
   open Type
 
-  type abs_state = int RegMap.t  (* register name -> value *)
+  type abs_state = int RegMap.t (* register name -> value *)
 
   val initial : abs_state
   val equal : abs_state -> abs_state -> bool
@@ -40,6 +40,7 @@ end
 module GotAbs : DfaAbs = struct
   open Type
   open Ail_utils
+  open Tags_utils
   open Pp_print
 
   let initial = ExpSet.empty
@@ -55,10 +56,8 @@ module GotAbs : DfaAbs = struct
     let got_addr_str = "0x" ^ List.nth info_str 1 in
     int_of_string got_addr_str
 
-  let merge
-      (preds : instr option list)
-      (input_map : (instr, ExpSet.t) Hashtbl.t)
-    : ExpSet.t =
+  let merge (preds : instr option list)
+      (input_map : (instr, ExpSet.t) Hashtbl.t) : ExpSet.t =
     let union_preds =
      fun acc (p_op : instr option) ->
       match p_op with
@@ -76,24 +75,22 @@ module GotAbs : DfaAbs = struct
           Symbol (StarDes (Ptr (FourOP_MINUS (reg1, reg2, const1, const2)))),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg1) ins ->
         let got_plus_offset = got_addr - const2 in
         (*let _ = print_endline ("orig0: " ^ (pp_print_instr' i)) in*)
-         DoubleInstr
-         ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
-           Symbol (StarDes (Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)))),
-           loc,
-           prefix,
-           tag,
-           tags )
+        DoubleInstr
+          ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),
+            Symbol
+              (StarDes (Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)))),
+            loc,
+            prefix,
+            tags )
     | DoubleInstr
         ( Intel_OP (Intel_ControlOP CALL),
           Symbol (StarDes (Ptr (BinOP_PLUS (reg, const)))),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -103,14 +100,12 @@ module GotAbs : DfaAbs = struct
             Symbol (StarDes (Const (Point got_plus_offset))),
             loc,
             prefix,
-            tag,
             tags )
     | DoubleInstr
         ( Intel_OP (Intel_ControlOP CALL),
           Symbol (StarDes (Ptr (BinOP_MINUS (reg, const)))),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr - const in
@@ -120,7 +115,6 @@ module GotAbs : DfaAbs = struct
             Symbol (StarDes (Const (Point got_plus_offset))),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
@@ -128,7 +122,6 @@ module GotAbs : DfaAbs = struct
           Reg reg2,
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg2) ins ->
         TripleInstr
@@ -137,7 +130,6 @@ module GotAbs : DfaAbs = struct
             Const (Normal got_addr),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
@@ -145,7 +137,6 @@ module GotAbs : DfaAbs = struct
           Reg reg2,
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg2) ins ->
         TripleInstr
@@ -154,7 +145,6 @@ module GotAbs : DfaAbs = struct
             Const (Normal got_addr),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
@@ -162,7 +152,6 @@ module GotAbs : DfaAbs = struct
           Ptr (BinOP_MINUS (reg, const)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr - const in
@@ -173,7 +162,6 @@ module GotAbs : DfaAbs = struct
             Const (Point got_plus_offset),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
@@ -181,7 +169,6 @@ module GotAbs : DfaAbs = struct
           Ptr (BinOP_PLUS (reg, const)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -192,7 +179,6 @@ module GotAbs : DfaAbs = struct
             Const (Point got_plus_offset),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
@@ -200,7 +186,6 @@ module GotAbs : DfaAbs = struct
           Ptr (BinOP_PLUS (reg, const)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -211,7 +196,6 @@ module GotAbs : DfaAbs = struct
             Const (Point got_plus_offset),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOVB)),
@@ -219,7 +203,6 @@ module GotAbs : DfaAbs = struct
           dest_ptr,
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -230,7 +213,6 @@ module GotAbs : DfaAbs = struct
             dest_ptr,
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -238,7 +220,6 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_PLUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg1) ins ->
         let got_plus_offset = got_addr + const2 in
@@ -248,7 +229,6 @@ module GotAbs : DfaAbs = struct
             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -256,9 +236,8 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_MINUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
-          tag,
           tags )
-      (* reg1 is base address, reg2 is offset *)
+    (* reg1 is base address, reg2 is offset *)
       when ExpSet.mem (Reg reg1) ins ->
         let got_plus_offset = got_addr - const2 in
         TripleInstr
@@ -267,7 +246,6 @@ module GotAbs : DfaAbs = struct
             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -275,7 +253,6 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_PLUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg1) ins ->
         let got_plus_offset = got_addr + const2 in
@@ -285,7 +262,6 @@ module GotAbs : DfaAbs = struct
             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -293,9 +269,8 @@ module GotAbs : DfaAbs = struct
           Ptr (FourOP_MINUS (reg1, reg2, const1, const2)),
           loc,
           prefix,
-          tag,
           tags )
-      (* reg1 is base address, reg2 is offset *)
+    (* reg1 is base address, reg2 is offset *)
       when ExpSet.mem (Reg reg1) ins ->
         let got_plus_offset = got_addr - const2 in
         TripleInstr
@@ -304,7 +279,6 @@ module GotAbs : DfaAbs = struct
             Ptr (JmpTable_PLUS (got_plus_offset, reg2, const1)),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -312,7 +286,6 @@ module GotAbs : DfaAbs = struct
           Ptr (BinOP_PLUS (reg, const)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -323,7 +296,6 @@ module GotAbs : DfaAbs = struct
             Const (Point got_plus_offset),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -331,7 +303,6 @@ module GotAbs : DfaAbs = struct
           dest_ptr,
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -342,7 +313,6 @@ module GotAbs : DfaAbs = struct
             dest_ptr,
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
@@ -350,7 +320,6 @@ module GotAbs : DfaAbs = struct
           Ptr (BinOP_PLUS (reg, const)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -361,7 +330,6 @@ module GotAbs : DfaAbs = struct
             Const (Point got_plus_offset),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOVL)),
@@ -369,7 +337,6 @@ module GotAbs : DfaAbs = struct
           dest_ptr,
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -380,7 +347,6 @@ module GotAbs : DfaAbs = struct
             dest_ptr,
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -388,7 +354,6 @@ module GotAbs : DfaAbs = struct
           cmp_to,
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -399,7 +364,6 @@ module GotAbs : DfaAbs = struct
             cmp_to,
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -407,7 +371,6 @@ module GotAbs : DfaAbs = struct
           Ptr (BinOP_PLUS (reg, const)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -418,7 +381,6 @@ module GotAbs : DfaAbs = struct
             Const (Point got_plus_offset),
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -426,7 +388,6 @@ module GotAbs : DfaAbs = struct
           cmp_to,
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -437,7 +398,6 @@ module GotAbs : DfaAbs = struct
             cmp_to,
             loc,
             prefix,
-            tag,
             tags )
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Compare CMP)),
@@ -445,7 +405,6 @@ module GotAbs : DfaAbs = struct
           Ptr (BinOP_MINUS (reg, const)),
           loc,
           prefix,
-          tag,
           tags )
       when ExpSet.mem (Reg reg) ins ->
         let got_plus_offset = got_addr + const in
@@ -456,7 +415,6 @@ module GotAbs : DfaAbs = struct
             Const (Point got_plus_offset),
             loc,
             prefix,
-            tag,
             tags )
     | _ -> i
 
@@ -467,44 +425,39 @@ module GotAbs : DfaAbs = struct
       Hashtbl.replace result (get_loc i).loc_addr newi
     else ()
 
-  let contains_existing_fact tag tag_key exp_set =
+  let contains_existing_fact tags tag_key exp_set =
     (* exp_set: incoming facts
      * tag[tag_key]: existing fact *)
-    if Hashtbl.mem tag tag_key then
-      let tag_exp = Hashtbl.find tag tag_key in
-      match tag_exp with
-      | Exp e ->
-        ExpSet.mem e exp_set
-      | _ -> false
+    if Hashtbl.mem tags tag_key then
+      let tag_exp = Hashtbl.find tags tag_key in
+      match tag_exp with Exp e -> ExpSet.mem e exp_set | _ -> false
     else false
 
   (** identify GOT pointer and propagate facts *)
   let flow_through (i : instr) (ins : ExpSet.t) : ExpSet.t =
     let outs = ins in
     match i with
-    | i when contains_existing_fact (get_tags i) "use" outs ->
+    | i when contains_existing_fact (get_tags i) "use" outs -> (
         let exp_def = Hashtbl.find (get_tags i) "def" in
-        ( match exp_def with
-          | Exp e -> ExpSet.add e outs
-          | _ -> outs )
-    | TripleInstr (p, e1, e2, _, _, _, _) -> (
+        match exp_def with Exp e -> ExpSet.add e outs | _ -> outs)
+    | TripleInstr (p, e1, e2, _, _, _) -> (
         match (p, e1, e2) with
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->
-            if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then
+            if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then (
               (* gen *)
               (*print_endline ("gen: " ^ (p_exp (Reg r)) ^ ", " ^ (pp_print_instr' i));*)
               let got_reg_tags = Hashtbl.create 0 in
-              let _ = Hashtbl.replace got_reg_tags "got_reg" (Str (p_exp (Reg r))) in
-              Hashtbl.replace
-                result
-                0
-                ( SingleInstr (Intel_OP (Intel_CommonOP (Intel_Other NOP)),
-                  stub_loc,
-                  None,
-                  None,
-                  got_reg_tags) );
-              ExpSet.add (Reg r) outs
+              let _ =
+                Hashtbl.replace got_reg_tags "got_reg" (Str (p_exp (Reg r)))
+              in
+              Hashtbl.replace result 0
+                (SingleInstr
+                   ( Intel_OP (Intel_CommonOP (Intel_Other NOP)),
+                     stub_loc,
+                     None,
+                     got_reg_tags ));
+              ExpSet.add (Reg r) outs)
             else outs
         | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), e1, e2 ->
             if ExpSet.mem e1 outs then
@@ -648,7 +601,6 @@ module DFA (A : DfaAbs) = struct
         let _ = ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) outs in
         let _ = print_endline (" ins: ") in
         ExpSet.iter (fun e -> print_endline ("    " ^ (p_exp e))) ins;*)
-
       if not (A.equal old_outs outs) then (
         Hashtbl.replace out_map i outs;
         let succs =
@@ -660,7 +612,6 @@ module DFA (A : DfaAbs) = struct
           succs)
     done
 end
-
 
 (* DFA functor for value-tracking analysis *)
 module DFAWithValues (A : DfaAbsWithValues) = struct

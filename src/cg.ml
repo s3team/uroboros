@@ -1,6 +1,5 @@
 open Visit
 open Type
-
 open Ail_utils
 
 class cg =
@@ -22,31 +21,29 @@ class cg =
    * the key of this table is the address of control flow transfer,
    * the value is a list of all the possible control flow transfer
    * destinations (for the direct transfer case, then we just have one item in the list)
-   * *)
-  let dec_hex (s:int) : string =
-    "0x"^(Printf.sprintf "%X" s) in
-  let cg_tbl = Hashtbl.create 500
-  and cfi_tbl = Hashtbl.create 500 in
+   *)
+  let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s in
+  let cg_tbl = Hashtbl.create 500 and cfi_tbl = Hashtbl.create 500 in
 
-  object(self)
+  object (self)
     inherit ailVisitor
 
     (* currently, cfg_exp can only identify all the **direct** CF destination
-     *  *)
+     *)
 
     method update_cgtbl l func =
       if Hashtbl.mem cg_tbl l.loc_addr then
         let ll = Hashtbl.find cg_tbl l.loc_addr in
-        Hashtbl.replace cg_tbl l.loc_addr (func::ll)
-      else Hashtbl.replace cg_tbl l.loc_addr [func]
+        Hashtbl.replace cg_tbl l.loc_addr (func :: ll)
+      else Hashtbl.replace cg_tbl l.loc_addr [ func ]
 
     method update_cfitbl func l =
       (* print_string (func.func_name); *)
       (* print_string "\n"; *)
       if Hashtbl.mem cfi_tbl func.func_name then
         let ll = Hashtbl.find cfi_tbl func.func_name in
-        Hashtbl.replace cfi_tbl func.func_name (l::ll)
-      else Hashtbl.add cfi_tbl func.func_name [l]
+        Hashtbl.replace cfi_tbl func.func_name (l :: ll)
+      else Hashtbl.add cfi_tbl func.func_name [ l ]
 
     method print_func =
       let help f =
@@ -54,115 +51,104 @@ class cg =
         begin
           print_string f.func_name;
           print_string "\n";
-          print_string ("    "^(dec_hex f.func_begin_addr));
+          print_string ("    " ^ dec_hex f.func_begin_addr);
           print_string "\n";
-          print_string ("    "^(dec_hex f.func_end_addr));
-          print_string "\n";
+          print_string ("    " ^ dec_hex f.func_end_addr);
+          print_string "\n"
         end
-      in List.iter help funcs
+      in
+      List.iter help funcs
 
     method func_info l =
       let rec help funcs =
         match funcs with
-        | h::[] ->
-           begin
-             if l.loc_addr >= h.func_begin_addr && l.loc_addr < h.func_end_addr then
-               h
-             else
-               (
-                 failwith ((dec_hex l.loc_addr)^"can't find coresponding functions")
-               )
-           end
-        | h::t ->
-           begin
-             if l.loc_addr >= h.func_begin_addr && l.loc_addr < h.func_end_addr then
-               h
-             else help t
-           end
+        | h :: [] -> begin
+            if l.loc_addr >= h.func_begin_addr && l.loc_addr < h.func_end_addr
+            then h
+            else
+              failwith (dec_hex l.loc_addr ^ "can't find coresponding functions")
+          end
+        | h :: t -> begin
+            if l.loc_addr >= h.func_begin_addr && l.loc_addr < h.func_end_addr
+            then h
+            else help t
+          end
         | _ -> failwith "can't find coresponding functions"
       in
       help funcs
 
     method cg_process e l =
       match e with
-      | Symbol s ->
-         begin
-           match s with
-           | JumpDes d ->
-              begin
-                let f = self#func_info l in  (* identify func containing l *)
-                if d >= f.func_begin_addr && d < f.func_end_addr then
-                  (
-                    (* self#update_cgtbl l f *)
-                    (* print_string (dec_hex l.loc_addr); *)
-                    (* print_string f.func_name; *)
-                    (* print_string "\n"; *)
-                    (* intraprocedural control-flow transfer *)
-                    ()
-                  )
-                else
-                  (
-                    (* print_string f.func_name; *)
-                    (* print_string "\n"; *)
-                    (* interprocedural control-flow transfer *)
-                    (* the following is incorrect. Will add call edge to current func,
-                     * not the func it jumps to *)
-                    self#update_cgtbl l f
-                  )
+      | Symbol s -> begin
+          match s with
+          | JumpDes d -> begin
+              let f = self#func_info l in
+              (* identify func containing l *)
+              if d >= f.func_begin_addr && d < f.func_end_addr then begin
+                (* self#update_cgtbl l f *)
+                (* print_string (dec_hex l.loc_addr); *)
+                (* print_string f.func_name; *)
+                (* print_string "\n"; *)
+                (* intraprocedural control-flow transfer *)
+                ()
               end
-           | CallDes f when (f.is_lib = false) ->
-              self#update_cgtbl l f
-           | _ -> ()
-         end
+              else begin
+                (* print_string f.func_name; *)
+                (* print_string "\n"; *)
+                (* interprocedural control-flow transfer *)
+                (* the following is incorrect. Will add call edge to current func,
+                 * not the func it jumps to *)
+                self#update_cgtbl l f
+              end
+            end
+          | CallDes f when f.is_lib = false -> self#update_cgtbl l f
+          | _ -> ()
+        end
       | _ -> ()
 
     method vinst_tail instrs =
       let rec aux il acc =
-      (* check whether is control flow transfer opcodes *)
-      let is_dct op e =
-        let is_ct = match op with
-          | Intel_OP io ->
-            begin
-              match io with
-              | Intel_ControlOP ico ->
-                begin
-                  match ico with
-                  | Intel_Jump _ -> true (* jump ops *)
-                  | CALL -> true (* call *)
-                  | _ -> false
-                end
-              | _ -> false
-            end
-          | Arm_OP (ao, _, _) ->
-            begin
-              match ao with
-              | Arm_ControlOP _ -> true
-              | _ -> false
-            end
-          | _ -> false in
-        if is_ct = false then false
-        else
-          match e with
-          | Symbol s ->
-             begin
-               match s with
-               | JumpDes _ -> true
-               | CallDes _ -> true
-               | _ -> false
-             end
-          | _ -> false in
-      match il with
-      | ((DoubleInstr (p, e, l, _, _, _) as h)::t) when (is_dct p e) ->
-         (* follow direct control flow *)
-         self#cg_process e l;
-         aux t (h::acc)
-      | h::t ->
-         aux t (h::acc)
-      | [] -> List.rev acc in
-	aux instrs []
+        (* check whether is control flow transfer opcodes *)
+        let is_dct op e =
+          let is_ct =
+            match op with
+            | Intel_OP io -> begin
+                match io with
+                | Intel_ControlOP ico -> begin
+                    match ico with
+                    | Intel_Jump _ -> true (* jump ops *)
+                    | CALL -> true (* call *)
+                    | _ -> false
+                  end
+                | _ -> false
+              end
+            | Arm_OP (ao, _, _) -> begin
+                match ao with Arm_ControlOP _ -> true | _ -> false
+              end
+            | _ -> false
+          in
+          if is_ct = false then false
+          else
+            match e with
+            | Symbol s -> begin
+                match s with
+                | JumpDes _ -> true
+                | CallDes _ -> true
+                | _ -> false
+              end
+            | _ -> false
+        in
+        match il with
+        | (DoubleInstr (p, e, l, _, _) as h) :: t when is_dct p e ->
+            (* follow direct control flow *)
+            self#cg_process e l;
+            aux t (h :: acc)
+        | h :: t -> aux t (h :: acc)
+        | [] -> List.rev acc
+      in
+      aux instrs []
 
-     method visit (instrs: instr list) =
-        self#vinst_tail instrs
+    method visit (instrs : instr list) = self#vinst_tail instrs
 
     (* in CFI protection of `ret`, we have to identify all the possible caller
      * of each function( each ret)
@@ -170,22 +156,23 @@ class cg =
      * function <--> [call_addr1; call_addr2; ...] *)
     method cfi_specified_tbl =
       let help key value =
-        List.iter (fun f -> self#update_cfitbl f key) value in
+        List.iter (fun f -> self#update_cfitbl f key) value
+      in
       Hashtbl.iter help cg_tbl
-
 
     method print_cg_graph =
       let rec help key value =
         print_string (dec_hex key);
-        List.iter (fun f -> print_string ("    "^f.func_name^"\n")) value in
+        List.iter (fun f -> print_string ("    " ^ f.func_name ^ "\n")) value
+      in
       Hashtbl.iter help cg_tbl
 
     method print_cfi_sepcified_graph =
-      let dec_hex (s:int) : string =
-        "0x"^(Printf.sprintf "%X\n" s) in
+      let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X\n" s in
       let rec help key value =
-        print_string (key^"\n");
-        List.iter (fun l -> print_string ("    "^dec_hex(l))) value in
+        print_string (key ^ "\n");
+        List.iter (fun l -> print_string ("    " ^ dec_hex l)) value
+      in
       self#cfi_specified_tbl;
       Hashtbl.iter help cfi_tbl
 
@@ -200,5 +187,4 @@ class cg =
       self#cfi_specified_tbl;
       (* self#print_hashtb cfi_tbl; *)
       cfi_tbl
-
   end

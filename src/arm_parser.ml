@@ -1092,17 +1092,17 @@ class arm_parse =
     (** [is_special] is used to make stmdb and ldmia opcodes parsed to stackop
     *)
 
-    method reduce_stack stack pre (tag : tag option) =
+    method reduce_stack stack pre =
       match stack with
-      | [ Loc l; Op p ] -> SingleInstr (p, l, pre, tag, Hashtbl.create 0)
+      | [ Loc l; Op p ] -> SingleInstr (p, l, pre, Hashtbl.create 0)
       | [ Loc l; Exp exp1; Op p ] ->
-          DoubleInstr (p, exp1, l, pre, tag, Hashtbl.create 0)
+          DoubleInstr (p, exp1, l, pre, Hashtbl.create 0)
       | [ Loc l; Exp exp1; Exp exp2; Op p ] ->
-          TripleInstr (p, exp1, exp2, l, pre, tag, Hashtbl.create 0)
+          TripleInstr (p, exp1, exp2, l, pre, Hashtbl.create 0)
       | [ Loc l; Exp exp1; Exp exp2; Exp exp3; Op p ] ->
-          FourInstr (p, exp1, exp2, exp3, l, pre, tag, Hashtbl.create 0)
+          FourInstr (p, exp1, exp2, exp3, l, pre, Hashtbl.create 0)
       | [ Loc l; Exp exp1; Exp exp2; Exp exp3; Exp exp4; Op p ] ->
-          FifInstr (p, exp1, exp2, exp3, exp4, l, pre, tag, Hashtbl.create 0)
+          FifInstr (p, exp1, exp2, exp3, exp4, l, pre, Hashtbl.create 0)
       | _ -> raise ParseError
 
     method print_f (fl : func list) =
@@ -1171,7 +1171,7 @@ class arm_parse =
       in
       let compact_instr = remove_comment (compact instr) in
       let pre = prefix_identify compact_instr in
-      (* let (compact_instr, tag) = tag_identify compact_instr in *)
+      (* let (compact_instr, instr_tag) = tag_identify compact_instr in *)
       let compact_instr' = prefix_sub compact_instr in
       let is_special_stackop (i : string) =
         if contains ~str:i ~sub_str:"stmdb" && contains ~str:i ~sub_str:"sp!"
@@ -1188,6 +1188,6 @@ class arm_parse =
         match l with Lend -> s | _ -> self#push_stack l is_special :: s
       in
       let stack = List.fold_left parse_one s lexem_list in
-      let parsed_instr = self#reduce_stack stack pre None in
+      let parsed_instr = self#reduce_stack stack pre in
       parsed_instr
   end

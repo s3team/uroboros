@@ -107,17 +107,16 @@ let create_comment (comment : string) : (string, tags_val) Hashtbl.t =
 
 let add_comment (instr : instr) (comment : string) : instr =
   match instr with
-  | SingleInstr (op, loc, prefix, tag, tags) ->
-      SingleInstr (op, loc, prefix, tag, create_comment comment)
-  | DoubleInstr (op, exp, loc, prefix, tag, tags) ->
-      DoubleInstr (op, exp, loc, prefix, tag, create_comment comment)
-  | TripleInstr (op, exp1, exp2, loc, prefix, tag, tags) ->
-      TripleInstr (op, exp1, exp2, loc, prefix, tag, create_comment comment)
-  | FourInstr (op, exp1, exp2, exp3, loc, prefix, tag, tags) ->
-      FourInstr (op, exp1, exp2, exp3, loc, prefix, tag, create_comment comment)
-  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, tag, tags) ->
-      FifInstr
-        (op, exp1, exp2, exp3, exp4, loc, prefix, tag, create_comment comment)
+  | SingleInstr (op, loc, prefix, tags) ->
+      SingleInstr (op, loc, prefix, create_comment comment)
+  | DoubleInstr (op, exp, loc, prefix, tags) ->
+      DoubleInstr (op, exp, loc, prefix, create_comment comment)
+  | TripleInstr (op, exp1, exp2, loc, prefix, tags) ->
+      TripleInstr (op, exp1, exp2, loc, prefix, create_comment comment)
+  | FourInstr (op, exp1, exp2, exp3, loc, prefix, tags) ->
+      FourInstr (op, exp1, exp2, exp3, loc, prefix, create_comment comment)
+  | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, tags) ->
+      FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix, create_comment comment)
 
 let p_dir_str (dir : dir option) : string =
   match dir with
@@ -137,7 +136,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Label "{r1, r2, r3, r12, lr}",
             stub_loc,
             None,
-            None,
             create_comment instr_type );
       ]
     else
@@ -149,7 +147,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_StackReg SP)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -157,7 +154,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X2)),
             Reg (Arm_Reg (Arm_CommonReg X1)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -167,7 +163,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X3)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -175,7 +170,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X6)),
             Reg (Arm_Reg (Arm_CommonReg X5)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -185,7 +179,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X7)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -193,7 +186,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X10)),
             Reg (Arm_Reg (Arm_CommonReg X9)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -203,7 +195,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X11)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -211,7 +202,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X14)),
             Reg (Arm_Reg (Arm_CommonReg X13)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -221,7 +211,6 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X15)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -230,14 +219,12 @@ let caller_saved_before_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X17)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         TripleInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STR), None, None),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_StackReg SP), 144)),
             Reg (Arm_Reg (Arm_LinkReg X30)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
       ]
@@ -249,13 +236,11 @@ let caller_saved_before_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -263,13 +248,11 @@ let caller_saved_before_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -280,20 +263,17 @@ let caller_saved_before_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -301,13 +281,11 @@ let caller_saved_before_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -315,13 +293,11 @@ let caller_saved_before_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -329,20 +305,17 @@ let caller_saved_before_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -357,7 +330,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Label "{r0, r1, r2, r3, r12, lr}",
             stub_loc,
             None,
-            None,
             create_comment instr_type );
       ]
     else
@@ -369,7 +341,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_StackReg SP)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -377,7 +348,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X1)),
             Reg (Arm_Reg (Arm_CommonReg X0)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -387,7 +357,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X2)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -395,7 +364,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X5)),
             Reg (Arm_Reg (Arm_CommonReg X4)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -405,7 +373,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X6)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -413,7 +380,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X9)),
             Reg (Arm_Reg (Arm_CommonReg X8)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -423,7 +389,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X10)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -431,7 +396,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X13)),
             Reg (Arm_Reg (Arm_CommonReg X12)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -441,7 +405,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X14)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -450,7 +413,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X16)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign STP), None, None),
@@ -458,7 +420,6 @@ let caller_saved_before (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X18)),
             Reg (Arm_Reg (Arm_LinkReg X30)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
       ]
@@ -470,13 +431,11 @@ let caller_saved_before (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg EAX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -484,13 +443,11 @@ let caller_saved_before (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -501,13 +458,11 @@ let caller_saved_before (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg RAX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -515,13 +470,11 @@ let caller_saved_before (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -529,13 +482,11 @@ let caller_saved_before (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -543,13 +494,11 @@ let caller_saved_before (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -557,13 +506,11 @@ let caller_saved_before (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP PUSH),
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -578,7 +525,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Label "{r1, r2, r3, r12, lr}",
             stub_loc,
             None,
-            None,
             create_comment instr_type );
       ]
     else
@@ -590,7 +536,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X1)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -598,7 +543,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X4)),
             Reg (Arm_Reg (Arm_CommonReg X3)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -608,7 +552,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X5)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -616,7 +559,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X8)),
             Reg (Arm_Reg (Arm_CommonReg X7)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -626,7 +568,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X9)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -634,7 +575,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X12)),
             Reg (Arm_Reg (Arm_CommonReg X11)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -644,7 +584,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X13)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -652,7 +591,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X16)),
             Reg (Arm_Reg (Arm_CommonReg X15)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -662,14 +600,12 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X17)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         TripleInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_StackReg SP), 144)),
             Reg (Arm_Reg (Arm_LinkReg X30)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -678,7 +614,6 @@ let caller_saved_after_ret (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_StackReg SP)),
             Reg (Arm_Reg (Arm_StackReg SP)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
       ]
@@ -690,27 +625,23 @@ let caller_saved_after_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -721,13 +652,11 @@ let caller_saved_after_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -735,13 +664,11 @@ let caller_saved_after_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -749,13 +676,11 @@ let caller_saved_after_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -763,27 +688,23 @@ let caller_saved_after_ret (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -798,7 +719,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Label "{r0, r1, r2, r3, r12, lr}",
             stub_loc,
             None,
-            None,
             create_comment instr_type );
       ]
     else
@@ -810,7 +730,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X0)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -818,7 +737,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X3)),
             Reg (Arm_Reg (Arm_CommonReg X2)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -828,7 +746,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X4)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -836,7 +753,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X7)),
             Reg (Arm_Reg (Arm_CommonReg X6)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -846,7 +762,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X8)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -854,7 +769,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X11)),
             Reg (Arm_Reg (Arm_CommonReg X10)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -864,7 +778,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X12)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -872,7 +785,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X15)),
             Reg (Arm_Reg (Arm_CommonReg X14)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
         FourInstr
@@ -882,7 +794,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_CommonReg X16)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Assign LDP), None, None),
@@ -891,7 +802,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_LinkReg X30)),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
         FourInstr
           ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), None, None),
@@ -899,7 +809,6 @@ let caller_saved_after (instr_type : string) : instr list =
             Reg (Arm_Reg (Arm_StackReg SP)),
             Reg (Arm_Reg (Arm_StackReg SP)),
             stub_loc,
-            None,
             None,
             create_comment instr_type );
       ]
@@ -911,13 +820,11 @@ let caller_saved_after (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg ECX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg EDX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -925,13 +832,11 @@ let caller_saved_after (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg EBX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg EAX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -942,13 +847,11 @@ let caller_saved_after (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_SpecialReg R11)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_SpecialReg R10)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -956,13 +859,11 @@ let caller_saved_after (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_SpecialReg R9)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_SpecialReg R8)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -970,13 +871,11 @@ let caller_saved_after (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RDI)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg RCX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -984,13 +883,11 @@ let caller_saved_after (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RDX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg RBX)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
       DoubleInstr
@@ -998,13 +895,11 @@ let caller_saved_after (instr_type : string) : instr list =
           Reg (Intel_Reg (Intel_CommonReg RAX)),
           stub_loc,
           None,
-          None,
           create_comment instr_type );
       DoubleInstr
         ( Intel_OP (Intel_StackOP POP),
           Reg (Intel_Reg (Intel_CommonReg RSI)),
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -1422,14 +1317,12 @@ let set_arg (instr_type : string) (i : int) (arg : string * string) : instr list
               Reg (Arm_Reg dest_arg_reg),
               stub_loc,
               None,
-              None,
               create_comment instr_type );
           TripleInstr
             ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None),
               Ptr (UnOP (Arm_Reg dest_arg_reg)),
               Reg (Arm_Reg dest_arg_reg),
               stub_loc,
-              None,
               None,
               create_comment instr_type );
         ]
@@ -1442,13 +1335,11 @@ let set_arg (instr_type : string) (i : int) (arg : string * string) : instr list
               Reg (Arm_Reg dest_arg_reg),
               stub_loc,
               None,
-              None,
               create_comment instr_type );
         ]
   else if EU.elf_32 () then
     [
-      DoubleInstr
-        (opcode, exp_type, stub_loc, None, None, create_comment instr_type);
+      DoubleInstr (opcode, exp_type, stub_loc, None, create_comment instr_type);
     ]
   else
     let dest_arg_reg = arg_order_64 i in
@@ -1458,7 +1349,6 @@ let set_arg (instr_type : string) (i : int) (arg : string * string) : instr list
           Reg (Intel_Reg dest_arg_reg),
           exp_type,
           stub_loc,
-          None,
           None,
           create_comment instr_type );
     ]
@@ -1514,7 +1404,6 @@ let add_call_seq_arg ~(instr_type : string) ~(code_ep : string)
                    }),
               stub_loc,
               None,
-              None,
               create_comment instr_type );
         ]
       @ caller_saved_after_regs instr_type ret_type)
@@ -1535,7 +1424,6 @@ let add_call_seq_arg ~(instr_type : string) ~(code_ep : string)
                    }),
               stub_loc,
               None,
-              None,
               create_comment instr_type );
         ]
       @ [
@@ -1544,7 +1432,6 @@ let add_call_seq_arg ~(instr_type : string) ~(code_ep : string)
               Reg (Intel_Reg (Intel_StackReg ESP)),
               Const (Normal (4 * List.length args)),
               stub_loc,
-              None,
               None,
               create_comment instr_type );
         ]
@@ -1566,7 +1453,6 @@ let add_call_seq_arg ~(instr_type : string) ~(code_ep : string)
                      is_lib = false;
                    }),
               stub_loc,
-              None,
               None,
               create_comment instr_type );
         ]
@@ -1595,7 +1481,6 @@ let add_call_seq ~(instr_type : string) ~(code_ep : string)
                    }),
               stub_loc,
               None,
-              None,
               create_comment instr_type );
         ]
       @ caller_saved_after_regs instr_type ret_type)
@@ -1614,7 +1499,6 @@ let add_call_seq ~(instr_type : string) ~(code_ep : string)
                  }),
             stub_loc,
             None,
-            None,
             create_comment instr_type );
       ]
   else
@@ -1632,7 +1516,6 @@ let add_call_seq ~(instr_type : string) ~(code_ep : string)
                      is_lib = false;
                    }),
               stub_loc,
-              None,
               None,
               create_comment instr_type );
         ]
@@ -1677,7 +1560,6 @@ let print_args ~(instr_type : string) ~(args : (string * string) list) :
                   Reg (Intel_Reg (Intel_CommonReg EAX)),
                   stub_loc,
                   None,
-                  None,
                   create_comment instr_type );
               TripleInstr
                 ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
@@ -1685,13 +1567,11 @@ let print_args ~(instr_type : string) ~(args : (string * string) list) :
                   Ptr (BinOP_PLUS (Intel_Reg (Intel_StackReg ESP), esp_arg_i)),
                   stub_loc,
                   None,
-                  None,
                   create_comment instr_type );
               DoubleInstr
                 ( Intel_OP (Intel_StackOP PUSH),
                   Reg (Intel_Reg (Intel_CommonReg EAX)),
                   stub_loc,
-                  None,
                   None,
                   create_comment instr_type );
               DoubleInstr
@@ -1706,20 +1586,17 @@ let print_args ~(instr_type : string) ~(args : (string * string) list) :
                        }),
                   stub_loc,
                   None,
-                  None,
                   create_comment instr_type );
               DoubleInstr
                 ( Intel_OP (Intel_StackOP POP),
                   Reg (Intel_Reg (Intel_CommonReg EAX)),
                   stub_loc,
                   None,
-                  None,
                   create_comment instr_type );
               DoubleInstr
                 ( Intel_OP (Intel_StackOP POP),
                   Reg (Intel_Reg (Intel_CommonReg EAX)),
                   stub_loc,
-                  None,
                   None,
                   create_comment instr_type );
             ]

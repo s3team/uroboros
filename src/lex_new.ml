@@ -231,7 +231,7 @@ let contains (str : string) (sub_str : string) : bool =
     true
   with Not_found -> false
 
-(** Return (instr_without_tag, tag) *)
+(** Return (instr_without_tag, instr_tag) *)
 let tag_identify (instr : string) =
   let get_tag = function
     | "del" -> Del
@@ -243,7 +243,7 @@ let tag_identify (instr : string) =
               (String.length tag_str - String.length sym_prefix)
           in
           Sym (int_of_string value)
-        else failwith ("Unknown tag: " ^ tag_str)
+        else failwith ("Unknown instr_tag: " ^ tag_str)
       end
   in
   let has_tag = contains instr "@@" in
@@ -253,8 +253,8 @@ let tag_identify (instr : string) =
     let instr_without_tag =
       Str.global_replace (Str.regexp_string ("@@" ^ tag_str)) "" instr
     in
-    let tag = get_tag tag_str in
-    (instr_without_tag, Some tag)
+    let instr_tag = get_tag tag_str in
+    (instr_without_tag, Some instr_tag)
   else (instr, None)
 
 (** Return true if str contains sub_str *)
@@ -265,7 +265,7 @@ let contains ~(str : string) ~(sub_str : string) : bool =
     true
   with Not_found -> false
 
-(** Return (instr_without_tag, tag) *)
+(** Return (instr_without_tag, instr_tag) *)
 (* let tag_identify (instr : string) =
   let get_tag = function
     | "del" -> Del
@@ -277,7 +277,7 @@ let contains ~(str : string) ~(sub_str : string) : bool =
               (String.length tag_str - String.length sym_prefix)
           in
           Sym (int_of_string value)
-        else failwith ("Unknown tag: " ^ tag_str)
+        else failwith ("Unknown instr_tag: " ^ tag_str)
       end
   in
   let has_tag = contains instr "@@" in
@@ -287,8 +287,8 @@ let contains ~(str : string) ~(sub_str : string) : bool =
     let instr_without_tag =
       Str.global_replace (Str.regexp_string ("@@" ^ tag_str)) "" instr
     in
-    let tag = get_tag tag_str in
-    (instr_without_tag, Some tag)
+    let instr_tag = get_tag tag_str in
+    (instr_without_tag, Some instr_tag)
   else (instr, None) *)
 
 let prefix_sub instr =

@@ -42,12 +42,11 @@ class arm_func_slicer instrs funcs =
       let get_loc_addr (l : loc) : int = l.loc_addr in
       let is_func_prologue (inst : instr) : bool =
         match inst with
-        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
         | TripleInstr
             ( Arm_OP (Arm_StackOP STMDB, _, _),
               Label lab,
               Ptr (WB (Arm_StackReg SP)),
-              _,
               _,
               _,
               _ )
@@ -70,13 +69,12 @@ class arm_func_slicer instrs funcs =
               Reg (Arm_Reg (Arm_LinkReg LR)),
               _,
               _,
-              _,
               _ ) ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- true
-        | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _)
           when is_pop op && has_pc_reg lab ->
             last_nop <- false;
             last_ret <- false;
@@ -84,7 +82,7 @@ class arm_func_slicer instrs funcs =
             last_pop <- true
         (* add a function *)
         (* push {r4, lr} *)
-        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
         (* stmdb sp!, {r4, r5, lr} *)
         | TripleInstr
             ( Arm_OP (Arm_StackOP STMDB, _, _),
@@ -92,15 +90,13 @@ class arm_func_slicer instrs funcs =
               Ptr (WB (Arm_StackReg SP)),
               _,
               _,
-              _,
               _ )
           when has_lr_reg lab || has_fp_reg lab
-          (* The above when condition was commented out due to the following case:
-           * in make-prime-list:
-           * 1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
-           * should be recognized as a function beginning
-           *)
-          ->
+               (* The above when condition was commented out due to the following case:
+                * in make-prime-list:
+                * 1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+                * should be recognized as a function beginning
+                *) ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -115,7 +111,7 @@ class arm_func_slicer instrs funcs =
         (* push	{r7}
          * sub	sp, #12
          *)
-        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _, _)
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
           when not (has_lr_reg lab) -> begin
             let next_instr = List.nth ordered_il (idx + 1) in
             match next_instr with
@@ -124,7 +120,6 @@ class arm_func_slicer instrs funcs =
                   Const (Immediate _),
                   Reg (Arm_Reg (Arm_StackReg SP)),
                   l,
-                  _,
                   _,
                   _ ) ->
                 last_nop <- false;
@@ -164,7 +159,6 @@ class arm_func_slicer instrs funcs =
               exp2,
               loc,
               _,
-              _,
               _ )
           when List.length ordered_il > idx + 5 ->
             let n_inst = List.nth ordered_il (idx + 1) in
@@ -185,7 +179,6 @@ class arm_func_slicer instrs funcs =
                       Symbol (CallDes func),
                       _,
                       _,
-                      _,
                       _ ) )
                 when contains ~str:func.func_name ~sub:"__cxa_atexit" ->
                   true
@@ -201,7 +194,7 @@ class arm_func_slicer instrs funcs =
             else ()
         (* add a function *)
         (* AArch64 *)
-        | SingleInstr (Arm_OP (Arm_ControlOP RET, _, _), _, _, _, _) ->
+        | SingleInstr (Arm_OP (Arm_ControlOP RET, _, _), _, _, _) ->
             last_nop <- false;
             last_ret <- true;
             last_special <- false;
@@ -211,7 +204,7 @@ class arm_func_slicer instrs funcs =
          * nop
          * S_0x400520:
          * adrp x0,0x411000 *)
-        | TripleInstr (_, _, _, _, _, _, _) when last_ret ->
+        | TripleInstr (_, _, _, _, _, _) when last_ret ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -221,7 +214,7 @@ class arm_func_slicer instrs funcs =
          * nop
          * S_0x400590:
          * stp x29,x30,[sp, #-0x20]! *)
-        | FourInstr (_, _, _, _, _, _, _, _) when last_ret ->
+        | FourInstr (_, _, _, _, _, _, _) when last_ret ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;

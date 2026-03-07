@@ -100,36 +100,21 @@ and exp =
 
 and prefix = LOCK | ADDR32 | BND
 
-and tag =
+and instr_tag =
   | Del (* Delete *)
   | Sym of int (* Symbolization of taget addr *)
   | Deref (* Dereference *)
   | Pad (* Padding *)
 
-and tags_val = Str of string | Exp of exp
+and tags_val = Str of string | Exp of exp | InstrTag of instr_tag
 
 and instr =
-  | SingleInstr of
-      op * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
-  | DoubleInstr of
-      op * exp * loc * prefix option * tag option * (string, tags_val) Hashtbl.t
+  | SingleInstr of op * loc * prefix option * (string, tags_val) Hashtbl.t
+  | DoubleInstr of op * exp * loc * prefix option * (string, tags_val) Hashtbl.t
   | TripleInstr of
-      op
-      * exp
-      * exp
-      * loc
-      * prefix option
-      * tag option
-      * (string, tags_val) Hashtbl.t
+      op * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
   | FourInstr of
-      op
-      * exp
-      * exp
-      * exp
-      * loc
-      * prefix option
-      * tag option
-      * (string, tags_val) Hashtbl.t
+      op * exp * exp * exp * loc * prefix option * (string, tags_val) Hashtbl.t
   | FifInstr of
       op
       * exp
@@ -138,7 +123,6 @@ and instr =
       * exp
       * loc
       * prefix option
-      * tag option
       * (string, tags_val) Hashtbl.t
 (* as far as I know, imul $0xe10,%ebp,%eax *)
 

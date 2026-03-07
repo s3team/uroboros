@@ -14,7 +14,7 @@ module Disam = struct
   open Disassemble_validator
   open Ail_parser
   open Ail_utils
-  open Tag_utils
+  open Tags_utils
   open Type
   open Pp_print
 
@@ -68,7 +68,6 @@ module Disam = struct
       let module D = DFA (GA) in
       let module AGA = ArmGotAbsWithValues in
       let module AD = DFAWithValues (AGA) in
-      let module TU = TagUtils in
       let module AP = ArmPostprocess in
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
@@ -151,8 +150,7 @@ module Disam = struct
             *)
          end)
         |> re#visit_heuristic_analysis
-        |> TU.process_tags
-           (* should be located after visit_heuristic_analysis *)
+        |> process_tags (* should be located after visit_heuristic_analysis *)
         |> re#adjust_loclabel |> re#adjust_jmpref
         |> re#add_func_label @@ get_userfuncs fl
         |> dis_valid#visit |> arm_postprocess;

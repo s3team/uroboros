@@ -42,8 +42,8 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
- (name tag_utils)
- (modules tag_utils)
+ (name tags_utils)
+ (modules tags_utils)
  (libraries type pp_print)
  (wrapped false)
  (flags
@@ -96,7 +96,7 @@
   disassemble_validator
   ail_parser
   ail_utils
-  tag_utils
+  tags_utils
   type
   pp_print)
  (wrapped false)
@@ -106,7 +106,7 @@
 (library
  (name semantic_analysis)
  (modules semantic_analysis)
- (libraries pp_print ail_utils)
+ (libraries pp_print ail_utils tags_utils)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -281,7 +281,7 @@
   type
   ail_utils
   arm_utils
-  tag_utils
+  tags_utils
   pp_print
   share_lib_helper)
  (wrapped false)
@@ -296,7 +296,7 @@
   pp_print
   ail_utils
   arm_utils
-  tag_utils
+  tags_utils
   common_parser
   parser
   arm_parser

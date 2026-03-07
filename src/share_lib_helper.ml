@@ -1,8 +1,6 @@
 open Batteries
-
 open Type
 open Pp_print
-
 open Ail_utils
 
 (*
@@ -67,18 +65,16 @@ class lib32_helper (instr_list : instr list) =
    *  edi -> 4
    *  esi -> 5
    *)
-
   let r = ref 6 in
   let rv = ref 0 in
 
   let pic_addr = ref "" in
 
-  let reg_to_index reg = match reg with
-    | Intel_Reg ir ->
-      begin
+  let reg_to_index reg =
+    match reg with
+    | Intel_Reg ir -> begin
         match ir with
-        | Intel_CommonReg r' ->
-          begin
+        | Intel_CommonReg r' -> begin
             match r' with
             | EAX -> 0
             | EBX -> 1
@@ -86,74 +82,67 @@ class lib32_helper (instr_list : instr list) =
             | EDX -> 3
             | EDI -> 4
             | ESI -> 5
-            | _   -> -1
+            | _ -> -1
           end
-        | _   -> -1
+        | _ -> -1
       end
-    | Arm_Reg _ -> failwith "TODO: ARM support: reg_to_index" in
+    | Arm_Reg _ -> failwith "TODO: ARM support: reg_to_index"
+  in
 
-  let index_of_reg exp = match exp with
-    | Reg r ->
-       begin
-         match r with
-         | Intel_Reg ir ->
-          begin
+  let index_of_reg exp =
+    match exp with
+    | Reg r -> begin
+        match r with
+        | Intel_Reg ir -> begin
             match ir with
-            | Intel_CommonReg r' ->
-                begin
-                  match r' with
-                  | EAX -> 0
-                  | EBX -> 1
-                  | ECX -> 2
-                  | EDX -> 3
-                  | EDI -> 4
-                  | ESI -> 5
-                  | _   -> failwith "unsupport register in index_of_reg"
-                end
-            | _   -> failwith "unsupport register in index_of_reg"
+            | Intel_CommonReg r' -> begin
+                match r' with
+                | EAX -> 0
+                | EBX -> 1
+                | ECX -> 2
+                | EDX -> 3
+                | EDI -> 4
+                | ESI -> 5
+                | _ -> failwith "unsupport register in index_of_reg"
+              end
+            | _ -> failwith "unsupport register in index_of_reg"
           end
-          | Arm_Reg _ -> failwith "TODO: ARM support: index_of_reg"
-       end
-    | _ -> failwith "unsupport register in index_of_reg" in
-  let value_of_reg e l =
-    let v1 = match e with
-      | Const c ->
-         (
-           match c with
-           | Normal n -> n
-           | _ -> failwith "failed in value of reg"
-         )
-      | _ -> failwith "failed in value of reg" in
-    let v2 = l.loc_addr in
-    v1 + v2 in
-  let is_call_op op = match op with
-    | Intel_OP io ->
-      begin
-        match io with
-        | Intel_ControlOP CALL -> true
-        | _ -> false
+        | Arm_Reg _ -> failwith "TODO: ARM support: index_of_reg"
       end
-    | Arm_OP (ao, _, _) ->
-      begin
+    | _ -> failwith "unsupport register in index_of_reg"
+  in
+  let value_of_reg e l =
+    let v1 =
+      match e with
+      | Const c -> (
+          match c with Normal n -> n | _ -> failwith "failed in value of reg")
+      | _ -> failwith "failed in value of reg"
+    in
+    let v2 = l.loc_addr in
+    v1 + v2
+  in
+  let is_call_op op =
+    match op with
+    | Intel_OP io -> begin
+        match io with Intel_ControlOP CALL -> true | _ -> false
+      end
+    | Arm_OP (ao, _, _) -> begin
         match ao with
-        | Arm_ControlOP aco ->
-          begin
-            match aco with
-            | BL | BLX -> true
-            | _ -> false
+        | Arm_ControlOP aco -> begin
+            match aco with BL | BLX -> true | _ -> false
           end
         | _ -> false
       end
   in
-  let is_get_pc_thunk  = function
-    | Symbol e' ->
-       begin
-         match e' with
-         | CallDes func' -> String.exists (func'.func_name) !pic_addr
-         | _ -> false
-       end
+  let is_get_pc_thunk = function
+    | Symbol e' -> begin
+        match e' with
+        | CallDes func' -> String.exists func'.func_name !pic_addr
+        | _ -> false
+      end
     | Label s -> String.exists s !pic_addr
-    | _ -> false in
+    | _ -> false
+  in
   (*let match_add op = match op with
     | Intel_OP io ->
       begin
@@ -199,8 +188,7 @@ class lib32_helper (instr_list : instr list) =
           | Arm_Reg _ -> failwith "TODO: ARM support: is_reg"
        end
     | _ -> false in*)
-  let match_get_pc_thunk op e =
-    (is_call_op op)&&(is_get_pc_thunk e) in
+  let match_get_pc_thunk op e = is_call_op op && is_get_pc_thunk e in
   (* it matches the instruction below and get the used register
    *
               77  4b8:   81 c3 3c 1b 00 00     add    $0x1b3c,%ebx
@@ -210,18 +198,15 @@ class lib32_helper (instr_list : instr list) =
     (match_add op) && (String.exists es "_GLOBAL_OFFSET_TABLE_") in*)
   let update_track i =
     match i with
-    | TripleInstr (p, e1, e2, l, pre, tag, tags) ->
-       begin
-         r := index_of_reg e1;
-         rv := value_of_reg e2 l;
-         TripleInstr(p, e1, Label "$_GLOBAL_OFFSET_TABLE_", l, pre, tag, tags)
-       end
-    | _ ->
-       failwith "unsupport pic register pattern in update track" in
-
+    | TripleInstr (p, e1, e2, l, pre, tags) -> begin
+        r := index_of_reg e1;
+        rv := value_of_reg e2 l;
+        TripleInstr (p, e1, Label "$_GLOBAL_OFFSET_TABLE_", l, pre, tags)
+      end
+    | _ -> failwith "unsupport pic register pattern in update track"
+  in
 
   (* pic locating usage helpers*)
-
   object (self)
     val mutable label : int list = []
     val mutable instrs : instr list = []
@@ -234,132 +219,122 @@ class lib32_helper (instr_list : instr list) =
         true
       else false
 
-
     method pic_locating i =
       let v_exp e =
         match e with
-        | Ptr s ->
-           begin
-             match s with
-             | BinOP_PLUS (r', addr) ->
-                if (reg_to_index r') = !r then
-                  begin
-                    let des = addr + !rv in
-                    match self#check_sec des with
-                    | Some s ->
-                       begin
-                         let rs = p_reg r' in
-                         let s_label = Printf.sprintf
-                                         "S_%s@GOTOFF(%s)" (dec_hex des) rs in
-                         (* label <- (s.sec_name, des)::label; *)
-                         label <- des::label;
-                         Label s_label
-                       end
-                    | None ->
-                       e
-                  end
-                else
-                  e
-             | BinOP_MINUS (r', addr) ->
-                if (reg_to_index r') = !r then
-                  begin
-                    let des = !rv - addr in
-                    match self#check_sec des with
-                    | Some s ->
-                       begin
-                         let rs = p_reg r' in
-                         let s_label = Printf.sprintf
-                                         "S_%s@GOTOFF(%s)" (dec_hex des) rs in
-                         (* label <- (s.sec_name, des)::label; *)
-                         label <- des::label;
-                         Label s_label
-                       end
-                    | None ->
-                       e
-                  end
+        | Ptr s -> begin
+            match s with
+            | BinOP_PLUS (r', addr) ->
+                if reg_to_index r' = !r then begin
+                  let des = addr + !rv in
+                  match self#check_sec des with
+                  | Some s -> begin
+                      let rs = p_reg r' in
+                      let s_label =
+                        Printf.sprintf "S_%s@GOTOFF(%s)" (dec_hex des) rs
+                      in
+                      (* label <- (s.sec_name, des)::label; *)
+                      label <- des :: label;
+                      Label s_label
+                    end
+                  | None -> e
+                end
                 else e
-             | _ -> e
-           end
-        | _ -> e in
+            | BinOP_MINUS (r', addr) ->
+                if reg_to_index r' = !r then begin
+                  let des = !rv - addr in
+                  match self#check_sec des with
+                  | Some s -> begin
+                      let rs = p_reg r' in
+                      let s_label =
+                        Printf.sprintf "S_%s@GOTOFF(%s)" (dec_hex des) rs
+                      in
+                      (* label <- (s.sec_name, des)::label; *)
+                      label <- des :: label;
+                      Label s_label
+                    end
+                  | None -> e
+                end
+                else e
+            | _ -> e
+          end
+        | _ -> e
+      in
       match i with
-      | SingleInstr (p, l, pre, tag, tags) -> i
-      | DoubleInstr (p, e, l, pre, tag, tags) -> DoubleInstr (p, v_exp e, l, pre, tag, tags)
-      | TripleInstr (p, e1, e2, l, pre, tag, tags) -> TripleInstr (p, v_exp e1, v_exp e2, l, pre, tag, tags)
-      | FourInstr (p, e1, e2, e3, l, pre, tag, tags) -> FourInstr (p, e1, v_exp e2, e3, l, pre, tag, tags)
-      | FifInstr (p, e1, e2, e3, e4, l, pre, tag, tags) -> FifInstr (p, e1, v_exp e2, e3, e4, l, pre, tag, tags)
+      | SingleInstr (p, l, pre, tags) -> i
+      | DoubleInstr (p, e, l, pre, tags) ->
+          DoubleInstr (p, v_exp e, l, pre, tags)
+      | TripleInstr (p, e1, e2, l, pre, tags) ->
+          TripleInstr (p, v_exp e1, v_exp e2, l, pre, tags)
+      | FourInstr (p, e1, e2, e3, l, pre, tags) ->
+          FourInstr (p, e1, v_exp e2, e3, l, pre, tags)
+      | FifInstr (p, e1, e2, e3, e4, l, pre, tags) ->
+          FifInstr (p, e1, v_exp e2, e3, e4, l, pre, tags)
 
     method traverse =
       let rec aux l =
         match l with
         | [] -> []
-        | (h1::[]) -> h1::[]
-        | (h1::h2::t) ->
-           begin
-             match h1 with
-             | DoubleInstr (p, e, l, pre, tag, tags) ->
+        | h1 :: [] -> h1 :: []
+        | h1 :: h2 :: t -> begin
+            match h1 with
+            | DoubleInstr (p, e, l, pre, tags) ->
                 (* if (match_global_tbl p e2) then *)
-                if (match_get_pc_thunk p e) then
-                  begin
-                    let h2' = update_track h2 in
-                    h1::h2'::(aux t)
-                  end
-                else
-                  begin
-                    let i' = self#pic_locating h1 in
-                    i'::(aux (h2::t))
-                  end
-             | _ ->
-                begin
-                  let i' = self#pic_locating h1 in
-                  i'::(aux (h2::t))
+                if match_get_pc_thunk p e then begin
+                  let h2' = update_track h2 in
+                  h1 :: h2' :: aux t
                 end
-           end in
-      if self#check_elf then
-        begin
-          instrs <- aux instr_list;
-          unify_int_list label
-        end
-      else
-        begin
-          instrs <- instr_list;
-          []
-        end
+                else begin
+                  let i' = self#pic_locating h1 in
+                  i' :: aux (h2 :: t)
+                end
+            | _ -> begin
+                let i' = self#pic_locating h1 in
+                i' :: aux (h2 :: t)
+              end
+          end
+      in
+      if self#check_elf then begin
+        instrs <- aux instr_list;
+        unify_int_list label
+      end
+      else begin
+        instrs <- instr_list;
+        []
+      end
 
-    method get_instrs =
-      instrs
+    method get_instrs = instrs
 
     method section_collect =
       let filelines = File.lines_of "sections.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
-        let addr = int_of_string ("0x"^(List.nth items 1))
-        and size = int_of_string ("0x"^(List.nth items 3))
+        let addr = int_of_string ("0x" ^ List.nth items 1)
+        and size = int_of_string ("0x" ^ List.nth items 3)
         and secname = List.nth items 0 in
-        sec <- {sec_name=secname; sec_begin_addr=addr;
-                sec_size=size}::sec
+        sec <-
+          { sec_name = secname; sec_begin_addr = addr; sec_size = size } :: sec
       in
       Enum.iter help filelines
 
     method check_sec addr =
       let rec help l addr =
         match l with
-        | h::t -> (
-          let b = h.sec_begin_addr in
-          let e = b + h.sec_size in
-          if (addr>=b && addr < e) then
-            Some (h)
-          else  help t addr )
-        | [] -> None in
+        | h :: t ->
+            let b = h.sec_begin_addr in
+            let e = b + h.sec_size in
+            if addr >= b && addr < e then Some h else help t addr
+        | [] -> None
+      in
       help sec addr
 
     method init =
       let ls = read_file "pic_thunk.info" in
       let l' = List.nth ls 0 in
       let l1 = String.uppercase_ascii (String.trim l') in
-      pic_addr := "0x"^l1;
+      pic_addr := "0x" ^ l1
 
     initializer
       self#section_collect;
-      self#init;
-
+      self#init
   end

@@ -133,7 +133,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
     let outs = ins in
     let arm_parser = new Arm_parser.arm_parse in
     match i with
-    | DoubleInstr (p, e, loc, _, _, _) -> begin
+    | DoubleInstr (p, e, loc, _, _) -> begin
         match (p, e) with
         | Arm_OP (Arm_StackOP POP, _, _), Label label ->
             (* pop {r4,r7,pc}
@@ -149,7 +149,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
             List.fold_left (fun state reg -> RegMap.remove reg state) outs regs
         | _ -> outs
       end
-    | TripleInstr (p, e1, e2, loc, prefix, _, _) -> begin
+    | TripleInstr (p, e1, e2, loc, prefix, _) -> begin
         match (p, e1, e2) with
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), imm)),
@@ -215,7 +215,6 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
                         || s.sec_name = ".data.rel.ro"
                         || s.sec_name = ".data"
                       then
-                        let tag = Some (Sym addr) in
                         let ldr_op =
                           Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
                         in
@@ -226,13 +225,11 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
                               e2,
                               loc,
                               prefix,
-                              None,
                               Hashtbl.create 0 )
                         in
                         Hashtbl.replace result loc.loc_addr new_instr
                   | None ->
                       if arm_reassemble#check_text addr then
-                        let tag = Some (Sym addr) in
                         let ldr_op =
                           Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
                         in
@@ -243,7 +240,6 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
                               e2,
                               loc,
                               prefix,
-                              None,
                               Hashtbl.create 0 )
                         in
                         Hashtbl.replace result loc.loc_addr new_instr
@@ -280,7 +276,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
           end
         | _ -> outs
       end
-    | FourInstr (p, e1, e2, e3, loc, _, _, _) -> begin
+    | FourInstr (p, e1, e2, e3, loc, _, _) -> begin
         match (p, e1, e2, e3) with
         | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Reg (Arm_Reg (Arm_CommonReg src1)),
@@ -317,7 +313,7 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
       | None -> false
     in
     match i with
-    | TripleInstr (p, e1, e2, loc, prefix, _, tags) -> begin
+    | TripleInstr (p, e1, e2, loc, prefix, tags) -> begin
         match (p, e1, e2) with
         | ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
             Ptr (BinOP_PLUS_R (Arm_CommonReg src1, Arm_CommonReg src2)),
@@ -356,10 +352,12 @@ module ArmGotAbsWithValues : DfaAbsWithValues = struct
                       let _ = Printf.printf "%s\n" (pp_print_instr' i) in
                       failwith "Expected src1 value but got None"
               in
-              let sym_tag = Some (Sym sym_addr) in
-              let new_instr =
-                TripleInstr (p, e1, e2, loc, prefix, sym_tag, tags)
+              let sym_instr_tag = InstrTag (Sym sym_addr) in
+              let new_tags =
+                Hashtbl.replace tags "instr_tag" sym_instr_tag;
+                tags
               in
+              let new_instr = TripleInstr (p, e1, e2, loc, prefix, new_tags) in
               Hashtbl.replace result (get_loc i).loc_addr new_instr;
               ()
             end

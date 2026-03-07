@@ -8,7 +8,7 @@ open Arm_parser
 open Pp_print
 open Arm_func_slicer
 open Common_func_slicer
-open Tag_utils
+open Tags_utils
 
 class ailParser =
   let addr_hexcode_map : (int, string) Hashtbl.t = Hashtbl.create 200 in
@@ -40,7 +40,7 @@ class ailParser =
 
   let is_movs_r0_r0 (i : instr) : bool =
     match i with
-    | TripleInstr (op, exp1, exp2, _, _, _, _)
+    | TripleInstr (op, exp1, exp2, _, _, _)
       when is_movs op
            && exp1 = Reg (Arm_Reg (Arm_CommonReg R0))
            && exp2 = Reg (Arm_Reg (Arm_CommonReg R0)) ->
@@ -153,7 +153,7 @@ class ailParser =
     else begin
       match i with
       | TripleInstr
-          (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), _, _), _, exp2, _, _, _, _)
+          (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), _, _), _, exp2, _, _, _)
         when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) -> begin
           (* In Coreutils stat,
            * 14004:	b082      	sub	sp, #8 ;; func start
@@ -437,33 +437,18 @@ class ailParser =
       let change_width_specifier (i : instr)
           (new_widthsuff : arm_widthsuff option) : instr =
         match i with
-        | SingleInstr (Arm_OP (op, condsuff, widthsuff), loc, pre, tag, tags) ->
-            SingleInstr
-              (Arm_OP (op, condsuff, new_widthsuff), loc, pre, tag, tags)
-        | DoubleInstr
-            (Arm_OP (op, condsuff, widthsuff), exp, loc, pre, tag, tags) ->
+        | SingleInstr (Arm_OP (op, condsuff, widthsuff), loc, pre, tags) ->
+            SingleInstr (Arm_OP (op, condsuff, new_widthsuff), loc, pre, tags)
+        | DoubleInstr (Arm_OP (op, condsuff, widthsuff), exp, loc, pre, tags) ->
             DoubleInstr
-              (Arm_OP (op, condsuff, new_widthsuff), exp, loc, pre, tag, tags)
+              (Arm_OP (op, condsuff, new_widthsuff), exp, loc, pre, tags)
         | TripleInstr
-            (Arm_OP (op, condsuff, widthsuff), exp, exp2, loc, pre, tag, tags)
-          ->
+            (Arm_OP (op, condsuff, widthsuff), exp, exp2, loc, pre, tags) ->
             TripleInstr
-              ( Arm_OP (op, condsuff, new_widthsuff),
-                exp,
-                exp2,
-                loc,
-                pre,
-                tag,
-                tags )
+              (Arm_OP (op, condsuff, new_widthsuff), exp, exp2, loc, pre, tags)
         | FourInstr
-            ( Arm_OP (op, condsuff, widthsuff),
-              exp,
-              exp2,
-              exp3,
-              loc,
-              pre,
-              tag,
-              tags ) ->
+            (Arm_OP (op, condsuff, widthsuff), exp, exp2, exp3, loc, pre, tags)
+          ->
             FourInstr
               ( Arm_OP (op, condsuff, new_widthsuff),
                 exp,
@@ -471,7 +456,6 @@ class ailParser =
                 exp3,
                 loc,
                 pre,
-                tag,
                 tags )
         | FifInstr
             ( Arm_OP (op, condsuff, widthsuff),
@@ -481,7 +465,6 @@ class ailParser =
               exp4,
               loc,
               pre,
-              tag,
               tags ) ->
             FifInstr
               ( Arm_OP (op, condsuff, new_widthsuff),
@@ -491,7 +474,6 @@ class ailParser =
                 exp4,
                 loc,
                 pre,
-                tag,
                 tags )
         | _ -> failwith "Unsupported instruction type"
       in
@@ -600,8 +582,8 @@ class ailParser =
                 aux (instr :: acc) true false false (idx + 1) t
               end
             | _ -> begin
-                let tag = get_tag instr in
-                if is_literal_pool && tag = Some Pad then begin
+                let instr_tag = get_instr_tag instr in
+                if is_literal_pool && instr_tag = Some Pad then begin
                   (* keep this padding instruction and continue *)
                   aux (instr :: acc) true false false (idx + 1) t
                 end
@@ -820,7 +802,6 @@ class ailParser =
                     Reg (Arm_Reg (Arm_CommonReg _)),
                     loc,
                     _,
-                    _,
                     _ )
                 when offset mod 2 = 0 -> begin
                   let module AU = ArmUtils in
@@ -842,10 +823,10 @@ class ailParser =
         | instr :: n_instr :: nn_instr :: nnn_instr :: t
           when is_movs_r0_r0 instr && is_movs_r0_r0 n_instr
                && is_movs_r0_r0 nn_instr -> begin
-            let tagged_instr = TagUtils.replace_tag instr (Some Pad) in
-            let tagged_n_instr = TagUtils.replace_tag n_instr (Some Pad) in
-            let tagged_nn_instr = TagUtils.replace_tag nn_instr (Some Pad) in
-            let tagged_nnn_instr = TagUtils.replace_tag nnn_instr (Some Pad) in
+            let tagged_instr = replace_instr_tag instr (Some Pad) in
+            let tagged_n_instr = replace_instr_tag n_instr (Some Pad) in
+            let tagged_nn_instr = replace_instr_tag nn_instr (Some Pad) in
+            let tagged_nnn_instr = replace_instr_tag nnn_instr (Some Pad) in
             aux
               (tagged_nnn_instr :: tagged_nn_instr :: tagged_n_instr
              :: tagged_instr :: acc)
@@ -863,10 +844,10 @@ class ailParser =
         | instr :: n_instr :: nn_instr :: nnn_instr :: t
           when is_movs_r0_r0 instr && is_movs_r0_r0 n_instr
                && is_movs_r0_r0 nn_instr -> begin
-            let tagged_instr = TagUtils.replace_tag instr (Some Pad) in
-            let tagged_n_instr = TagUtils.replace_tag n_instr (Some Pad) in
-            let tagged_nn_instr = TagUtils.replace_tag nn_instr (Some Pad) in
-            let tagged_nnn_instr = TagUtils.replace_tag nnn_instr (Some Pad) in
+            let tagged_instr = replace_instr_tag instr (Some Pad) in
+            let tagged_n_instr = replace_instr_tag n_instr (Some Pad) in
+            let tagged_nn_instr = replace_instr_tag nn_instr (Some Pad) in
+            let tagged_nnn_instr = replace_instr_tag nnn_instr (Some Pad) in
             aux
               (tagged_nnn_instr :: tagged_nn_instr :: tagged_n_instr
              :: tagged_instr :: acc)
@@ -923,39 +904,33 @@ class ailParser =
         | [] -> acc
         | instr :: t -> begin
             match instr with
-            | DoubleInstr
-                (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _, _) ->
+            | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _)
+              ->
                 let new_instr =
                   change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | DoubleInstr
-                (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _) ->
+                (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _) ->
                 let new_instr =
                   change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | DoubleInstr
-                ( Arm_OP (Arm_StackOP PUSH, Some LT, width),
-                  Label label,
-                  _,
-                  _,
-                  _,
-                  _ )
+                (Arm_OP (Arm_StackOP PUSH, Some LT, width), Label label, _, _, _)
               when contains ~str:label ~sub:"lr" ->
                 let new_instr =
                   change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
-            | DoubleInstr
-                (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _, _) ->
+            | DoubleInstr (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _)
+              ->
                 let new_instr =
                   change_op instr (Arm_OP (Arm_ControlOP BL, None, None))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | TripleInstr
-                (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _, _)
-              ->
+                (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _) ->
                 let new_instr =
                   change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
                 in
@@ -964,7 +939,6 @@ class ailParser =
                 ( Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some _, width),
                   _,
                   exp2,
-                  _,
                   _,
                   _,
                   _ )
