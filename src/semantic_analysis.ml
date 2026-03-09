@@ -283,6 +283,40 @@ module GotAbs : DfaAbs = struct
     | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
           dest_ptr,
+          Ptr (BinOP_MINUS (reg, const)),
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_minus_offset = got_addr - const in
+        (*let _ = print_endline ("orig7: " ^ (pp_print_instr' i)) in*)
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+            dest_ptr,
+            Const (Point got_minus_offset),
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+          Ptr (BinOP_MINUS (reg, const)),
+          dest_ptr,
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_minus_offset = got_addr - const in
+        (*let _ = print_endline ("orig7: " ^ (pp_print_instr' i)) in*)
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+            Const (Point got_minus_offset),
+            dest_ptr,
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign MOV)),
+          dest_ptr,
           Ptr (BinOP_PLUS (reg, const)),
           loc,
           prefix,

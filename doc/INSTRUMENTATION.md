@@ -75,10 +75,11 @@ It is not used for action `delete` or `replace`.
 * `funentry`: instrument at the function entry of the specified function symbol.
 * `funexit`: instrument at the function exit of the specified function symbol.
 
-`stack` is a list like `[int:10,char*:DEFINED_IN_CODE]` where an argument
+`stack` is a list like `[int:10,char*:DEFINED_IN_CODE,exp:4(%esp)]` where an argument
 is specified with its type and value, separated by colon.
 `DEFINED_IN_CODE` is a string (`char*`) or integer variable (`int*`) defined as a global variable in the binary.
-It is used for action `insertcall` and `printargs`.
+`exp` is used if the argument is not a global variable or is a register or stack value; exp with value `4(%esp)` specifies that the argument is the second 4 bytes value on the stack at the instrumentation point.
+`stack` is used for action `insertcall` and `printargs`.
 For `printargs`, the argument value is not required and can be left as `-`,
 e.g., `[int:-,char*:-]`.
 If not used, then it is empty `[]`.

@@ -1298,6 +1298,13 @@ let set_arg (instr_type : string) (i : int) (arg : string * string) : instr list
             ("for PRINTARGS 32-bits, should not reach here. Failure at "
            ^ __LOC__)
         else Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
+    | "exp" ->
+        let ail_parser = new ailParser in
+        let arch_parser =
+          if not (EU.elf_arm ()) then ail_parser#create_parser "intel"
+          else ail_parser#create_parser "arm"
+        in
+        arch_parser#exp_symb _value
   in
   let opcode =
     if EU.elf_32 () then Intel_OP (Intel_StackOP PUSH)
@@ -1369,23 +1376,6 @@ let clean_arg_32 (instr_type : string) (arg : exp) : instr =
 let add_call_seq_arg ~(instr_type : string) ~(code_ep : string)
     ~(args : (string * string) list) ~(ret_type : c_ret_type) : instr list =
   let module EU = ELF_utils in
-  let parse_arg arg =
-    let _type, _value = arg in
-    match _type with
-    | "int" -> (
-        if EU.elf_arm () then Label ("=" ^ _value)
-        else try Const (Normal (int_of_string _value)) with _ -> Label _value)
-    | "char*" | "char *" | "int*" | "int *" ->
-        if EU.elf_arm () then Label ("=" ^ _value) else Label _value
-    | "print-arg" ->
-        if EU.elf_arm () then
-          Reg (Arm_Reg (arg_order_arm (int_of_string _value)))
-        else if EU.elf_32 () then
-          failwith
-            ("for PRINTARGS 32-bits, should not reach here. Failure at "
-           ^ __LOC__)
-        else Reg (Intel_Reg (arg_order_64 (int_of_string _value)))
-  in
   if EU.elf_arm () then
     (* first four arguments are on the stack *)
     List.rev
