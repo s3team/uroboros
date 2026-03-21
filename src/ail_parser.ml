@@ -138,13 +138,12 @@ class ailParser =
              && check_if_common_reg (get_exp_1 next_instr)
              && check_if_common_reg (get_exp_2 next_instr) -> begin
           (* Not to classify the following pattern as func start:
-           * In Coreutils ginstall,
-           * 0x145D6: pop {r4,r5,r7,pc} / pop: true
-           * 0x145D8: push {r1,r3,r5,r6,r7} / pop: false
-           * 0x145DA: movs r2,r0 / pop: false
-           * 0x145DC: push {r2,r5,r6,r7} / pop: false
-           * 0x145DE: movs r2,r0 / pop: false
-           *)
+             In Coreutils ginstall,
+             0x145D6: pop {r4,r5,r7,pc} / pop: true
+             0x145D8: push {r1,r3,r5,r6,r7} / pop: false
+             0x145DA: movs r2,r0 / pop: false
+             0x145DC: push {r2,r5,r6,r7} / pop: false
+             0x145DE: movs r2,r0 / pop: false *)
           true
         end
       | _ -> false
@@ -156,9 +155,8 @@ class ailParser =
           (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), _, _), _, exp2, _, _, _)
         when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) -> begin
           (* In Coreutils stat,
-           * 14004:	b082      	sub	sp, #8 ;; func start
-           * 14006:	b490      	push	{r4, r7}
-           *)
+             14004:	b082      	sub	sp, #8 ;; func start
+             14006:	b490      	push	{r4, r7} *)
           let next_instr = List.nth instrs (idx + 1) in
           let next_op = get_op next_instr in
           match next_op with
@@ -265,7 +263,8 @@ class ailParser =
     method filter_func_by_name (fl : func list) : func list =
       List.filter (fun f -> String.exists f.func_name ".text" == false) fl
 
-    (* some of the functions are allocated in .init section, in which case we don't have to record *)
+    (* some of the functions are allocated in .init section,
+       in which case we don't have to record *)
     method filter_func_by_secs (fl : func list) : func list =
       let module EU = ELF_utils in
       let text_info = read_file "text_sec.info" in
@@ -331,14 +330,8 @@ class ailParser =
       fs#update_text_info;
       fs#update_func;
       fs#get_funcs
-    (*self#print_funcs funcs *)
 
     method set_secs (l : section list) =
-      (* let rec print_element = function
-    | s::t -> print_string(s.sec_name ^ " " ^ (Printf.sprintf "%X" s.sec_begin_addr) ^ " " ^ (Printf.sprintf "%X" s.sec_size) ^ "\n"); print_element t
-    | [] -> ()
-  in
-    print_element l; *)
       secs <- l
 
     method create_parser arch =
@@ -349,10 +342,9 @@ class ailParser =
 
     method remove_literal_pools_v1 (instr_list : instr list) =
       (* Assume that literal pools are always located in
-       * between a pop and a push instruction.
-       * However, we keep the instructions after the last pop instruction,
-       * because they might not be literal pools.
-       *)
+         between a pop and a push instruction.
+         However, we keep the instructions after the last pop instruction,
+         because they might not be literal pools. *)
       let ordered_il = List.rev instr_list in
       let branch_target_addrs = ref [] in
       let newnew = ref [] in
@@ -381,7 +373,8 @@ class ailParser =
         if is_func_start ordered_il instr index then begin
           is_going_through_literal_pool := false;
           pop_detected := false;
-          (* check if at least one of addresses in branch_target_addrs is in addr of instr in instrs_after_pop *)
+          (* check if at least one of addresses in branch_target_addrs
+             is in addr of instr in instrs_after_pop *)
           let c2c_symbol_detected =
             List.exists
               (fun lp_instr ->
@@ -400,11 +393,11 @@ class ailParser =
           end
           else begin
             (* check the length to find the following pattern and keep the instruction:
-            e.g., make-prime-list
-              107e4:	e8bd 0ff0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
-              107e8:	4770      	bx	lr ; want to keep
-              107ea:	e92d 43b0 	stmdb	sp!, {r4, r5, r7, r8, r9, lr}
-           *)
+             *  e.g., make-prime-list
+             *    107e4:	e8bd 0ff0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+             *    107e8:	4770      	bx	lr ; want to keep
+             *    107ea:	e92d 43b0 	stmdb	sp!, {r4, r5, r7, r8, r9, lr}
+             *)
             if List.length !instrs_after_pop = 1 then begin
               let ii = List.hd !instrs_after_pop in
               match get_op ii with
@@ -498,62 +491,49 @@ class ailParser =
       List.map
         (fun i ->
           match get_op i with
-          (* | Arm_OP (Arm_ControlOP aco, Some condsuff, Some (Arm_Opqualifier N)) ->
-          let target_addr = match get_exp_1 i with
-            | Symbol (JumpDes j) -> j
-            | _ -> 0
-          in
-          let instr_addr = (get_loc i).loc_addr in
-          if target_addr < instr_addr then begin
-            let addr_diff = instr_addr - target_addr in
-            if addr_diff > distance_limit then
-              change_width_specifier i (Some (Arm_Opqualifier W))
-            else
-              i
-          end else i *)
           | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier N)) ->
               change_width_specifier i None
           | _ -> i)
         instrs
-    (** For branch instructions that have width specifier, adjust it depending
-        on the distance to target address. *)
+      (* For branch instructions that have width specifier, adjust it depending
+       * on the distance to target address.
+       *)
 
     method remove_literal_pools_with_movs (instr_list : instr list) : instr list
         =
       (* Find nop/blx and movs opcodes patterns like below and remove the literal pool instructions
-      * that follow the blx instruction:
-        blx abort
-        cbnz r4,S_0x114C2
-        movs r1,r0
-        lsls r0,r3,#0x5
-        movs r0,r0
-
-        Note that there could be a nop instruction after the the blx instruction.
-
-        12f0c:	f3af 8000 	nop.w
-        ...
-        12f18:	0001      	movs	r1, r0
-        12f1a:	0000      	movs	r0, r0
-        12f1c:	0000      	movs	r0, r0
-        12f1e:	0000      	movs	r0, r0
-        12f20:	7698      	strb	r0, [r3, #26]
-        12f22:	0001      	movs	r1, r0
-
-        There could be undefined instructions in literal pools:
-        e.g., In Coreutils mv,
-        1a332:	e36e      	b.n	1aa12 <putc_unlocked@plt+0x882e>
-        1a334:	49a6      	ldr	r1, [pc, #664]	; (1a5d0 <putc_unlocked@plt+0x83ec>)
-        1a336:	0001      	movs	r1, r0
-        1a338:	48c8      	ldr	r0, [pc, #800]	; (1a65c <putc_unlocked@plt+0x8478>)
-        1a33a:	0001      	movs	r1, r0
-        1a33c:	44b4      	add	ip, r6
-        1a33e:	0001      	movs	r1, r0
-        1a340:	47f2      			; <UNDEFINED> instruction: 0x47f2
-        1a342:	0001      	movs	r1, r0
-        1a344:	476c      	bxns	sp
-        1a346:	0001      	movs	r1, r0
-        See Also: arm_parser.ml#push_stack
-      *)
+         that follow the blx instruction:
+         blx abort
+         cbnz r4,S_0x114C2
+         movs r1,r0
+         lsls r0,r3,#0x5
+         movs r0,r0
+ 
+         Note that there could be a nop instruction after the the blx instruction.
+ 
+         12f0c:	f3af 8000 	nop.w
+         ...
+         12f18:	0001      	movs	r1, r0
+         12f1a:	0000      	movs	r0, r0
+         12f1c:	0000      	movs	r0, r0
+         12f1e:	0000      	movs	r0, r0
+         12f20:	7698      	strb	r0, [r3, #26]
+         12f22:	0001      	movs	r1, r0
+ 
+         There could be undefined instructions in literal pools:
+         e.g., In Coreutils mv,
+         1a332:	e36e      	b.n	1aa12 <putc_unlocked@plt+0x882e>
+         1a334:	49a6      	ldr	r1, [pc, #664]	; (1a5d0 <putc_unlocked@plt+0x83ec>)
+         1a336:	0001      	movs	r1, r0
+         1a338:	48c8      	ldr	r0, [pc, #800]	; (1a65c <putc_unlocked@plt+0x8478>)
+         1a33a:	0001      	movs	r1, r0
+         1a33c:	44b4      	add	ip, r6
+         1a33e:	0001      	movs	r1, r0
+         1a340:	47f2      			; <UNDEFINED> instruction: 0x47f2
+         1a342:	0001      	movs	r1, r0
+         1a344:	476c      	bxns	sp
+         1a346:	0001      	movs	r1, r0
+         See Also: arm_parser.ml#push_stack *)
       let ordered_il = List.rev instr_list in
       let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx =
         function

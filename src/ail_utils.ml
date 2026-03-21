@@ -1516,7 +1516,8 @@ module Func_utils = struct
             | Intel_OP (Intel_ControlOP LEAVE)
             | Intel_OP (Intel_ControlOP LEAVEQ) ->
                 ()
-            | Arm_OP (Arm_StackOP POP, _, _)
+            | Arm_OP (Arm_ControlOP RET, _, _) -> ()
+            | Arm_OP (Arm_StackOP POP, _, _) -> ()
               when match get_exp_1 i with
                    | Label l -> contains ~str:l ~sub:"pc"
                    | _ -> false ->

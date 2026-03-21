@@ -52,16 +52,26 @@ module DFA (A : DfaAbs) = struct
 
       (* debug log *)
       (* print_endline ("> " ^ (pp_print_instr' i));
-      print_endline " outs:";
-      A.print_abstraction outs;
-      print_endline " ins:";
-      A.print_abstraction ins; *)
+         print_endline " outs:";
+         A.print_abstraction outs;
+         print_endline " ins:";
+         A.print_abstraction ins; *)
       if not (A.equal old_outs outs) then (
         Hashtbl.replace out_map i outs;
         let succs =
           match Hashtbl.find_opt succs (Some i) with Some v -> v | None -> []
         in
-        (* print_endline (" succs: [" ^ String.concat ", " (List.map (fun i_op -> match i_op with Some i -> pp_print_instr' i | None -> "None") succs) ^ "]"); *)
+        (* debug log on successor instructions *)
+        (* print_endline
+             (" succs: ["
+             ^ String.concat ", "
+                 (List.map
+                     (fun i_op ->
+                       match i_op with
+                       | Some i -> pp_print_instr' i
+                       | None -> "None")
+                     succs)
+             ^ "]"); *)
         List.iter
           (fun i_op ->
             match i_op with Some i -> Queue.push i worklist | None -> ())
