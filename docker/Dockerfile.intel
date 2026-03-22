@@ -7,9 +7,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN apt-get update && apt-get upgrade -y
-
-RUN apt-get install -y -q \
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y -q \
     git \
     opam \
     autoconf \
