@@ -1,6 +1,7 @@
 open Visit
 open Type
 open Ail_utils
+open Utils
 
 class cg =
   (* A Call Graph construction impelmentation.
@@ -22,7 +23,6 @@ class cg =
    * the value is a list of all the possible control flow transfer
    * destinations (for the direct transfer case, then we just have one item in the list)
    *)
-  let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s in
   let cg_tbl = Hashtbl.create 500 and cfi_tbl = Hashtbl.create 500 in
 
   object (self)
@@ -32,18 +32,16 @@ class cg =
      *)
 
     method update_cgtbl l func =
-      if Hashtbl.mem cg_tbl l.loc_addr then
-        let ll = Hashtbl.find cg_tbl l.loc_addr in
-        Hashtbl.replace cg_tbl l.loc_addr (func :: ll)
-      else Hashtbl.replace cg_tbl l.loc_addr [ func ]
+      let ll = Hashtbl.find_opt cg_tbl l.loc_addr |> Option.value ~default:[] in
+      Hashtbl.replace cg_tbl l.loc_addr (func :: ll)
 
     method update_cfitbl func l =
       (* print_string (func.func_name); *)
       (* print_string "\n"; *)
-      if Hashtbl.mem cfi_tbl func.func_name then
-        let ll = Hashtbl.find cfi_tbl func.func_name in
-        Hashtbl.replace cfi_tbl func.func_name (l :: ll)
-      else Hashtbl.add cfi_tbl func.func_name [ l ]
+      let ll =
+        Hashtbl.find_opt cfi_tbl func.func_name |> Option.value ~default:[]
+      in
+      Hashtbl.replace cfi_tbl func.func_name (l :: ll)
 
     method print_func =
       let help f =

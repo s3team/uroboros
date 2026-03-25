@@ -18,9 +18,25 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
+ (name elf_utils)
+ (modules elf_utils)
+ (libraries utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
  (name pp_print)
  (modules pp_print)
- (libraries batteries type)
+ (libraries type utils elf_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name utils)
+ (modules utils)
+ (libraries str)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))
@@ -28,7 +44,7 @@
 (library
  (name ail_utils)
  (modules ail_utils)
- (libraries parmap batteries pp_print)
+ (libraries batteries pp_print utils)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))

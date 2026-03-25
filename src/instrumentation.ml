@@ -1,4 +1,5 @@
 open Ail_utils
+open Utils
 open Ail_parser
 open Type
 open Pp_print
@@ -52,11 +53,9 @@ let load_plugin (f : string) : unit =
 
 let do_instrumentation : bool ref = ref false
 let points_f1 : point_f1 list ref = ref []
-
 (* to group points that target the same address into the same list *)
 let points_f1' : point_f1 list list ref = ref []
 let points_f2 : point_f2 list ref = ref []
-let stub_loc : loc = { loc_label = ""; loc_addr = 0; loc_visible = true }
 
 let file_append (filename : string) (content : string) : unit =
   let oc = open_out_gen [ Open_append; Open_creat; Open_text ] 0o644 filename in
@@ -127,7 +126,7 @@ let p_dir_str (dir : dir option) : string =
 
 (** preserve return value of inserted callee *)
 let caller_saved_before_ret (instr_type : string) : instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   if EU.elf_arm () then begin
     if EU.elf_32 () then
       [
@@ -321,7 +320,7 @@ let caller_saved_before_ret (instr_type : string) : instr list =
     ]
 
 let caller_saved_before (instr_type : string) : instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   if EU.elf_arm () then begin
     if EU.elf_32 () then
       [
@@ -516,7 +515,7 @@ let caller_saved_before (instr_type : string) : instr list =
     ]
 
 let caller_saved_after_ret (instr_type : string) : instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   if EU.elf_arm () then begin
     if EU.elf_32 () then
       [
@@ -710,7 +709,7 @@ let caller_saved_after_ret (instr_type : string) : instr list =
     ]
 
 let caller_saved_after (instr_type : string) : instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   if EU.elf_arm () then begin
     if EU.elf_32 () then
       [
@@ -913,17 +912,6 @@ let caller_saved_after_regs (instr_type : string) : c_ret_type -> instr list =
   function
   | VOID -> caller_saved_after instr_type
   | NOT_VOID -> caller_saved_after_ret instr_type
-
-let read_file (f : string) : string list =
-  let ic = open_in f in
-  let content = really_input_string ic (in_channel_length ic) in
-  let _ = close_in ic in
-  let content =
-    List.filter
-      (fun i -> String.trim i <> "")
-      (String.split_on_char '\n' content)
-  in
-  content
 
 let read_points ~(f : string) : string list =
   try
@@ -1147,9 +1135,10 @@ let process_instrument_point (ufl : func list)
         let dir = get_dir d in
         let locm = get_loc_modifier lm in
         let lang = get_lang lang in
-        let locations = l |> strip_bracket |> String.split_on_char ',' in
+        let parse_list_field = strip_bracket >> String.split_on_char ',' in
+        let locations = parse_list_field l in
         let stack' =
-          stack |> strip_bracket |> String.split_on_char ','
+          parse_list_field stack
           |> List.filter (fun s -> not (String.trim s = ""))
         in
         let stack'' =
@@ -1182,8 +1171,8 @@ let process_instrument_point (ufl : func list)
         let dune_add =
           "(subdir instr_modules\n" ^ "  (library\n" ^ "    (name "
           ^ module_name ^ ")\n" ^ "    (modules " ^ module_name ^ ")\n"
-          ^ "    (libraries ail_utils ail_parser instrumentation)\n"
-          ^ "    (wrapped false)\n"
+          ^ "    (libraries ail_utils utils elf_utils ail_parser \
+             instrumentation)\n" ^ "    (wrapped false)\n"
           ^ "    (flags (:standard -w -7-8-26-27-10-11-32-33-39))))\n"
         in
         file_append "dune" dune_add;
@@ -1246,7 +1235,7 @@ let parse_instrument ~(funcs : func list)
     files
 
 let arg_order_arm (i : int) : arm_reg =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   if EU.elf_32 () then
     match i with
     | 0 -> Arm_CommonReg R0
@@ -1283,7 +1272,7 @@ let arg_order_64 (i : int) : intel_reg =
 
 let set_arg (instr_type : string) (i : int) (arg : string * string) : instr list
     =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   let _type, _value = arg in
   let exp_type =
     match _type with
@@ -1375,7 +1364,7 @@ let clean_arg_32 (instr_type : string) (arg : exp) : instr =
 (** insert call with arguments *)
 let add_call_seq_arg ~(instr_type : string) ~(code_ep : string)
     ~(args : (string * string) list) ~(ret_type : c_ret_type) : instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   if EU.elf_arm () then
     (* first four arguments are on the stack *)
     List.rev
@@ -1451,7 +1440,7 @@ let add_call_seq_arg ~(instr_type : string) ~(code_ep : string)
 (** insert call without arguments *)
 let add_call_seq ~(instr_type : string) ~(code_ep : string)
     ~(use_existing_arg : bool) ~(ret_type : c_ret_type) : instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   (* 32-bit x86 calling convention pushes arguments on the stack,
    * so if we save caller-saved registers on the stack before the call
    * the argument stack is messed up *)
@@ -1513,7 +1502,7 @@ let add_call_seq ~(instr_type : string) ~(code_ep : string)
 
 let print_args ~(instr_type : string) ~(args : (string * string) list) :
     instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   let rec call_with_arg (instr_type : string) (args : (string * string) list)
       (i : int) (acc : instr list) : instr list =
     match args with
@@ -1611,7 +1600,7 @@ let print_args ~(instr_type : string) ~(args : (string * string) list) :
   call_with_arg instr_type args 0 []
 
 let get_ret_type (code : string) (code_ep : string) : c_ret_type =
-  let lines = read_lines code in
+  let lines = read_file code in
   let rec find_code_ep (code_ep : string) : string list -> c_ret_type = function
     | [] -> failwith ("code entry point not found. Failure at " ^ __LOC__)
     | line :: rest -> begin
@@ -1633,7 +1622,7 @@ let get_ret_type (code : string) (code_ep : string) : c_ret_type =
 let process_point ~(instr_type : string) ~(cmd : string) ~(code_ep : string)
     ~(code : string) ~(stack : (string * string) list)
     ~(use_existing_arg : bool) : instr list =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   if cmd = "" && code_ep = "x" && code = "x" then begin
     (* action PRINTARGS *)
     if EU.elf_arm () then begin
@@ -1664,7 +1653,7 @@ let process_point ~(instr_type : string) ~(cmd : string) ~(code_ep : string)
   end
   else if String.ends_with ~suffix:".asm" code then begin
     let ail_parser = new ailParser in
-    let asm = read_lines code in
+    let asm = read_file code in
     let _ =
       if EU.elf_arm () then ail_parser#process_asms asm "arm"
       else ail_parser#process_asms asm "intel"
@@ -1685,6 +1674,7 @@ let process_point ~(instr_type : string) ~(cmd : string) ~(code_ep : string)
   end
 
 let instrument_at_instr (instr : instr) (p_list : point_f1 list) : instr list =
+  let module IU = Instr_utils in
   let include_instr : bool ref = ref true in
   let rec add (p_list : point_f1 list) (acc_before : instr list)
       (acc_after : instr list) : instr list =
@@ -1726,13 +1716,13 @@ let instrument_at_instr (instr : instr) (p_list : point_f1 list) : instr list =
               | Some BEFORE | None -> add_seq @ acc_before
               | Some AFTER -> acc_before
               | Some AT ->
-                  let ih_lab = get_label instr in
+                  let ih_lab = IU.get_label instr in
                   let add_seq_len = List.length add_seq in
-                  let ih' = update_label instr "" in
+                  let ih' = IU.update_label instr "" in
                   let add_seq' =
                     List.mapi
                       (fun i asi ->
-                        if i = add_seq_len - 1 then update_label asi ih_lab
+                        if i = add_seq_len - 1 then IU.update_label asi ih_lab
                         else asi)
                       add_seq
                   in
@@ -1755,13 +1745,13 @@ let instrument_at_instr (instr : instr) (p_list : point_f1 list) : instr list =
               | Some BEFORE | None -> add_seq @ acc_before
               | Some AFTER -> acc_before
               | Some AT ->
-                  let ih_lab = get_label instr in
+                  let ih_lab = IU.get_label instr in
                   let add_seq_len = List.length add_seq in
-                  let ih' = update_label instr "" in
+                  let ih' = IU.update_label instr "" in
                   let add_seq' =
                     List.mapi
                       (fun i asi ->
-                        if i = add_seq_len - 1 then update_label asi ih_lab
+                        if i = add_seq_len - 1 then IU.update_label asi ih_lab
                         else asi)
                       add_seq
                   in
@@ -1783,12 +1773,12 @@ let instrument_at_instr (instr : instr) (p_list : point_f1 list) : instr list =
               process_point ~instr_type:comment ~cmd:p_cmd ~code_ep:p_code_ep
                 ~code:p_code ~stack:[] ~use_existing_arg:false
             in
-            let ih_lab = get_label instr in
+            let ih_lab = IU.get_label instr in
             let add_seq_len = List.length add_seq in
             let add_seq' =
               List.mapi
                 (fun i asi ->
-                  if i = add_seq_len - 1 then update_label asi ih_lab else asi)
+                  if i = add_seq_len - 1 then IU.update_label asi ih_lab else asi)
                 add_seq
             in
             include_instr := false;
@@ -1803,13 +1793,13 @@ let instrument_at_instr (instr : instr) (p_list : point_f1 list) : instr list =
               match p_dir with
               | Some BEFORE | None -> add_seq @ acc_before
               | Some AT ->
-                  let ih_lab = get_label instr in
+                  let ih_lab = IU.get_label instr in
                   let add_seq_len = List.length add_seq in
-                  let ih' = update_label instr "" in
+                  let ih' = IU.update_label instr "" in
                   let add_seq' =
                     List.mapi
                       (fun i asi ->
-                        if i = add_seq_len - 1 then update_label asi ih_lab
+                        if i = add_seq_len - 1 then IU.update_label asi ih_lab
                         else asi)
                       add_seq
                   in
@@ -1828,6 +1818,7 @@ let instrument_at_instr (instr : instr) (p_list : point_f1 list) : instr list =
 let apply ~(instrs : instr list) ~(fbl : (string, bblock list) Hashtbl.t)
     ~(bbl : bblock list) ~(funcs : func list)
     ~(fname_callsites : (string, int list) Hashtbl.t) : instr list =
+  let module IU = Instr_utils in
   (* populate points_f1 and points_f2 *)
   parse_instrument ~funcs ~fname_callsites ~instrs ~fbl ~bbl;
   let rec add_instrumentation_f1 (instrs : instr list)
@@ -1837,7 +1828,7 @@ let apply ~(instrs : instr list) ~(fbl : (string, bblock list) Hashtbl.t)
     | ih :: it, [] -> add_instrumentation_f1 it [] (ih :: acc)
     | ih :: it, ph_list :: pt ->
         let ph = List.hd ph_list in
-        let ih_loc : loc = get_loc ih in
+        let ih_loc : loc = IU.get_loc ih in
         let ih_addr : int = ih_loc.loc_addr in
         let p_addr, _, _, _, _, _, _, _, _, _, _ = ph in
         if ih_addr > p_addr then add_instrumentation_f1 instrs pt acc

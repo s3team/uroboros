@@ -17,6 +17,7 @@ end
 module DFA (A : DfaAbs) = struct
   open Pp_print
   open Ail_utils
+  open Utils
   open Type
 
   let in_map = Hashtbl.create 10
@@ -39,7 +40,7 @@ module DFA (A : DfaAbs) = struct
     while not (Queue.is_empty worklist) do
       let i : instr = Queue.pop worklist in
       let preds : instr option list =
-        try Hashtbl.find preds (Some i) with Not_found -> []
+        Hashtbl.find_opt preds (Some i) |> Option.value ~default:[]
       in
       (* With [preds], get all outs from [out_map] and merge them *)
       let ins = A.merge preds out_map in

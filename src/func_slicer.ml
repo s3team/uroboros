@@ -8,6 +8,7 @@ class func_slicer instrs funcs =
     inherit common_func_slicer instrs funcs as super
 
     method process =
+      let module IU = Instr_utils in
       let is_begin op e =
         let is_stack =
           match op with
@@ -28,7 +29,7 @@ class func_slicer instrs funcs =
       let rec help l =
         match l with
         | h :: [] -> begin
-            let loc' = get_loc h in
+            let loc' = IU.get_loc h in
             if eaddr = -1 then failwith "no function recognized at all"
             else eaddr <- loc'.loc_addr;
             self#update
@@ -53,6 +54,7 @@ class func_slicer instrs funcs =
       help (List.rev instrs)
 
     method process2 =
+      let module IU = Instr_utils in
       let is_s_begin op e =
         let is_stack =
           match op with
@@ -370,7 +372,7 @@ class func_slicer instrs funcs =
               last_jmp <- false;
               last_ret <- false;
               last_nop <- false;
-              let l = get_loc h in
+              let l = IU.get_loc h in
               func_begins <- l.loc_addr :: func_begins
             end
           end

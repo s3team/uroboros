@@ -1,9 +1,9 @@
 (*basically, lexer consume a string: string_lexer and create a lex:lexeme
  assemble code's parser should be quite easy*)
 
-open Batteries
 open Printf
 open Ail_utils
+open Utils
 open Type
 
 type lexeme = Lop of string | Lexp of string | Lloc of string | Lend
@@ -24,10 +24,7 @@ let check_assist exp =
   let assist_list =
     [ "cmpsb"; "scas"; "stos"; "movsl"; "movsb"; "cmpsw"; "movsq"; "pop" ]
   in
-  try
-    ignore (List.find (fun i -> i = exp) assist_list);
-    true
-  with Not_found -> false
+  List.mem exp assist_list
 
 let assist_exp op ass exp loc =
   let items = Str.split (Str.regexp_string ",") exp in
@@ -195,23 +192,9 @@ let p_print lexme =
  *  right now, a ad-hoc way to identify prefix is impelmented below
  *
  *)
-let prefix_lock instr =
-  try
-    ignore (String.find instr "lock ");
-    true
-  with Not_found -> false
-
-let prefix_addr32 instr =
-  try
-    ignore (String.find instr "addr32 ");
-    true
-  with Not_found -> false
-
-let prefix_bnd instr =
-  try
-    ignore (String.find instr "bnd ");
-    true
-  with Not_found -> false
+let prefix_lock instr = contains ~str:instr ~sub:"lock "
+let prefix_addr32 instr = contains ~str:instr ~sub:"addr32 "
+let prefix_bnd instr = contains ~str:instr ~sub:"bnd "
 
 let prefix_identify (instr : string) =
   let has_lock = prefix_lock instr in
@@ -223,21 +206,13 @@ let prefix_identify (instr : string) =
   else if has_bnd then Some BND
   else None
 
-(** Return true if str contains sub_str *)
-let contains (str : string) (sub_str : string) : bool =
-  let regex = Str.regexp_string sub_str in
-  try
-    ignore (Str.search_forward regex str 0);
-    true
-  with Not_found -> false
-
 (** Return (instr_without_tag, instr_tag) *)
 let tag_identify (instr : string) =
   let get_tag = function
     | "del" -> Del
     | tag_str -> begin
         let sym_prefix = "sym#" in
-        if String.starts_with tag_str sym_prefix then
+        if String.starts_with ~prefix:sym_prefix tag_str then
           let value =
             String.sub tag_str (String.length sym_prefix)
               (String.length tag_str - String.length sym_prefix)
@@ -246,7 +221,7 @@ let tag_identify (instr : string) =
         else failwith ("Unknown instr_tag: " ^ tag_str)
       end
   in
-  let has_tag = contains instr "@@" in
+  let has_tag = contains ~str:instr ~sub:"@@" in
   if has_tag then
     let split = Str.split (Str.regexp_string "@@") in
     let tag_str = List.nth (split instr) 1 in
@@ -257,21 +232,13 @@ let tag_identify (instr : string) =
     (instr_without_tag, Some instr_tag)
   else (instr, None)
 
-(** Return true if str contains sub_str *)
-let contains ~(str : string) ~(sub_str : string) : bool =
-  let regex = Str.regexp_string sub_str in
-  try
-    ignore (Str.search_forward regex str 0);
-    true
-  with Not_found -> false
-
 (** Return (instr_without_tag, instr_tag) *)
 (* let tag_identify (instr : string) =
   let get_tag = function
     | "del" -> Del
     | tag_str -> begin
         let sym_prefix = "sym#" in
-        if String.starts_with tag_str sym_prefix then
+        if String.starts_with ~prefix:sym_prefix tag_str then
           let value =
             String.sub tag_str (String.length sym_prefix)
               (String.length tag_str - String.length sym_prefix)

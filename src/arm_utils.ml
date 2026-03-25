@@ -1,4 +1,3 @@
-open Batteries
 open Ail_utils
 open Pp_print
 open Tags_utils

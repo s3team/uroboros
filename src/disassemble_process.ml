@@ -15,6 +15,7 @@ module Disam = struct
   open Visit
   open Disassemble_validator
   open Ail_parser
+  open Utils
   open Ail_utils
   open Tags_utils
   open Type
@@ -64,8 +65,8 @@ module Disam = struct
     while !cond = false && !total < 600.0 do
       let once = TR.get_utime () in
       let module FnU = Func_utils in
-      let module EU = ELF_utils in
-      let module IV = Instr_visitor in
+      let module EU = Elf_utils in
+      let module IL = IL_utils in
       let module GA = GotAbs in
       let module D = DFA (GA) in
       let module AGA = ArmGotAbsWithValues in
@@ -88,13 +89,13 @@ module Disam = struct
 
       let il_init =
         if EU.elf_32 () && arch = "intel" then
-          IV.adjust_esp ail_parser#get_instrs
+          IL.adjust_esp ail_parser#get_instrs
         else ail_parser#get_instrs
       in
 
       let fl =
         if EU.elf_64 () && EU.elf_arm () then
-          FnU.fix_underapprox fl il_init
+          FnU.fix_fl_underapprox il_init fl
         else fl
       in
 
@@ -159,13 +160,13 @@ module Disam = struct
 
       il :=
         (if EU.elf_32 () && arch = "intel" then
-           FnU.perform_dfa_rewrites rewriting_result @@ il_init
+           IL.perform_dfa_rewrites rewriting_result @@ il_init
            |> re#jmp_table_rewrite
            (* second call to got_rewrite account switch dests in CFGs *)
            (*|> (fun il -> FnU.perform_dfa_rewrites (got_rewrite il) @@ il )*)
          else if EU.elf_64 () && arch = "intel" then
            re#jmp_table_rewrite64 @@ il_init
-         else begin FnU.perform_dfa_rewrites rewriting_result @@ il_init
+         else begin IL.perform_dfa_rewrites rewriting_result @@ il_init
            (* The postprocess should be executed after symbolization completed.
             * Note that the symbolization-related functions such as vinst2 and v_exp2
             * are called by visit_type_infer_analysis and visit_heuristic_analysis.

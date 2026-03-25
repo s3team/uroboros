@@ -5,37 +5,21 @@ module Analysis = struct
   open Cg
   open Cfg
   open Ail_utils
+  open Utils
   open Pp_print
   open Type
   open Reassemble_symbol_get
-
-  let instrument_got_plt () =
-    let filelines = read_file "got_plt.info" in
-    let help acc l =
-      let items =
-        Str.split (Str.regexp " +") l
-        |> List.filter (fun i -> i <> "00000000")
-        |> List.map (fun i ->
-            let addr =
-              String.sub i 6 2 ^ String.sub i 4 2 ^ String.sub i 2 2
-              ^ String.sub i 0 2
-            in
-            "S_" ^ dec_hex (int_of_string ("0x" ^ addr)))
-      in
-      items @ acc
-    in
-    List.fold_left help [] filelines
-
-  let get_userfuncs funcs = List.filter (fun f -> f.is_lib = false) funcs
+  open Elf_utils
 
   let analyze_one il fl re (arch : string) =
+    let module FnU = Func_utils in
     let cfg = new cfg in
     let cg = new cg in
 
     cg#set_funcs fl;
     cfg#set_funcs fl;
 
-    let u_fl = get_userfuncs fl in
+    let u_fl = FnU.get_userfuncs fl in
 
     let il' =
       cg#visit il
@@ -59,7 +43,7 @@ module Analysis = struct
     (fbl, bbl, cfg_t, cg, il, re, u_fl)
 
   let post_analyze il re (arch : string) =
-    let module EU = Ail_utils.ELF_utils in
+    let module EU = Elf_utils in
     let is_static = EU.elf_static () in
     let pp_print_file_arch = pp_print_file arch in
     let pp_print_list_arch = pp_print_list arch is_static in

@@ -1,7 +1,7 @@
-open Batteries
 open Type
 open Pp_print
 open Ail_utils
+open Utils
 
 (*
  * this code is developed for handling 32-bit shared library code. One
@@ -137,10 +137,10 @@ class lib32_helper (instr_list : instr list) =
   let is_get_pc_thunk = function
     | Symbol e' -> begin
         match e' with
-        | CallDes func' -> String.exists func'.func_name !pic_addr
+        | CallDes func' -> contains ~str:func'.func_name ~sub:!pic_addr
         | _ -> false
       end
-    | Label s -> String.exists s !pic_addr
+    | Label s -> contains ~str:s ~sub:!pic_addr
     | _ -> false
   in
   (*let match_add op = match op with
@@ -195,7 +195,7 @@ class lib32_helper (instr_list : instr list) =
    *)
   (*let match_global_tbl op e =
     let es = p_exp e in
-    (match_add op) && (String.exists es "_GLOBAL_OFFSET_TABLE_") in*)
+    (match_add op) && (contains ~str:es ~sub:"_GLOBAL_OFFSET_TABLE_") in*)
   let update_track i =
     match i with
     | TripleInstr (p, e1, e2, l, pre, tags) -> begin
@@ -215,8 +215,10 @@ class lib32_helper (instr_list : instr list) =
     method check_elf =
       let ls = read_file "elf.info" in
       let l = List.nth ls 0 in
-      if String.exists l "ELF 32-bit" && String.exists l "shared object" then
-        true
+      if
+        contains ~str:l ~sub:"ELF 32-bit"
+        && contains ~str:l ~sub:"shared object"
+      then true
       else false
 
     method pic_locating i =
@@ -306,7 +308,7 @@ class lib32_helper (instr_list : instr list) =
     method get_instrs = instrs
 
     method section_collect =
-      let filelines = File.lines_of "sections.info"
+      let filelines = read_file "sections.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x" ^ List.nth items 1)
@@ -315,7 +317,7 @@ class lib32_helper (instr_list : instr list) =
         sec <-
           { sec_name = secname; sec_begin_addr = addr; sec_size = size } :: sec
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method check_sec addr =
       let rec help l addr =

@@ -24,7 +24,7 @@ The OCaml compiler and dependent libraries can be obtained through
 $ sudo apt install opam
 $ opam init
 $ opam switch create 5.3.0
-$ opam install -y ppx_deriving.6.0.3 parmap.1.2.5 batteries.3.9.0
+$ opam install -y ppx_deriving.6.0.3 batteries.3.9.0
 $ eval $(opam env)
 ```
 

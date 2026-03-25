@@ -1,5 +1,5 @@
-open Batteries
 open Ail_utils
+open Utils
 open Arm_utils
 open Type
 open Common_parser
@@ -15,7 +15,7 @@ class ailParser =
 
   let get_hexcode (instr : instr) : string =
     let loc = get_loc instr in
-    try Hashtbl.find addr_hexcode_map loc.loc_addr with Not_found -> ""
+    Hashtbl.find_opt addr_hexcode_map loc.loc_addr |> Option.value ~default:""
   in
 
   let check_if_common_reg (e : exp) : bool =
@@ -57,49 +57,40 @@ class ailParser =
   in
 
   let has_r2_reg (i : instr) =
-    let exp = get_exp_1 i in
+    let module IU = Instr_utils in
+    let exp = IU.get_exp_1 i in
     match exp with
     | Label l -> if contains ~str:l ~sub:"r2" then true else false
     | _ -> false
   in
 
   let has_r3_reg (i : instr) =
-    let exp = get_exp_1 i in
+    let module IU = Instr_utils in
+    let exp = IU.get_exp_1 i in
     match exp with
     | Label l -> if contains ~str:l ~sub:"r3" then true else false
     | _ -> false
   in
 
   let has_r7_reg (i : instr) =
-    let exp = get_exp_1 i in
+    let module IU = Instr_utils in
+    let exp = IU.get_exp_1 i in
     match exp with
     | Label l -> if contains ~str:l ~sub:"r7" then true else false
     | _ -> false
   in
 
-  let has_lr_reg (i : instr) =
-    let exp = get_exp_1 i in
-    match exp with
-    | Label l -> if contains ~str:l ~sub:"lr" then true else false
-    | _ -> false
-  in
-
-  let has_pc_reg (i : instr) =
-    let exp = get_exp_1 i in
-    match exp with
-    | Label l -> if contains ~str:l ~sub:"pc" then true else false
-    | _ -> false
-  in
-
   let has_fp_reg (i : instr) =
-    let exp = get_exp_1 i in
+    let module IU = Instr_utils in
+    let exp = IU.get_exp_1 i in
     match exp with
     | Label l -> if contains ~str:l ~sub:"fp" then true else false
     | _ -> false
   in
 
   let is_exp_lr_reg (i : instr) =
-    let exp = get_exp_1 i in
+    let module IU = Instr_utils in
+    let exp = IU.get_exp_1 i in
     match exp with Reg (Arm_Reg (Arm_LinkReg LR)) -> true | _ -> false
   in
 
@@ -128,15 +119,16 @@ class ailParser =
   in
 
   let is_func_start (instrs : instr list) (i : instr) (idx : int) =
+    let module IU = Instr_utils in
     let not_func_start () =
       let next_instr = List.nth instrs (idx + 1) in
-      let next_op = get_op next_instr in
-      match get_op i with
+      let next_op = IU.get_op next_instr in
+      match IU.get_op i with
       | Arm_OP (Arm_StackOP PUSH, _, _)
         when idx + 1 < List.length instrs
              && is_movs next_op
-             && check_if_common_reg (get_exp_1 next_instr)
-             && check_if_common_reg (get_exp_2 next_instr) -> begin
+             && check_if_common_reg (IU.get_exp_1 next_instr)
+             && check_if_common_reg (IU.get_exp_2 next_instr) -> begin
           (* Not to classify the following pattern as func start:
              In Coreutils ginstall,
              0x145D6: pop {r4,r5,r7,pc} / pop: true
@@ -158,26 +150,26 @@ class ailParser =
              14004:	b082      	sub	sp, #8 ;; func start
              14006:	b490      	push	{r4, r7} *)
           let next_instr = List.nth instrs (idx + 1) in
-          let next_op = get_op next_instr in
+          let next_op = IU.get_op next_instr in
           match next_op with
           | Arm_OP (Arm_StackOP op, _, _) when is_push op -> true
           | _ -> false
         end
       | _ -> begin
-          match get_op i with
+          match IU.get_op i with
           | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i ->
               true
           | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
           | Arm_OP (Arm_StackOP PUSH, _, _) -> begin
               let next_instr = List.nth instrs (idx + 1) in
-              let next_op = get_op next_instr in
+              let next_op = IU.get_op next_instr in
               match next_op with
-              | Arm_OP (Arm_StackOP PUSH, _, _) when has_lr_reg next_instr ->
+              | Arm_OP (Arm_StackOP PUSH, _, _) when IU.has_lr_reg next_instr ->
                   true
               | _ -> false
             end
           | Arm_OP (Arm_StackOP op, _, _)
-            when is_push op && (has_lr_reg i || has_fp_reg i) ->
+            when is_push op && (IU.has_lr_reg i || has_fp_reg i) ->
               true
           | _ -> false
         end
@@ -185,23 +177,25 @@ class ailParser =
   in
 
   let is_func_end (i : instr) =
-    match get_op i with
+    let module IU = Instr_utils in
+    match IU.get_op i with
     | Arm_OP (Arm_StackOP op, _, _)
-      when is_pop op && (has_pc_reg i || has_fp_reg i) ->
+      when is_pop op && (IU.has_pc_reg i || has_fp_reg i) ->
         true
     | Arm_OP (Arm_ControlOP BX, _, _) -> begin
-        let exp = get_exp_1 i in
+        let exp = IU.get_exp_1 i in
         match exp with Reg (Arm_Reg (Arm_LinkReg LR)) -> true | _ -> false
       end
     | _ -> false
   in
 
   let collect_branch_targets (instrs : instr list) =
+    let module IU = Instr_utils in
     List.fold_left
       (fun acc i ->
-        match get_op i with
+        match IU.get_op i with
         | Arm_OP (Arm_ControlOP aco, _, _) -> begin
-            let exp = get_exp_1 i in
+            let exp = IU.get_exp_1 i in
             match exp with Symbol (JumpDes j) -> j :: acc | _ -> acc
           end
         | _ -> acc)
@@ -223,10 +217,10 @@ class ailParser =
         | h :: [] -> List.rev_append acc [ h ]
         | h1 :: h2 :: t -> begin
             if h1.func_begin_addr == h2.func_begin_addr then begin
-              if String.exists h1.func_name "S_0x" then
+              if contains ~str:h1.func_name ~sub:"S_0x" then
                 let h2' = { h2 with func_end_addr = h1.func_end_addr } in
                 help (h2' :: t) (h1 :: acc)
-              else if String.exists h2.func_name "S_0x" then
+              else if contains ~str:h2.func_name ~sub:"S_0x" then
                 let h1' = { h1 with func_end_addr = h2.func_end_addr } in
                 help (h2 :: t) (h1' :: acc)
               else help (h2 :: t) (h1 :: acc)
@@ -245,28 +239,29 @@ class ailParser =
           print_string " ";
           print_string (dec_hex f.func_end_addr);
           print_string " ";
-          print_bool f.is_lib;
+          print_string @@ string_of_bool f.is_lib;
           print_string "\n")
         fl;
       fl
 
     method get_funcs =
-      self#func_slicing |> unify_funclist_by_name
+      let module FnU = Func_utils in
+      self#func_slicing |> FnU.unify_funclist_by_name
       |> List.sort (fun f1 f2 -> f1.func_begin_addr - f2.func_begin_addr)
       |> self#update_func_info |> self#filter_func
       (* |> self#print_f *)
-      |> unify_funclist_by_addr
+      |> FnU.unify_funclist_by_addr
 
     method filter_func (fl : func list) : func list =
       self#filter_func_by_name fl |> self#filter_func_by_secs
 
     method filter_func_by_name (fl : func list) : func list =
-      List.filter (fun f -> String.exists f.func_name ".text" == false) fl
+      List.filter (fun f -> contains ~str:f.func_name ~sub:".text" == false) fl
 
     (* some of the functions are allocated in .init section,
        in which case we don't have to record *)
     method filter_func_by_secs (fl : func list) : func list =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let text_info = read_file "text_sec.info" in
       let text_info = List.nth text_info 0 in
       let text_items = Str.split (Str.regexp " +") text_info in
@@ -300,7 +295,6 @@ class ailParser =
         fl
 
     method print_funcs funcs =
-      let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s in
       let help f =
         if f.is_lib = false then begin
           print_string f.func_name;
@@ -309,7 +303,7 @@ class ailParser =
           print_string "\n";
           print_string (dec_hex f.func_end_addr);
           print_string "\n";
-          print_bool f.is_lib;
+          print_string @@ string_of_bool f.is_lib;
           print_string "\n"
         end
       in
@@ -331,8 +325,7 @@ class ailParser =
       fs#update_func;
       fs#get_funcs
 
-    method set_secs (l : section list) =
-      secs <- l
+    method set_secs (l : section list) = secs <- l
 
     method create_parser arch =
       match arch with
@@ -345,6 +338,7 @@ class ailParser =
          between a pop and a push instruction.
          However, we keep the instructions after the last pop instruction,
          because they might not be literal pools. *)
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let branch_target_addrs = ref [] in
       let newnew = ref [] in
@@ -353,9 +347,9 @@ class ailParser =
       let is_going_through_literal_pool = ref false in
       let pop_detected = ref false in
       let collect_branch_target_addr (i : instr) =
-        match get_op i with
+        match IU.get_op i with
         | Arm_OP (Arm_ControlOP aco, _, _) -> begin
-            let exp = get_exp_1 i in
+            let exp = IU.get_exp_1 i in
             match exp with
             | Symbol (JumpDes j) ->
                 branch_target_addrs := j :: !branch_target_addrs
@@ -400,7 +394,7 @@ class ailParser =
              *)
             if List.length !instrs_after_pop = 1 then begin
               let ii = List.hd !instrs_after_pop in
-              match get_op ii with
+              match IU.get_op ii with
               | Arm_OP (Arm_ControlOP BX, _, _) ->
                   (* keep the branch instruction *)
                   newnew := !instrs_after_pop @ !newnew;
@@ -444,6 +438,7 @@ class ailParser =
       aux [] 0 ordered_il
 
     method adjust_width_specifier (instrs : instr list) : instr list =
+      let module IU = Instr_utils in
       let change_width_specifier (i : instr)
           (new_widthsuff : arm_widthsuff option) : instr =
         match i with
@@ -490,14 +485,14 @@ class ailParser =
       (* let distance_limit = 128 in *)
       List.map
         (fun i ->
-          match get_op i with
+          match IU.get_op i with
           | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier N)) ->
               change_width_specifier i None
           | _ -> i)
         instrs
-      (* For branch instructions that have width specifier, adjust it depending
-       * on the distance to target address.
-       *)
+    (* For branch instructions that have width specifier, adjust it depending
+     * on the distance to target address.
+     *)
 
     method remove_literal_pools_with_movs (instr_list : instr list) : instr list
         =
@@ -534,12 +529,13 @@ class ailParser =
          1a344:	476c      	bxns	sp
          1a346:	0001      	movs	r1, r0
          See Also: arm_parser.ml#push_stack *)
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx =
         function
         | [] -> acc
         | instr :: t -> begin
-            match get_op instr with
+            match IU.get_op instr with
             (* | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _)
             when idx + 2 < List.length ordered_il -> begin
               let nn_instr = List.nth ordered_il (idx + 2) in
@@ -558,13 +554,13 @@ class ailParser =
               begin
                 (* check if the next instruction is nop or not *)
                 let n_instr = List.nth ordered_il (idx + 1) in
-                let nop_detected = is_nop (get_op n_instr) in
+                let nop_detected = is_nop (IU.get_op n_instr) in
                 let nn_offset = if nop_detected then 3 else 2 in
                 let nn_instr = List.nth ordered_il (idx + nn_offset) in
-                match get_op nn_instr with
+                match IU.get_op nn_instr with
                 | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _)
-                  when check_if_common_reg (get_exp_1 nn_instr)
-                       && check_if_common_reg (get_exp_2 nn_instr) -> begin
+                  when check_if_common_reg (IU.get_exp_1 nn_instr)
+                       && check_if_common_reg (IU.get_exp_2 nn_instr) -> begin
                     (* keep the blx instruction *)
                     aux (instr :: acc) true nop_detected false (idx + 1) t
                   end
@@ -603,8 +599,8 @@ class ailParser =
                   else if is_literal_pool && idx + 1 < List.length ordered_il
                   then begin
                     let n_instr = List.nth ordered_il (idx + 1) in
-                    let cur_op = get_op instr in
-                    let next_op = get_op n_instr in
+                    let cur_op = IU.get_op instr in
+                    let next_op = IU.get_op n_instr in
                     if (not is_second_movs) && is_movs next_op then begin
                       (* skip this instruction *)
                       aux acc true false true (idx + 1) t
@@ -629,27 +625,28 @@ class ailParser =
 
     method remove_literal_pools_after_blx_exit (instr_list : instr list) :
         instr list =
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx =
         function
         | [] -> acc
         | instr :: t -> begin
-            match get_op instr with
+            match IU.get_op instr with
             | Arm_OP (Arm_ControlOP BLX, _, _) -> begin
-                match get_exp_1 instr with
+                match IU.get_exp_1 instr with
                 | Symbol (CallDes func)
                   when func.func_name = "exit" || func.func_name = "abort" ->
                   begin
                     (* check if the next instruction is nop or not *)
                     let n_instr = List.nth ordered_il (idx + 1) in
-                    let nop_detected = is_nop (get_op n_instr) in
+                    let nop_detected = is_nop (IU.get_op n_instr) in
                     let nn_offset = if nop_detected then 3 else 2 in
                     let nn_instr = List.nth ordered_il (idx + nn_offset) in
-                    match get_op nn_instr with
+                    match IU.get_op nn_instr with
                     | Arm_OP (Arm_CommonOP (Arm_Assign MOV), _, _)
                     | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _)
-                      when check_if_common_reg (get_exp_1 nn_instr)
-                           && check_if_common_reg (get_exp_2 nn_instr) -> begin
+                      when check_if_common_reg (IU.get_exp_1 nn_instr)
+                           && check_if_common_reg (IU.get_exp_2 nn_instr) -> begin
                         (* keep the blx instruction *)
                         aux (instr :: acc) true nop_detected false (idx + 1) t
                       end
@@ -670,8 +667,8 @@ class ailParser =
             | _ -> begin
                 if is_literal_pool && idx + 1 < List.length ordered_il then begin
                   let n_instr = List.nth ordered_il (idx + 1) in
-                  let cur_op = get_op instr in
-                  let next_op = get_op n_instr in
+                  let cur_op = IU.get_op instr in
+                  let next_op = IU.get_op n_instr in
                   if (not is_second_movs) && (is_movs next_op || is_mov next_op)
                   then begin
                     (* skip this instruction *)
@@ -698,12 +695,13 @@ class ailParser =
 
     method remove_literal_pools_after_branch (instr_list : instr list) :
         instr list =
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let branch_target_addrs = ref [] in
       let collect_branch_target_addr (i : instr) =
-        match get_op i with
+        match IU.get_op i with
         | Arm_OP (Arm_ControlOP aco, _, _) -> begin
-            let exp = get_exp_1 i in
+            let exp = IU.get_exp_1 i in
             match exp with
             | Symbol (JumpDes j) ->
                 branch_target_addrs := j :: !branch_target_addrs
@@ -737,8 +735,8 @@ class ailParser =
                 aux acc (instr :: instr_buffer) true (idx + 1) t
             end
             else begin
-              match get_op instr with
-              | Arm_OP (Arm_ControlOP B, None, _) when is_nop (get_op n_instr)
+              match IU.get_op instr with
+              | Arm_OP (Arm_ControlOP B, None, _) when is_nop (IU.get_op n_instr)
                 ->
                   (* keep the nop instruction to prevent the "undefined reference" issue *)
                   aux (n_instr :: instr :: acc) [] true (idx + 2) t
@@ -857,11 +855,12 @@ class ailParser =
 
     method remove_illegal_instructions (instr_list : instr list) (arch : string)
         : instr list =
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       match arch with
       | "thumb" -> begin
           let check_illegal (i : instr) : bool =
-            match get_op i with
+            match IU.get_op i with
             | Arm_OP (Arm_SystemOP PLDW, _, _) -> true
             | Arm_OP (Arm_CommonOP (Arm_Arithm VHADD), _, _) -> true
             | _ -> false
@@ -878,8 +877,9 @@ class ailParser =
 
     method remove_undefined_instructions (instr_list : instr list) : instr list
         =
+      let module IU = Instr_utils in
       List.filter
-        (fun i -> match get_op i with Undefined_OP -> false | _ -> true)
+        (fun i -> match IU.get_op i with Undefined_OP -> false | _ -> true)
         instr_list
 
     method remove_literal_pools (instr_list : instr list) =
@@ -896,6 +896,7 @@ class ailParser =
       instrs <- self#remove_undefined_instructions instrs
 
     method convert_instructions (instr_list : instr list) : instr list =
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let rec aux acc idx = function
         | [] -> acc
@@ -904,32 +905,32 @@ class ailParser =
             | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _)
               ->
                 let new_instr =
-                  change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
+                  IU.change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | DoubleInstr
                 (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _) ->
                 let new_instr =
-                  change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
+                  IU.change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | DoubleInstr
                 (Arm_OP (Arm_StackOP PUSH, Some LT, width), Label label, _, _, _)
               when contains ~str:label ~sub:"lr" ->
                 let new_instr =
-                  change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
+                  IU.change_op instr (Arm_OP (Arm_StackOP PUSH, None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | DoubleInstr (Arm_OP (Arm_ControlOP BL, Some PL, None), _, _, _, _)
               ->
                 let new_instr =
-                  change_op instr (Arm_OP (Arm_ControlOP BL, None, None))
+                  IU.change_op instr (Arm_OP (Arm_ControlOP BL, None, None))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | TripleInstr
                 (Arm_OP (Arm_StackOP STMDB, Some LE, width), _, _, _, _, _) ->
                 let new_instr =
-                  change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
+                  IU.change_op instr (Arm_OP (Arm_StackOP STMDB, None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | TripleInstr
@@ -941,21 +942,21 @@ class ailParser =
                   _ )
               when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) ->
                 let new_instr =
-                  change_op instr
+                  IU.change_op instr
                     (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, width))
                 in
                 aux (new_instr :: acc) (idx + 1) t
             | _ -> (
-                match get_op instr with
+                match IU.get_op instr with
                 | Arm_OP (Arm_CommonOP (Arm_Assign MOV), Some UND, _) ->
                     let new_instr =
-                      change_op instr
+                      IU.change_op instr
                         (Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, None))
                     in
                     aux (new_instr :: acc) (idx + 1) t
                 | Arm_OP (Arm_CommonOP (Arm_Arithm SUB), Some UND, _) ->
                     let new_instr =
-                      change_op instr
+                      IU.change_op instr
                         (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), None, None))
                     in
                     aux (new_instr :: acc) (idx + 1) t
@@ -964,7 +965,7 @@ class ailParser =
                       None,
                       Some (Arm_Opqualifier W) ) ->
                     let new_instr =
-                      change_op instr
+                      IU.change_op instr
                         (Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, None))
                     in
                     aux (new_instr :: acc) (idx + 1) t
@@ -974,11 +975,12 @@ class ailParser =
       aux [] 0 ordered_il
 
     method remove_it_sequence (instr_list : instr list) : instr list =
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let rec aux acc skip_count idx = function
         | [] -> acc
         | instr :: t -> begin
-            match get_op instr with
+            match IU.get_op instr with
             | Arm_OP (Arm_Condition it_op, _, _) ->
                 let it_cond_length =
                   match it_op with
@@ -1005,7 +1007,7 @@ class ailParser =
                  * Thus, we remove the IT instruction and the following instructions within the length.
                  *)
                 let has_condsuff (instr : instr) : bool =
-                  match get_op instr with
+                  match IU.get_op instr with
                   | Arm_OP (_, Some _, _) -> true
                   | _ -> false
                 in
@@ -1031,6 +1033,7 @@ class ailParser =
       aux [] 0 0 ordered_il
 
     method convert_it_condsuff (instr_list : instr list) : instr list =
+      let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let rec aux acc replacement_instrs idx = function
         | [] -> acc
@@ -1038,11 +1041,11 @@ class ailParser =
             match replacement_instrs with
             | r_instr :: r_t -> aux (r_instr :: acc) r_t (idx + 1) t
             | [] -> begin
-                match get_op instr with
+                match IU.get_op instr with
                 | Arm_OP (Arm_Condition it_op, Some cond, width) as op
                   when idx + 4 < List.length ordered_il ->
                     let get_it_cond_arr (it_instr : instr) : bool list =
-                      match get_op it_instr with
+                      match IU.get_op it_instr with
                       | Arm_OP (Arm_Condition it_op, _, _) when it_op = IT ->
                           [ true ]
                       | Arm_OP (Arm_Condition it_op, _, _) when it_op = ITE ->
@@ -1080,7 +1083,7 @@ class ailParser =
                     let check_if_label (e : exp) : bool =
                       match e with Label l -> true | _ -> false
                     in
-                    if check_if_label (get_exp_1 it_instr) = false then
+                    if check_if_label (IU.get_exp_1 it_instr) = false then
                       failwith
                         (Printf.sprintf
                            "Error: The operand of IT instruction must be a \
@@ -1092,8 +1095,8 @@ class ailParser =
                       (fun i it_cond ->
                         let offset = i + 1 in
                         let target_instr = List.nth ordered_il (idx + offset) in
-                        let target_op = get_op target_instr in
-                        let (Label it_label) = get_exp_1 it_instr in
+                        let target_op = IU.get_op target_instr in
+                        let (Label it_label) = IU.get_exp_1 it_instr in
                         let new_target_condsuff =
                           if it_cond then Arm_parser.condsuff_symb it_label
                           else if it_label = "eq" then NE
@@ -1119,7 +1122,7 @@ class ailParser =
                                  it_label)
                         in
                         let new_instr =
-                          change_condsuff target_instr
+                          IU.change_condsuff target_instr
                             (Some new_target_condsuff)
                         in
                         new_instrs := !new_instrs @ [ new_instr ])
@@ -1148,7 +1151,7 @@ class ailParser =
         lines
 
     method process_instrs (l : string list) (arch : string) =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let cat_tail s =
         match s with
         | [] -> "" (* this will never happen*)

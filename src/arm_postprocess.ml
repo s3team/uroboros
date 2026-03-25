@@ -6,6 +6,7 @@
  *)
 
 open Ail_utils
+open Utils
 open Type
 open Pp_print
 

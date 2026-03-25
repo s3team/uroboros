@@ -1,30 +1,27 @@
-(**
-  Instrumentation Plugin: Function Entry and Exit
-  Filename: instr_gzip.ml
-  Usage: assign target function labels in target_func_labels
+(** Instrumentation Plugin: Function Entry and Exit Filename: instr_gzip.ml
+    Usage: assign target function labels in target_func_labels
 
-  This instrumentation inserts two nops at:
+    This instrumentation inserts two nops at:
     - the entry of rware_entry and encrypt_file
-    - the exit of rware_entry and encrypt_file
-*)
+    - the exit of rware_entry and encrypt_file *)
 
 open Instrumentation
 
 module PLUGIN = struct
   open Ail_utils
   open Type
-  open Batteries
-  open Instr_utils
+  open Instrumentation_utils
 
   let insert_nop (inst : instr) :
       (instr * loc * instr_update * string) list list =
-    let inst_loc = get_loc inst in
+    let module IU = Instr_utils in
+    let inst_loc = IU.get_loc inst in
     let inst_loc_without_label = { inst_loc with loc_label = "" } in
     let nop = SingleInstr (CommonOP (Other NOP), inst_loc, None) in
     let nop_without_label =
       SingleInstr (CommonOP (Other NOP), inst_loc_without_label, None)
     in
-    let inst' = set_loc inst inst_loc_without_label in
+    let inst' = IU.set_loc inst inst_loc_without_label in
 
     set_update_fold nop_without_label inst_loc []
     |> set_update_fold nop inst_loc
@@ -44,7 +41,6 @@ module PLUGIN = struct
       (bmap : (string, instr list) Hashtbl.t)
       (instrs_update : (instr * loc * instr_update * string) list list) :
       (instr * loc * instr_update * string) list list =
-
     (* Assumption: 1. all rets are exits 2. call exit is exit *)
     let is_exit (inst : instr) : bool =
       match inst with
@@ -86,9 +82,9 @@ module PLUGIN = struct
   let instrument (il : instr list) (fb_bbl : ('a, bblock list) Hashtbl.t)
       (bbl : bblock list) : instr list =
     print_endline "Enabling NOP padding at function entry and exit";
-    let module IV = Instr_visitor in
-    let module IU = Instr_utils in
-    let module EU = ELF_utils in
+    let module IV = Instrumentation_visitor in
+    let module IU = Instrumentation_utils in
+    let module EU = Elf_utils in
     let module DU = Dataset_utils in
     let module BU = BB_utils in
     let target_func_labels = [ "S_0x8056831"; "S_0x8056456" ] in
@@ -134,5 +130,4 @@ module PLUGIN = struct
         il
 end
 
-let () =
-  plugin := Some (module PLUGIN)
+let () = plugin := Some (module PLUGIN)

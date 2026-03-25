@@ -1,31 +1,8 @@
 open Type
+open Utils
+open Elf_utils
 
-let read_file (filename : string) : string list =
-  let lines = ref [] in
-  let chan = open_in filename in
-  try
-    while true do
-      lines := input_line chan :: !lines
-    done;
-    []
-  with End_of_file ->
-    close_in chan;
-    List.rev !lines
-
-let elf_64 () =
-  (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
-  try
-    ignore (Str.search_forward (Str.regexp_string "ELF 64-bit") l 0);
-    true
-  with Not_found -> false
-
-let flip f x y = f y x
 let comment_sym = ref ""
-
-let rec last_ele = function
-  | [ h ] -> h
-  | h :: t -> last_ele t
-  | [] -> failwith "error in last_ele"
 
 let p_condsuff condsuff =
   match condsuff with
@@ -74,14 +51,6 @@ let p_reg p =
   | Intel_Reg r -> "%" ^ p_intel_reg' r
   | Arm_Reg r -> "" ^ p_arm_reg' r
 
-let p_intel_reg p =
-  let intel_reg_to_string p =
-    show_intel_reg p
-    |> Str.split (Str.regexp " +")
-    |> last_ele |> String.lowercase_ascii
-  in
-  "%" ^ intel_reg_to_string p
-
 let p_arm_reg p =
   let arm_reg_to_string p =
     show_arm_reg p
@@ -97,14 +66,6 @@ let p_intel_reg p =
     |> last_ele |> String.lowercase_ascii
   in
   "%" ^ intel_reg_to_string p
-
-let p_arm_reg p =
-  let arm_reg_to_string p =
-    show_arm_reg p
-    |> Str.split (Str.regexp " +")
-    |> last_ele |> String.lowercase_ascii
-  in
-  "" ^ arm_reg_to_string p
 
 let p_seg' p = show_intel_seg p
 
@@ -120,8 +81,7 @@ and p_mathop p =
   show_intel_mathop p |> help
 
 and p_loc l =
-  let dec_hex_integer s = "0x" ^ Printf.sprintf "%X" s in
-  let v = dec_hex_integer l in
+  let v = dec_hex l in
   String.lowercase_ascii v
 
 and p_fun (f : func) = f.func_name
@@ -225,8 +185,6 @@ let rec p_exp e =
   | Assist s -> p_assist s
   | Ptr addr -> p_ptraddr addr
   | Label s -> s
-
-let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s
 
 let p_single p =
   let p_str = p_op p in

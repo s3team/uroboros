@@ -1,9 +1,9 @@
 (* init : use GNU utils objdump to disassemble
  * initialize file info, section info, generate disassemble file*)
 
-open Batteries
 open Ail
 open Ail_utils
+open Utils
 
 let is_32 = ref false
 
@@ -85,7 +85,7 @@ class ailInit =
         Sys.command
           (objdump_command ^ " -s -j .got " ^ f
          ^ " 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 > got.info");
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then begin
         ret :=
           Sys.command
@@ -125,7 +125,7 @@ class ailInit =
       if !is_32 = true then self#section_process_32 f
       else self#section_process_64 f;
       self#bss_handler f;
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then self#__libc_freeres_ptrs_handler ();
       self#extern_data_process f;
       self#export_tbl_dump f;
@@ -169,7 +169,7 @@ class ailInit =
       ignore
         (Sys.command
            ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f1,2 > hexcode.info"));
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then begin
         ignore
           (Sys.command
@@ -181,7 +181,6 @@ class ailInit =
                "cat plt_whole2.info | grep adrp | awk '{print $1}' | tr -d ':' \
                 | sed 's/^/0x/' > plt_funcs.info")
       end;
-      ignore (Sys.command "python3 filter_nop.py");
       ignore (Sys.command "cut -f 1 instrs.info > text_mem.info")
 
     method user_func_process (f : string) : unit =
@@ -199,7 +198,7 @@ class ailInit =
       end
 
     method section_process_32 (f : string) : unit =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then (
         ignore
           (Sys.command
@@ -264,7 +263,7 @@ class ailInit =
              plt_sec.info"))
 
     method section_process_64 (f : string) : unit =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then (
         ignore
           (Sys.command
@@ -355,8 +354,6 @@ class ailInit =
       let processor = new ail in
       processor#sections;
       processor#userfuncs;
-      processor#externdatas;
-      processor#global_bss;
       ignore (Sys.command "python3 spliter.py");
       processor#instr_process f arch
   end
@@ -364,10 +361,10 @@ class ailInit =
 let check_strip (f : string) : bool =
   let filelines : string list = read_file "elf.info" in
   let info = List.nth filelines 0 in
-  if String.exists info "ELF 32-bit" then (
+  if contains ~str:info ~sub:"ELF 32-bit" then (
     is_32 := true;
     true)
-  else if String.exists info "ELF 64-bit" then (
+  else if contains ~str:info ~sub:"ELF 64-bit" then (
     is_32 := false;
     true)
   else false
@@ -385,13 +382,15 @@ let clear_code : unit =
 
 let check_arch (arch : string) : bool =
   if
-    String.exists arch "intel" || String.exists arch "arm"
-    || String.exists arch "thumb"
+    contains ~str:arch ~sub:"intel"
+    || contains ~str:arch ~sub:"arm"
+    || contains ~str:arch ~sub:"thumb"
   then true
   else false
 
 let check_bit_mode (bit_mode : string) : bool =
-  if String.exists bit_mode "32" || String.exists bit_mode "64" then true
+  if contains ~str:bit_mode ~sub:"32" || contains ~str:bit_mode ~sub:"64" then
+    true
   else false
 
 let main () =

@@ -8,10 +8,10 @@ let init_arch (_arch : string) = arch := _arch
 (* Value-based abstract state for ARM GOT analysis *)
 module ArmGotAbsWithValues : DfaAbs = struct
   open Ail_utils
+  open Utils
   open Arm_parser
   open Arm_reassemble_symbol_get
   open Arm_utils
-  open Batteries
   open Pp_print
   open Type
   module RegMap = Map.Make (String)
@@ -28,7 +28,7 @@ module ArmGotAbsWithValues : DfaAbs = struct
   let (got_addr : int ref) = ref 0
 
   let init_literal_pools () =
-    let filelines = File.lines_of "text_section_as_data.txt"
+    let filelines = read_file "text_section_as_data.txt"
     and add_lines_to_map l =
       let items = Str.split (Str.regexp ":") l in
       let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -36,11 +36,11 @@ module ArmGotAbsWithValues : DfaAbs = struct
       (* insert (addr * data) to [literal_pools] *)
       Hashtbl.replace literal_pools addr data
     in
-    Enum.iter add_lines_to_map filelines;
+    List.iter add_lines_to_map filelines;
     ()
 
   let init_data_pools () =
-    let filelines = File.lines_of "data_section_as_data.txt"
+    let filelines = read_file "data_section_as_data.txt"
     and add_lines_to_map l =
       let items = Str.split (Str.regexp ":") l in
       let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -48,11 +48,11 @@ module ArmGotAbsWithValues : DfaAbs = struct
       (* insert (addr * data) to [data_pools] *)
       Hashtbl.replace data_pools addr data
     in
-    Enum.iter add_lines_to_map filelines;
+    List.iter add_lines_to_map filelines;
     ()
 
   let init_got_addr () =
-    let filelines = File.lines_of "sections.info"
+    let filelines = read_file "sections.info"
     and parse_section_info l =
       let items = Str.split (Str.regexp " +") l in
       let addr = int_of_string ("0x" ^ List.nth items 1)
@@ -60,11 +60,11 @@ module ArmGotAbsWithValues : DfaAbs = struct
       and secname = List.nth items 0 in
       if contains ~str:secname ~sub:".got" then got_addr := addr else ()
     in
-    Enum.iter parse_section_info filelines
+    List.iter parse_section_info filelines
 
   (** Initialize ArmGotAbs struct *)
   let init () =
-    let module EU = ELF_utils in
+    let module EU = Elf_utils in
     if not !initialized then begin
       initialized := true;
       Hashtbl.clear result;
@@ -107,10 +107,7 @@ module ArmGotAbsWithValues : DfaAbs = struct
     Hashtbl.mem literal_pools addr = true
 
   let get_literal_pool_data (addr : int) : string option =
-    try
-      let value = Hashtbl.find literal_pools addr in
-      Some value
-    with Not_found -> None
+    Hashtbl.find_opt literal_pools addr
 
   let has_data_pool_data (addr : int) : bool =
     Hashtbl.mem data_pools addr = true
@@ -139,10 +136,8 @@ module ArmGotAbsWithValues : DfaAbs = struct
     let pred_states =
       List.filter_map
         (fun p_op ->
-          match p_op with
-          | Some p -> (
-              try Some (Hashtbl.find input_map p) with Not_found -> None)
-          | None -> None)
+          let* p = p_op in
+          Hashtbl.find_opt input_map p)
         preds
     in
     match pred_states with
@@ -430,7 +425,8 @@ module ArmGotAbsWithValues : DfaAbs = struct
   (** Process instruction to detect GOT-based memory accesses and rewrite them
   *)
   let process_instr (i : instr) (ins : abs_state) : unit =
-    let loc = get_loc i in
+    let module IU = Instr_utils in
+    let loc = IU.get_loc i in
     let has_got_addr (reg_name : string) =
       match get_register_value ins reg_name with
       | Some v -> v = !got_addr
@@ -480,7 +476,7 @@ module ArmGotAbsWithValues : DfaAbs = struct
               let new_tags = Hashtbl.copy tags in
               Hashtbl.replace new_tags "instr_tag" sym_instr_tag;
               let new_instr = TripleInstr (p, e1, e2, loc, prefix, new_tags) in
-              Hashtbl.replace result (get_loc i).loc_addr [ new_instr ];
+              Hashtbl.replace result (IU.get_loc i).loc_addr [ new_instr ];
               ()
             end
             else ()

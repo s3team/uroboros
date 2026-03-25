@@ -1,5 +1,5 @@
-open Batteries
 open Ail_utils
+open Utils
 open Common_parser
 open Lex_new
 open Type
@@ -116,14 +116,15 @@ class parse =
   and loc_symb s =
     { loc_label = ""; loc_addr = int_of_string s; loc_visible = true }
   and const_symb s =
-    if contains ~str:s ~sub_str:"#" && not (contains ~str:s ~sub_str:"*") then
+    if contains ~str:s ~sub:"#" && not (contains ~str:s ~sub:"*") then
       (* ex 64-bit: 0xa8f3e(%rip)        # 4aa098 <_GLOBAL_OFFSET_TABLE_+0xb0> *)
       (* ex 32-bit: jmp    *0xa8fd6(%rip)        # 0x4aa000 *)
       let after_hash = String.split_on_char '#' s in
       let abs_addr = String.trim (List.hd (List.rev after_hash)) in
       let before_GOT = String.split_on_char ' ' abs_addr in
       let abs_addr' = String.trim (List.hd before_GOT) in
-      if String.starts_with abs_addr' "0x" then Point (int_of_string abs_addr')
+      if String.starts_with ~prefix:"0x" abs_addr' then
+        Point (int_of_string abs_addr')
       else Point (int_of_string ("0x" ^ abs_addr'))
     else if s.[0] = '$' then
       let s' = String.sub s 1 (String.length s - 1) in
@@ -273,12 +274,7 @@ and remove_parenthesis s' =
 
   let segref_symb s =
     let seg_list = [ "%fs"; "%gs"; "%cs"; "%ss"; "%ds"; "%es" ] in
-    let list_has item =
-      try
-        ignore (List.find (fun i -> i = item) seg_list);
-        true
-      with Not_found -> false
-    in
+    let list_has item = List.mem item seg_list in
     if String.contains s ':' then
       let split = Str.split (Str.regexp_string ":") in
       let items = split s in
@@ -1119,7 +1115,7 @@ let eiz_symb = function s ->
       else raise ParseError
 
     method jmptable_m_symb s =
-      if String.exists s "(," then
+      if contains ~str:s ~sub:"(," then
         let split = Str.split (Str.regexp_string ",") in
         let tokens = split s in
         let addr = List.nth tokens 0 in
@@ -1132,7 +1128,7 @@ let eiz_symb = function s ->
       else raise ParseError
 
     method jmptable_p_symb s =
-      if String.exists s "(," then
+      if contains ~str:s ~sub:"(," then
         let split = Str.split (Str.regexp_string ",") in
         let tokens = split s in
         let addr = List.nth tokens 0
@@ -1145,7 +1141,7 @@ let eiz_symb = function s ->
 
     (* call *0x80808080(, %eax, 4) *)
     method calljmp_symb s =
-      if String.exists s "(," then
+      if contains ~str:s ~sub:"(," then
         let split = Str.split (Str.regexp_string ",") in
         let tokens = split s in
         let addr = List.nth tokens 0
@@ -1157,7 +1153,7 @@ let eiz_symb = function s ->
       else raise ParseError
 
     method leades_symb s =
-      if String.exists s "(," then
+      if contains ~str:s ~sub:"(," then
         let split = Str.split (Str.regexp_string ",") in
         let tokens = split s in
         let addr = List.nth tokens 0
@@ -1269,13 +1265,25 @@ let eiz_symb = function s ->
     method init_process = call_des := false
 
     method parse_instr instr loc (arch : string) =
-      self#init_process;
-      let pre = prefix_identify instr and instr' = prefix_sub instr in
-      let lexem_list = Array.to_list (lexer instr' loc arch) in
-      let s : stack_type list = [] in
-      let parse_one s l =
-        match l with Lend -> s | _ -> self#push_stack l :: s
-      in
-      let stack = List.fold_left parse_one s lexem_list in
-      self#reduce_stack stack pre
+      try
+        self#init_process;
+        let pre = prefix_identify instr and instr' = prefix_sub instr in
+        let lexem_list = Array.to_list (lexer instr' loc arch) in
+        let s : stack_type list = [] in
+        let parse_one s l =
+          match l with Lend -> s | _ -> self#push_stack l :: s
+        in
+        let stack = List.fold_left parse_one s lexem_list in
+        let parsed_instr = self#reduce_stack stack pre in
+        parsed_instr
+      with ParseError ->
+        let nop_instr : instr =
+          SingleInstr
+            ( Intel_OP (Intel_CommonOP (Intel_Other NOP)),
+              stub_loc,
+              None,
+              Hashtbl.create 1 )
+        in
+        let _ = print_endline ("^ parse error instr: " ^ instr) in
+        nop_instr
   end

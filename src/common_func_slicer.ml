@@ -1,11 +1,10 @@
 open Type
 open Pp_print
 open Ail_utils
+open Utils
 
 class virtual common_func_slicer instrs funcs =
   (* A pattern recognization based func slicing implementation. *)
-  let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s in
-
   let func_set = Hashtbl.create 40 in
 
   object (self)
@@ -49,25 +48,25 @@ class virtual common_func_slicer instrs funcs =
 
     method update =
       let func = "S_" ^ dec_hex baddr in
-      if Hashtbl.mem func_set func then
-        let f' = Hashtbl.find func_set func in
-        Hashtbl.replace func_set func
-          {
-            f' with
-            func_begin_addr = baddr;
-            func_end_addr = eaddr;
-            is_lib = false;
-          }
-      else
-        let f' =
-          {
-            func_name = func;
-            func_begin_addr = baddr;
-            func_end_addr = eaddr;
-            is_lib = false;
-          }
-        in
-        Hashtbl.replace func_set func f'
+      match Hashtbl.find_opt func_set func with
+      | Some f' ->
+          Hashtbl.replace func_set func
+            {
+              f' with
+              func_begin_addr = baddr;
+              func_end_addr = eaddr;
+              is_lib = false;
+            }
+      | None ->
+          let f' =
+            {
+              func_name = func;
+              func_begin_addr = baddr;
+              func_end_addr = eaddr;
+              is_lib = false;
+            }
+          in
+          Hashtbl.replace func_set func f'
     (* end *)
 
     method filter_addr_by_secs (bl : int list) : int list =
@@ -96,6 +95,7 @@ class virtual common_func_slicer instrs funcs =
       text_e_addr <- text_b_addr + int_of_string ("0x" ^ List.nth items 3)
 
     method build_func_info =
+      let module IU = Instr_utils in
       func_begins <- unify_int_list func_begins;
       func_begins <- self#filter_addr_by_secs func_begins;
       (*    func_begins <- text_b_addr::func_begins; *)
@@ -109,7 +109,7 @@ class virtual common_func_slicer instrs funcs =
         | h :: [] ->
             (* bug fixed:  instrs are in reverse orders *)
             let ei = List.nth instrs 0 in
-            let le = get_loc ei in
+            let le = IU.get_loc ei in
             baddr <- h;
             eaddr <- le.loc_addr;
             self#update
@@ -144,7 +144,7 @@ class virtual common_func_slicer instrs funcs =
       Hashtbl.fold help func_set []
 
     method funcaddr_from_file =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let t = read_file "faddr.txt" in
       let t1 = read_file "faddr_call.txt" in
       let func_begins2 = List.map int_of_string t in
@@ -156,7 +156,6 @@ class virtual common_func_slicer instrs funcs =
       else func_begins <- func_begins @ func_begins2 @ func_begins3
 
     method dump_funclist =
-      let dec_hex (s : int) : string = "0x0" ^ Printf.sprintf "%x" s in
       let bs = unify_int_list func_begins in
       let oc = open_out_gen [ Open_append; Open_creat ] 0o666 "fadd1.txt" in
       List.iter (fun l -> Printf.fprintf oc "%s\n" (dec_hex l)) bs;

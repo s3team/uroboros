@@ -1,9 +1,9 @@
-open Batteries
 open Printf
 open Visit
 open Common_reassemble_symbol_get
 open Type
 open Ail_utils
+open Utils
 open Arm_utils
 open Tags_utils
 open Pp_print
@@ -100,7 +100,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       got_list <- self#data_trans got;
       bss_list <- self#data_trans bss;
       data_rel_ro_list <- self#data_trans data_rel_ro;
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then begin
         got_plt_list <- self#data_trans got_plt;
         tbss_list <- self#data_trans tbss;
@@ -129,7 +129,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
           fl'
       in
       fl_sort <- Array.of_list fl1;
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let addr_len =
         if EU.elf_32 () && EU.elf_arm () then 5
         else
@@ -158,29 +158,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       two flags *)
       let ll = read_file "assumption_set.info" in
       List.nth ll 0 |> fun l ->
-      assumption_two <- String.exists l "2";
-      assumption_three <- String.exists l "3"
-
-    method set_datas_1 =
-      self#section_collect;
-      self#data_collect;
-      text_as_data_list <- self#data_trans text_as_data;
-      data_list <- self#data_trans data;
-      rodata_list <- self#data_trans rodata;
-      got_list <- self#data_trans got;
-      bss_list <- self#data_trans bss;
-      locations <- self#label_locate;
-      label_set <- List.map snd label;
-      let module EU = ELF_utils in
-      if EU.elf_static () then begin
-        got_plt_list <- self#data_trans got_plt;
-        tbss_list <- self#data_trans tbss;
-        __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
-        __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs
-      end
-      else ();
-
-      self#data_refer_solve1
+      assumption_two <- contains ~str:l ~sub:"2";
+      assumption_three <- contains ~str:l ~sub:"3"
 
     method get_textlabel =
       self#dump_d2c_labels text_labels;
@@ -193,11 +172,11 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         and size = int_of_string ("0x" ^ List.nth items 3) in
         (addr, size)
       in
-      let text_filelines = read_lines "text_sec.info" in
+      let text_filelines = read_file "text_sec.info" in
       text_sec <- read_sec_start_end (List.hd text_filelines);
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then
-        let plt_filelines = read_lines "plt_sec.info" in
+        let plt_filelines = read_file "plt_sec.info" in
         plt_sec <- read_sec_start_end (List.hd plt_filelines)
 
     method check_text addr =
@@ -207,7 +186,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       let te = tb + tsize in
       let pb, psize = plt_sec in
       let pe = pb + psize in
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if addr = 0xffff then false
         (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
@@ -254,14 +233,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         (* List.mem v begin_addrs in *)
         bbn_byloc v (Array.of_list begin_addrs)
       in
-      (* this method traverse data list, check each four byte value *)
-      let get_v_old s =
-        let items = Str.split (Str.regexp " +") s in
-        let v = List.nth items 1 in
-        String.sub v 2 (String.length v - 2)
-      in
       (*.byte 0x80*)
-      let get_v s = String.sub s 8 2 in
       let rec traverse acc l addr sec =
         (*
                There exists a bug in 64 bit ELF processing. The address
@@ -434,7 +406,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       data_rel_ro_list <-
         List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
       got_list <- List.rev (traverse [] got_list 0x0 ".got");
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then begin
         got_plt_list <- List.rev (traverse [] got_plt_list 0x0 ".got.plt");
         __libc_IO_vtables_list <-
@@ -452,14 +424,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         (* List.mem v begin_addrs in *)
         bbn_byloc v (Array.of_list begin_addrs)
       in
-      (* this method traverse data list, check each four byte value *)
-      let get_v_old s =
-        let items = Str.split (Str.regexp " +") s in
-        let v = List.nth items 1 in
-        String.sub v 2 (String.length v - 2)
-      in
       (*.byte 0x80*)
-      let get_v s = String.sub s 8 2 in
       let rec traverse acc l addr sec =
         (*
                There exists a bug in 64 bit ELF processing. The address
@@ -608,7 +573,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       got_list <- List.rev (traverse [] got_list 0x0 ".got");
       data_rel_ro_list <-
         List.rev (traverse [] data_rel_ro_list 0x0 ".data.rel.ro");
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then begin
         got_plt_list <- List.rev (traverse [] got_plt_list 0x0 ".got.plt");
         __libc_IO_vtables_list <-
@@ -626,84 +591,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         let addr = int_of_string addrs in
         if List.mem addr label_set then true else false
       with _ -> false
-
-    method data_refer_solve1 =
-      let get_v s =
-        let items = Str.split (Str.regexp " +") s in
-        let v = List.nth items 1 in
-        String.sub v 2 (String.length v - 2)
-      in
-      let rec traverse acc l =
-        (*
-               There exists a bug in 64 bit ELF processing. The address
-               produced in "let vs'" line contains a 0 at the beginning.
-               It musted be removed though.
-
-               aux function translate value_str to value, then to value_str' ;
-             thus getting rid of capital zeros.
-       *)
-        let aux vs =
-          let v = int_of_string vs in
-          Printf.sprintf "%X" v
-        in
-        match l with
-        | [] -> acc
-        | h :: [] -> h :: acc
-        | [ h1; h2 ] -> h2 :: h1 :: acc
-        | [ h1; h2; h3 ] -> h3 :: h2 :: h1 :: acc
-        | (l1, v1) :: (h2, v2) :: (l3, v3) :: (l4, v4) :: t -> begin
-            let v_str = "0x" ^ get_v v4 ^ get_v v3 ^ get_v v2 ^ get_v v1 in
-            match string_to_int32 v_str with
-            | Some v -> begin
-                match self#check_sec v with
-                | Some s ->
-                    in_jmptable <- false;
-                    traverse
-                      ((l4, v4) :: (l3, v3) :: (h2, v2) :: (l1, v1) :: acc)
-                      t
-                | None -> begin
-                    match self#check_text v with
-                    | true ->
-                        if self#check_jmptable l1 v = false then begin
-                          in_jmptable <- false;
-                          traverse
-                            ((l4, v4) :: (l3, v3) :: (h2, v2) :: (l1, v1) :: acc)
-                            t
-                        end
-                        else begin
-                          in_jmptable <- true;
-                          let v_str' = aux v_str in
-
-                          text_labels <- v :: text_labels;
-                          traverse
-                            (("", "") :: ("", "") :: ("", "")
-                            :: (l1, ".long S_0x" ^ String.uppercase_ascii v_str')
-                            :: acc)
-                            t
-                        end
-                    | false ->
-                        in_jmptable <- false;
-                        traverse
-                          ((l4, v4) :: (l3, v3) :: (h2, v2) :: (l1, v1) :: acc)
-                          t
-                  end
-              end
-            | None ->
-                in_jmptable <- false;
-                traverse ((l4, v4) :: (l3, v3) :: (h2, v2) :: (l1, v1) :: acc) t
-          end
-      in
-
-      self#add_data_label;
-      data_list <- List.rev (traverse [] data_list);
-      rodata_list <- List.rev (traverse [] rodata_list);
-      let module EU = ELF_utils in
-      if EU.elf_static () then begin
-        __libc_IO_vtables_list <- List.rev (traverse [] __libc_IO_vtables_list);
-        __libc_freeres_ptrs_list <-
-          List.rev (traverse [] __libc_freeres_ptrs_list)
-      end
-      else ()
 
     method fn_byloc addr =
       let cmp addr b =
@@ -776,7 +663,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       help l
 
     method section_collect =
-      let filelines = File.lines_of "sections.info"
+      let filelines = read_file "sections.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x" ^ List.nth items 1)
@@ -785,7 +672,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         sec <-
           { sec_name = secname; sec_begin_addr = addr; sec_size = size } :: sec
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method section_offset name addr =
       let rec help l =
@@ -816,18 +703,18 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       help sec
 
     method data_collect =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       ignore (Sys.command "python3 spliter.py");
-      text_as_data <- self#collect "text_split.info";
-      data <- self#collect "data_split.info";
-      rodata <- self#collect "rodata_split.info";
-      data_rel_ro <- self#collect "data_rel_ro_split.info";
-      got <- self#collect "got_split.info";
-      bss <- self#collect_bss "bss.info";
+      text_as_data <- collect "text_split.info";
+      data <- collect "data_split.info";
+      rodata <- collect "rodata_split.info";
+      data_rel_ro <- collect "data_rel_ro_split.info";
+      got <- collect "got_split.info";
+      bss <- collect "bss.info";
       if EU.elf_static () then begin
-        got_plt <- self#collect "got_plt_split.info";
-        __libc_IO_vtables <- self#collect "__libc_IO_vtables_split.info";
-        __libc_freeres_ptrs <- self#collect "__libc_freeres_ptrs.info"
+        got_plt <- collect "got_plt_split.info";
+        __libc_IO_vtables <- collect "__libc_IO_vtables_split.info";
+        __libc_freeres_ptrs <- collect "__libc_freeres_ptrs.info"
       end
       else ()
 
@@ -837,7 +724,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       | ".got" -> ".got"
       | "bss" -> ".bss"
       | _ ->
-          let module EU = ELF_utils in
+          let module EU = Elf_utils in
           if EU.elf_static () then
             match s with
             | ".got.plt" -> ".got.plt"
@@ -863,21 +750,16 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         else
           let s, d = rodata_array.(idx) in
           if String.length s = 0 then find_jmp_table_base (idx - 4)
-          else if String.exists s "0x" then Some (int_of_string s)
+          else if contains ~str:s ~sub:"0x" then Some (int_of_string s)
           else None
       in
       let help addr offset_s =
         let offset = int_of_string ("0x" ^ offset_s) in
         let offset' = Int32.to_int (Int32.of_int offset) in
-        match find_jmp_table_base addr with
-        | Some base ->
-            if offset' < 0 then
-              if self#check_text (offset' + base) then
-                let target_addr = offset' + base in
-                Some target_addr
-              else None
-            else None
-        | None -> None
+        let* base = find_jmp_table_base addr in
+        if offset' < 0 && self#check_text (offset' + base) then
+          Some (offset' + base)
+        else None
       in
       match sec with
       | ".rodata" ->
@@ -889,10 +771,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
     method check_offset offset funcs sec =
       let begin_addrs = List.map (fun f -> f.func_begin_addr) funcs in
       let check_func_begin v = bbn_byloc v (Array.of_list begin_addrs) in
-      let read_lines filename =
-        File.with_file_in filename (fun input ->
-            List.of_enum (IO.lines_of input))
-      in
       (* read in file as list to ensure file is closed in a timely manner *)
       (* otherwise, we can get "Too many open files" error when check_offset is called many times *)
       let filelines = [] in
@@ -990,7 +868,6 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       let p =
         object (sp)
           method process lbs =
-            let dec_hex (s : int) : string = Printf.sprintf "0x%X" s in
             let rec help loc_list =
               match loc_list with
               | (n, l) :: t -> begin
@@ -1007,7 +884,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       rodata_array.(off) <- (s', d);
                       help t
                   | _ ->
-                      let module EU = ELF_utils in
+                      let module EU = Elf_utils in
                       if EU.elf_static () then
                         match n with
                         | "__libc_IO_vtables" ->
@@ -1034,7 +911,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
             help lbs
         end
       in
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       text_as_data_array <- Array.of_list text_as_data_list;
       rodata_array <- Array.of_list rodata_list;
       data_array <- Array.of_list data_list;
@@ -1059,14 +936,13 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       let p =
         object (sp)
           method process lbs sym_addr2label =
-            let dec_hex (s : int) : string = Printf.sprintf "S_0x%X:\n" s in
             let rec help loc_list =
               match loc_list with
               | (n, l) :: t -> begin
                   match n with
                   | ".text_as_data" ->
                       let off = l - fst text_sec in
-                      let s' = dec_hex l in
+                      let s' = dec_hex_col_sym l in
                       let s, d = text_as_data_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
@@ -1081,7 +957,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       help t
                   | ".data" ->
                       let off = l - self#section_addr ".data" in
-                      let s' = dec_hex l and s, d = data_array.(off) in
+                      let s' = dec_hex_col_sym l and s, d = data_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
                         | Some _ -> ".align 4\n"
@@ -1095,7 +971,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       help t
                   | ".rodata" ->
                       let off = l - self#section_addr ".rodata" in
-                      let s' = dec_hex l and s, d = rodata_array.(off) in
+                      let s' = dec_hex_col_sym l and s, d = rodata_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
                         | Some _ -> ".align 4\n"
@@ -1109,7 +985,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       help t
                   | ".got" ->
                       let off = l - self#section_addr ".got" in
-                      let s' = dec_hex l and s, d = got_array.(off) in
+                      let s' = dec_hex_col_sym l and s, d = got_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
                         | Some _ -> ".align 4\n"
@@ -1123,7 +999,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       help t
                   | ".bss" ->
                       let off = l - self#section_addr ".bss" in
-                      let s' = dec_hex l and s, d = bss_array.(off) in
+                      let s' = dec_hex_col_sym l and s, d = bss_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
                         | Some _ -> ".align 4\n"
@@ -1137,7 +1013,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       help t
                   | ".data.rel.ro" ->
                       let off = l - self#section_addr ".data.rel.ro" in
-                      let s' = dec_hex l and s, d = data_rel_ro_array.(off) in
+                      let s' = dec_hex_col_sym l and s, d = data_rel_ro_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
                         | Some _ -> ".align 4\n"
@@ -1150,12 +1026,12 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       | None -> data_rel_ro_array.(off) <- (alignment ^ s', d));
                       help t
                   | _ ->
-                      let module EU = ELF_utils in
+                      let module EU = Elf_utils in
                       if EU.elf_static () then
                         match n with
                         | ".got.plt" ->
                             let off = l - self#section_addr ".got.plt" in
-                            let s' = dec_hex l and s, d = got_plt_array.(off) in
+                            let s' = dec_hex_col_sym l and s, d = got_plt_array.(off) in
                             let alignment =
                               match Hashtbl.find_opt align_locations (n, l) with
                               | Some _ -> ".align 4\n"
@@ -1171,7 +1047,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                             let off =
                               l - self#section_addr "__libc_IO_vtables"
                             in
-                            let s' = dec_hex l
+                            let s' = dec_hex_col_sym l
                             and s, d = __libc_IO_vtables_array.(off) in
                             let alignment =
                               match Hashtbl.find_opt align_locations (n, l) with
@@ -1190,7 +1066,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                             let off =
                               l - self#section_addr "__libc_freeres_ptrs"
                             in
-                            let s' = dec_hex l
+                            let s' = dec_hex_col_sym l
                             and s, d = __libc_freeres_ptrs_array.(off) in
                             let alignment =
                               match Hashtbl.find_opt align_locations (n, l) with
@@ -1244,7 +1120,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
             bss_list <- (".section .bss\n", "") :: bss_list;
             data_rel_ro_list <-
               (".section .data.rel.ro\n", "") :: data_rel_ro_list;
-            let module EU = ELF_utils in
+            let module EU = Elf_utils in
             if EU.elf_static () then begin
               __libc_IO_vtables_list <-
                 (".section __libc_IO_vtables, \"wa\"\n", "")
@@ -1275,7 +1151,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
             write_file_opt data_list;
             write_file_opt got_list;
             write_file_opt bss_list;
-            let module EU = ELF_utils in
+            let module EU = Elf_utils in
             if EU.elf_static () then begin
               write_file_opt got_plt_list;
               write_file_opt __libc_IO_vtables_list;
@@ -1316,7 +1192,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       data_array <- Array.of_list data_list;
       bss_array <- Array.of_list bss_list;
       data_rel_ro_array <- Array.of_list data_rel_ro_list;
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_static () then begin
         got_plt_array <- Array.of_list got_plt_list;
         __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
@@ -1350,10 +1226,10 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       p#write_file
 
     method static_plt_handler =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let rela_plt_mapping () =
         let rela_plt_map = Hashtbl.create 100 in
-        let filelines = read_lines "rela_plt.info" in
+        let filelines = read_file "rela_plt.info" in
         let filelines' =
           List.filter (fun l -> contains ~str:l ~sub:"IRELATI") filelines
         in
@@ -1389,45 +1265,10 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       output_string oc handler;
       close_out oc
 
-    (* this method might be too slow *)
-    method collect_ocaml name =
-      if Sys.file_exists name then begin
-        let filelines = File.lines_of name
-        and p =
-          object
-            val mutable c : string = ""
-
-            method process line =
-              let line' = String.trim line in
-              let rev l =
-                let s1 = Char.escaped l.[0] ^ Char.escaped l.[1]
-                and s2 = Char.escaped l.[2] ^ Char.escaped l.[3]
-                and s3 = Char.escaped l.[4] ^ Char.escaped l.[5]
-                and s4 = Char.escaped l.[6] ^ Char.escaped l.[7] in
-                s4 ^ s3 ^ s2 ^ s1
-              in
-              let items = Str.split (Str.regexp " +") line' in
-              c <- c ^ List.fold_left (fun acc item -> acc ^ item) "" items
-
-            method get_c = c
-          end
-        in
-        Enum.iter p#process filelines;
-        p#get_c
-      end
-      else ""
-
-    (* let's try python3 script *)
-    method collect name =
-      if Sys.file_exists name then
-        let lines = read_file name in
-        List.map String.trim lines
-      else []
-
     (* this is a optimizated solution for large size .bss section ELF binary *)
     method collect_bss name =
       if Sys.file_exists name then begin
-        let filelines = File.lines_of name
+        let filelines = read_file name
         and p =
           object
             val mutable c : string list = []
@@ -1439,7 +1280,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
             method get_c = c
           end
         in
-        Enum.iter p#process filelines;
+        List.iter p#process filelines;
         p#get_c
       end
       else [ "" ]
@@ -1459,33 +1300,27 @@ class instrhandler instr_list des' =
     val mutable locs : loc list = []
     val mutable new_instrlist = []
 
-    method print_loclist =
-      let dec_hex (s : int) : string = "S_0x" ^ Printf.sprintf "%X" s in
-      let help l =
-        let d = dec_hex l.loc_addr in
-        print_string (l.loc_label ^ ":\n" ^ d ^ "\n")
-      in
-      List.iter help locs
-
     (* update each instr addr in instr_list to corresponding addr in locs *)
     method get_instr_list =
+      let module IU = Instr_utils in
       let rec help acc i_list l_list =
         match (i_list, l_list) with
-        | i :: ti, h :: tl -> help (set_loc i h :: acc) ti tl
+        | i :: ti, h :: tl -> help (IU.set_loc i h :: acc) ti tl
         | [], [] -> List.rev acc
         | _ -> raise (Reassemble_Error "instrhandler error in get_instr_list")
       in
       let instr_list =
         List.sort
-          (fun i1 i2 -> compare (get_loc i1).loc_addr (get_loc i2).loc_addr)
+          (fun i1 i2 -> compare (IU.get_loc i1).loc_addr (IU.get_loc i2).loc_addr)
           instr_list
       in
       help [] instr_list locs
 
     method set_instr_list =
       (* return list of instr addrs *)
+      let module IU = Instr_utils in
       let rec help acc l =
-        match l with h :: t -> help (get_loc h :: acc) t | [] -> List.rev acc
+        match l with h :: t -> help (IU.get_loc h :: acc) t | [] -> List.rev acc
       in
       locs <- help [] instr_list;
       locs <-
@@ -1567,15 +1402,14 @@ class instrhandler instr_list des' =
 
     (** Check if symbols in [dlist] match with instructions in [llist] *)
     method process =
-      let dec_hex (s : int) : string = Printf.sprintf "S_0x%X" s in
-      let do_update s n = if String.exists s n then s else s ^ "\n" ^ n in
+      let do_update s n = if contains ~str:s ~sub:n then s else s ^ "\n" ^ n in
       let rec help acc (llist : loc list) (dlist : int list) =
         match (llist, dlist) with
         | llist', [] -> List.rev_append llist' acc
         | lh :: lt, dh :: dt ->
             let lhd = lh.loc_addr in
             if dh = lhd then
-              let lhs = dec_hex lh.loc_addr in
+              let lhs = dec_hex_sym lh.loc_addr in
               let label' = do_update lh.loc_label (lhs ^ ":\n") in
               let lh' = { lh with loc_label = label' } in
               help (lh' :: acc) lt dt
@@ -1585,15 +1419,15 @@ class instrhandler instr_list des' =
             else help (lh :: acc) lt dlist
         | a, b ->
             print_string "reassemble process\n";
-            print_string (dec_hex (List.nth b 0) ^ "\n");
+            print_string (dec_hex_sym (List.nth b 0) ^ "\n");
             print_string
               ("remaining loc list len: " ^ string_of_int (List.length a) ^ "\n");
             List.iter
               (Printf.printf "\tloc addr: %s\n")
-              (List.map (fun l -> dec_hex l.loc_addr) a);
+              (List.map (fun l -> dec_hex_sym l.loc_addr) a);
             print_string
               ("remaining des list len:" ^ string_of_int (List.length b) ^ "\n");
-            List.iter (Printf.printf "\tdes addr: %s\n") (List.map dec_hex b);
+            List.iter (Printf.printf "\tdes addr: %s\n") (List.map dec_hex_sym b);
             failwith "undefined des list"
       in
       let des' = self#clean_sort des in
@@ -1608,10 +1442,9 @@ class instrhandler instr_list des' =
       locs <- help locs
 
     method update_loc locs d =
-      let dec_hex (s : int) : string = "S_0x" ^ Printf.sprintf "%X:\n" s in
       let identify_des addr1 addr2 = addr1.loc_addr = int_of_string addr2
-      and lift_addr addr = dec_hex addr
-      and do_update s n = if String.exists s n then s else s ^ "\n" ^ n in
+      and lift_addr addr = dec_hex_sym addr
+      and do_update s n = if contains ~str:s ~sub:n then s else s ^ "\n" ^ n in
       let rec help d l =
         if identify_des l d then
           { l with loc_label = do_update l.loc_label (lift_addr l.loc_addr) }
@@ -1636,29 +1469,23 @@ class funchandler instr_list u_funcs' =
     val mutable locs : loc list = []
     val mutable new_instrlist = []
 
-    method print_loclist =
-      let dec_hex (s : int) : string = "S_0x" ^ Printf.sprintf "%X" s in
-      let help l =
-        let d = dec_hex l.loc_addr in
-        print_string (l.loc_label ^ ":\n" ^ d ^ "\n")
-      in
-      List.iter help locs
-
     method get_instr_list =
+      let module IU = Instr_utils in
       let rec help acc i_list l_list =
         match (i_list, l_list) with
-        | i :: ti, h :: tl -> help (set_loc i h :: acc) ti tl
+        | i :: ti, h :: tl -> help (IU.set_loc i h :: acc) ti tl
         | [], [] -> List.rev acc
         | _ -> raise (Reassemble_Error "funchandler error in get_instr_list")
       in
       help [] instr_list locs
 
     method set_instr_list =
+      let module IU = Instr_utils in
       let rec help acc l =
-        match l with h :: t -> help (get_loc h :: acc) t | [] -> List.rev acc
+        match l with h :: t -> help (IU.get_loc h :: acc) t | [] -> List.rev acc
       in
       locs <- help [] instr_list
-    (* self#print_loclist *)
+      (* print_loclist *)
 
     method pp_print l =
       let rec help l =
@@ -1684,13 +1511,6 @@ class funchandler instr_list u_funcs' =
       List.sort (fun f1 f2 -> f1.func_begin_addr - f2.func_begin_addr) ll
 
     method process2 =
-      (*
-          let dec_hex (s:int) : string =
-              (Printf.sprintf "S_0x%X" s) in
-          let do_update s n =
-              if String.exists s n then s
-              else s^"\n"^n in
-*)
       let rec help acc llist flist =
         match (llist, flist) with
         | llist', [] -> List.rev_append llist' acc
@@ -1781,7 +1601,7 @@ class arm_reassemble =
     method set_arch (arch_name : string) = arch <- arch_name
 
     method section_collect =
-      let filelines = File.lines_of "sections.info"
+      let filelines = read_file "sections.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x" ^ List.nth items 1)
@@ -1790,12 +1610,12 @@ class arm_reassemble =
         sec <-
           { sec_name = secname; sec_begin_addr = addr; sec_size = size } :: sec
       in
-      Enum.iter help filelines;
+      List.iter help filelines;
 
       text_mem_addrs <- List.map String.trim (read_file "text_mem.info")
 
     method plt_collect =
-      let filelines = File.lines_of "plts.info"
+      let filelines = read_file "plts.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = List.nth items 0 in
@@ -1806,10 +1626,10 @@ class arm_reassemble =
         let n'' = String.sub n' 1 (String.length n' - 1) in
         Hashtbl.replace plt_hash (int_of_string addr') n''
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method pic_collect =
-      let filelines = File.lines_of "pic_secs.info"
+      let filelines = read_file "pic_secs.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let name = List.nth items 0
@@ -1817,33 +1637,32 @@ class arm_reassemble =
         and size = int_of_string ("0x" ^ List.nth items 3) in
         Hashtbl.replace pic_hash name (addr, size)
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method text_sec_collect =
-      let filelines = File.lines_of "text_sec.info"
+      let filelines = read_file "text_sec.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x" ^ List.nth items 1)
         and size = int_of_string ("0x" ^ List.nth items 3) in
         text_sec <- (addr, size)
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method plt_sec_collect =
-      let filelines = File.lines_of "plt_sec.info"
+      let filelines = read_file "plt_sec.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x" ^ List.nth items 1)
         and size = int_of_string ("0x" ^ List.nth items 3) in
         plt_sec <- (addr, size)
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method text_as_data_collect =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let filelines =
-        if EU.elf_32 () then File.lines_of "text_section_as_data.txt"
-        else BatEnum.empty ()
+        if EU.elf_32 () then read_file "text_section_as_data.txt" else []
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -1851,13 +1670,12 @@ class arm_reassemble =
         (* insert addr * data to text_as_data_set *)
         Hashtbl.replace text_as_data_set addr data
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method got_as_data_collect =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let filelines =
-        if EU.elf_32 () then File.lines_of "got_section_as_data.txt"
-        else BatEnum.empty ()
+        if EU.elf_32 () then read_file "got_section_as_data.txt" else []
       and help l =
         let items = Str.split (Str.regexp ":") l in
         let addr = int_of_string ("0x" ^ List.nth items 0) in
@@ -1865,12 +1683,13 @@ class arm_reassemble =
         (* insert addr * data to text_as_data_set *)
         Hashtbl.replace got_as_data_set addr data
       in
-      Enum.iter help filelines
+      List.iter help filelines
 
     method instr_addrs_collect (instrs : instr list) =
+      let module IU = Instr_utils in
       List.iter
         (fun i ->
-          let loc = get_loc i in
+          let loc = IU.get_loc i in
           let addr = loc.loc_addr in
           Hashtbl.replace instr_addrs_set addr i)
         instrs
@@ -1897,16 +1716,15 @@ class arm_reassemble =
       help sec addr
 
     method check_text addr =
-      let dec_hex n = Printf.sprintf "%x:" n in
       let judge_mem_list addr =
-        let addrs = dec_hex addr in
+        let addrs = dec_hex_col addr in
         List.mem addrs text_mem_addrs
       in
       let tb, tsize = text_sec in
       let te = tb + tsize in
       let pb, psize = plt_sec in
       let pe = pb + psize in
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if addr = 0xffff then false
         (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
@@ -1935,7 +1753,6 @@ class arm_reassemble =
       match c with Point s -> s | Normal s -> s | Immediate s -> s
 
     method build_symbol c =
-      let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s in
       match c with
       | Point s -> "=S_" ^ dec_hex s
       | Normal s -> "=S_" ^ dec_hex s
@@ -1945,7 +1762,6 @@ class arm_reassemble =
         end
 
     method build_plt_symbol c =
-      let dec_hex (s : int) : string = Printf.sprintf "0x%x" s in
       let c' = match c with Point s -> s | Normal s -> s in
       try
         let n = Hashtbl.find plt_hash c' in
@@ -1959,22 +1775,17 @@ class arm_reassemble =
     method has_got_as_data l = Hashtbl.mem got_as_data_set l = true
 
     method get_got_as_data_str (l : int) : string option =
-      try Some (Hashtbl.find got_as_data_set l) with _ -> None
+      Hashtbl.find_opt got_as_data_set l
 
     method get_got_as_data_int (l : int) : int option =
-      try
-        let result = Some (Hashtbl.find got_as_data_set l) in
-        match result with
-        | Some v ->
-            let v' = int_of_string ("0x" ^ v) in
-            Some v'
-        | _ -> None
-      with _ -> None
+      let* v = Hashtbl.find_opt got_as_data_set l in
+      Some (int_of_string ("0x" ^ v))
 
     method add_del_to_literal_pool_candidates (il : instr list) =
+      let module IU = Instr_utils in
       List.map
         (fun i ->
-          let loc = get_loc i in
+          let loc = IU.get_loc i in
           let addr = loc.loc_addr in
           if Hashtbl.mem literal_pool_candidates addr then
             replace_instr_tag i (Some Del)
@@ -1984,6 +1795,7 @@ class arm_reassemble =
         [ail_parser.ml#remove_literal_pools]. *)
 
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
+      let module IU = Instr_utils in
       let check_test_condition l chk =
         match (l, chk) with
         | _, false -> true
@@ -1991,10 +1803,9 @@ class arm_reassemble =
         | _ -> true
       in
       let is_control_opcode (i : instr) : bool =
-        let i_op = get_op i in
+        let i_op = IU.get_op i in
         match i_op with Arm_OP (Arm_ControlOP _, _, _) -> true | _ -> false
       in
-      let dec_hex (s : int) : string = Printf.sprintf "0x%X" s in
       match e with
       | Const l -> begin
           let l' = self#parse_const l in
@@ -2003,7 +1814,7 @@ class arm_reassemble =
               if check_test_condition l chk = false then e
               else if self#has_data l' then begin
                 let s_label = self#build_symbol l in
-                let loc' = get_loc i in
+                let loc' = IU.get_loc i in
                 c2d_addr <- loc'.loc_addr :: c2d_addr;
                 let tags = get_tags i in
                 match Hashtbl.find_opt tags ":lo12:" with
@@ -2014,7 +1825,7 @@ class arm_reassemble =
                 Hashtbl.replace data_set l' "";
                 let s_label = self#build_symbol l in
                 label <- (s.sec_name, l') :: label;
-                let loc' = get_loc i in
+                let loc' = IU.get_loc i in
                 c2d_addr <- loc'.loc_addr :: c2d_addr;
                 Label s_label
               end
@@ -2026,7 +1837,7 @@ class arm_reassemble =
                   ();
 
                   let s_label = self#build_symbol l in
-                  let loc' = get_loc i in
+                  let loc' = IU.get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                   let tags = get_tags i in
                   match Hashtbl.find_opt tags ":lo12:" with
@@ -2038,7 +1849,7 @@ class arm_reassemble =
                   Hashtbl.replace text_set l' "";
                   let s_label = self#build_symbol l in
                   deslist <- s_label :: deslist;
-                  let loc' = get_loc i in
+                  let loc' = IU.get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                   Label s_label
                   (*end
@@ -2051,7 +1862,7 @@ class arm_reassemble =
                   (* in dynamically-linked binaries, call to library functions are replaced with their name *)
                   (* not the case in statically-linked binaries, for the reason the name does not exist *)
                   EU =
-                  ELF_utils
+                  Elf_utils
                 in
                 if EU.elf_static () = false then
                   if self#check_plt l' then
@@ -2107,13 +1918,13 @@ class arm_reassemble =
           match s with
           | BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)
             when offset mod 2 = 0
-                 && not (Hashtbl.mem instr_addrs_set (get_loc i).loc_addr) ->
+                 && not (Hashtbl.mem instr_addrs_set (IU.get_loc i).loc_addr) ->
               let module AU = ArmUtils in
               let pc_relative_addr = AU.get_pc_relative_addr arch i in
               if self#has_data pc_relative_addr then begin
                 (* Haven't seen this case yet *)
                 let s_label = "=S_" ^ dec_hex pc_relative_addr in
-                let loc' = get_loc i in
+                let loc' = IU.get_loc i in
                 c2d_addr <- loc'.loc_addr :: c2d_addr;
                 Label s_label
               end
@@ -2123,7 +1934,7 @@ class arm_reassemble =
                 (* [label] is used to create c2d symbols *)
                 label <- (".text_as_data", pc_relative_addr) :: label;
                 (* for data in text section *)
-                let loc' = get_loc i in
+                let loc' = IU.get_loc i in
                 c2d_inline_addr_list <- loc'.loc_addr :: c2d_inline_addr_list;
                 Label s_label
               end
@@ -2140,7 +1951,7 @@ class arm_reassemble =
                     (match Hashtbl.find_opt i_tags "align" with
                     | Some _ -> align <- (s.sec_name, addr) :: align
                     | None -> ());
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     let tags = get_tags i in
                     match Hashtbl.find_opt tags ":lo12:" with
@@ -2151,7 +1962,7 @@ class arm_reassemble =
                     Hashtbl.replace data_set addr "";
                     let s_label = "S_" ^ dec_hex addr in
                     label <- (s.sec_name, addr) :: label;
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     let tags = get_tags i in
                     match Hashtbl.find_opt tags ":lo12:" with
@@ -2186,7 +1997,7 @@ class arm_reassemble =
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (BinOP_MINUS_S (r, s_label))
                   end
@@ -2194,7 +2005,7 @@ class arm_reassemble =
                     Hashtbl.replace data_set addr "";
                     let s_label = "S_" ^ dec_hex addr in
                     label <- (s.sec_name, addr) :: label;
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (BinOP_MINUS_S (r, s_label))
                   end
@@ -2205,7 +2016,7 @@ class arm_reassemble =
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (FourOP_PLUS_S (r1, r2, off, s_label))
                   end
@@ -2213,7 +2024,7 @@ class arm_reassemble =
                     Hashtbl.replace data_set addr "";
                     let s_label = "S_" ^ dec_hex addr in
                     label <- (s.sec_name, addr) :: label;
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (FourOP_PLUS_S (r1, r2, off, s_label))
                   end
@@ -2225,7 +2036,7 @@ class arm_reassemble =
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (FourOP_PLUS_S (r1, r2, off, s_label))
                   end
@@ -2233,7 +2044,7 @@ class arm_reassemble =
                     Hashtbl.replace data_set addr "";
                     let s_label = "S_" ^ dec_hex addr in
                     label <- (s.sec_name, addr) :: label;
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (FourOP_PLUS_S (r1, r2, off, s_label))
                   end
@@ -2244,7 +2055,7 @@ class arm_reassemble =
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (JmpTable_PLUS_S (s_label, r, off))
                   end
@@ -2252,7 +2063,7 @@ class arm_reassemble =
                     Hashtbl.replace data_set addr "";
                     let s_label = "S_" ^ dec_hex addr in
                     label <- (s.sec_name, addr) :: label;
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (JmpTable_PLUS_S (s_label, r, off))
                   end
@@ -2260,14 +2071,14 @@ class arm_reassemble =
                   if self#check_text addr then
                     if self#has_text addr then begin
                       let s_label = "S_" ^ dec_hex addr in
-                      let loc' = get_loc i in
+                      let loc' = IU.get_loc i in
                       deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                       Ptr (JmpTable_PLUS_S (s_label, r, off))
                     end
                     else begin
                       Hashtbl.replace text_set addr "";
                       let s_label = "S_" ^ dec_hex addr in
-                      let loc' = get_loc i in
+                      let loc' = IU.get_loc i in
                       deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                       deslist <- s_label :: deslist;
                       Ptr (JmpTable_PLUS_S (s_label, r, off))
@@ -2279,7 +2090,7 @@ class arm_reassemble =
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "-S_" ^ dec_hex addr in
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (JmpTable_MINUS_S (s_label, r, off))
                   end
@@ -2287,7 +2098,7 @@ class arm_reassemble =
                     Hashtbl.replace data_set addr "";
                     let s_label = "-S_" ^ dec_hex addr in
                     label <- (s.sec_name, addr) :: label;
-                    let loc' = get_loc i in
+                    let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     Ptr (JmpTable_MINUS_S (s_label, r, off))
                   end
@@ -2295,14 +2106,14 @@ class arm_reassemble =
                   if self#check_text addr then
                     if self#has_text addr then begin
                       let s_label = "-S_" ^ dec_hex addr in
-                      let loc' = get_loc i in
+                      let loc' = IU.get_loc i in
                       deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                       Ptr (JmpTable_MINUS_S (s_label, r, off))
                     end
                     else begin
                       Hashtbl.replace text_set addr "";
                       let s_label = "-S_" ^ dec_hex addr in
-                      let loc' = get_loc i in
+                      let loc' = IU.get_loc i in
                       deslist_reloc <- loc'.loc_addr :: deslist_reloc;
                       deslist <- s_label :: deslist;
                       Ptr (JmpTable_MINUS_S (s_label, r, off))
@@ -2437,7 +2248,7 @@ class arm_reassemble =
 
     method process_rela_plt () =
       let rela_plt_funcs =
-        let filelines = read_lines "rela_plt.info" in
+        let filelines = read_file "rela_plt.info" in
         let filelines =
           List.filter (fun l -> contains ~str:l ~sub:"IRELATI") filelines
         in
@@ -2450,15 +2261,16 @@ class arm_reassemble =
       List.iter (fun rpf -> deslist <- rpf :: deslist) rela_plt_funcs
 
     method visit_heuristic_analysis (instrs : instr list) =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
+      let module IU = Instr_utils in
       if EU.elf_arm () && EU.elf_static () then self#process_rela_plt ();
       let func (i : instr) : bool =
-        let l = get_loc i in
+        let l = IU.get_loc i in
         self#check_text l.loc_addr
       in
       instr_list <- instrs;
       let tl = List.map (self#vinst2 arch func) instrs in
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       let addr_len =
         match (EU.elf_32 (), EU.elf_exe ()) with
         (* ELF 32-bit LSB executable *)
@@ -2493,14 +2305,14 @@ class arm_reassemble =
     method check_32 =
       let filelines : string list = read_file "elf.info" in
       let info = List.nth filelines 0 in
-      if String.exists info "32-bit" then true else false
+      if contains ~str:info ~sub:"32-bit" then true else false
 
     method check_exe =
       let filelines : string list = read_file "elf.info" in
       let info = List.nth filelines 0 in
-      String.exists info "executable"
-      || String.exists info "LSB shared object"
-         && String.exists info "ld-linux"
+      contains ~str:info ~sub:"executable"
+      || contains ~str:info ~sub:"LSB shared object"
+         && contains ~str:info ~sub:"ld-linux"
 
     method share_lib_processing (instrs : instr list) =
       let is_32 = self#check_32 in
@@ -2614,10 +2426,10 @@ class arm_reassemble =
       let fill_gbss_hs (addr, n, t) =
         (* remove front 0s *)
         let addr' = "S_0x" ^ remove_leading_zeros addr in
-        if String.exists t "COPY" then
+        if contains ~str:t ~sub:"COPY" then
           let n' = List.nth (Str.split (Str.regexp "@") n) 0 in
           Hashtbl.replace gbss_hs addr' n'
-        else if String.exists t "GLOB_DAT" then
+        else if contains ~str:t ~sub:"GLOB_DAT" then
           (* TODO: *)
           let n' = List.nth (Str.split (Str.regexp "@") n) 0 in
           Hashtbl.replace gbss_hs addr' n'
@@ -2625,8 +2437,7 @@ class arm_reassemble =
       in
 
       let check_if_contains_gbss_symbol l =
-        try Some (List.find (fun i -> String.exists l i) labels)
-        with Not_found -> None
+        List.find_opt (fun i -> contains ~str:l ~sub:i) labels
       and sub l key =
         let key' = "S_0x" ^ key in
         try
@@ -2644,7 +2455,6 @@ class arm_reassemble =
       List.map symbolize_gbss_symbols instr_list
 
     method data_dump funcs =
-      let dec_hex (s : int) : string = "S_0x" ^ Printf.sprintf "%X" s in
       self#dump_c2d_labels c2d_addr;
       self#dump_c2d_inline_labels c2d_inline_addr_list;
       let export_datas = self#export_data_dump in
@@ -2653,24 +2463,12 @@ class arm_reassemble =
       p#text_sec_collect;
       p#set_datas funcs;
       let templist = p#get_textlabel in
-      jmpreflist <- List.map (fun l -> dec_hex l) templist;
+      jmpreflist <- List.map (fun l -> dec_hex_sym l) templist;
       let ret = p#data_output in
       ret
     (* add labels to data sections *)
 
-    method data_dump_1 =
-      let dec_hex (s : int) : string = "S_0x" ^ Printf.sprintf "%X" s in
-      let export_datas = self#export_data_dump in
-      let t = List.rev_append (List.rev label) export_datas in
-      let p = new datahandler t align in
-      p#text_sec_collect;
-      p#set_datas_1;
-      let templist = p#get_textlabel in
-      jmpreflist <- List.map (fun l -> dec_hex l) templist;
-      List.rev_append (List.rev templist) symbol_list
-
     method dump_funclist bs fn =
-      let dec_hex (s : int) : string = "0x0" ^ Printf.sprintf "%x" s in
       let oc = open_out_gen [ Open_append; Open_creat ] 0o666 fn in
       List.iter (fun l -> Printf.fprintf oc "%s\n" (dec_hex l)) bs;
       close_out oc
@@ -2708,7 +2506,7 @@ class arm_reassemble =
 
     method init_array_dump =
       if List.length init_array_list <> 0 then begin
-        let module EU = ELF_utils in
+        let module EU = Elf_utils in
         if EU.elf_32 () then begin
           let oc =
             open_out_gen [ Open_append; Open_creat ] 0o666 "final_data.s"
@@ -2746,15 +2544,15 @@ class arm_reassemble =
       Sys.command "cat gcc_exception_table.data >> final.s"
 
     method reassemble_dump u_funcs = self#data_dump u_funcs
-    method reassemble_dump_1 = self#data_dump_1
 
     method add_func_label ufuncs instrs =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
+      let module IU = Instr_utils in
       let rec help acc fl il =
         match (fl, il) with
         | [], il' -> List.rev_append il' acc
         | hf :: tf, hi :: ti ->
-            let iloc = get_loc hi in
+            let iloc = IU.get_loc hi in
             if hf.func_begin_addr = iloc.loc_addr then
               let iloc' =
                 if EU.elf_32 () then
@@ -2770,7 +2568,7 @@ class arm_reassemble =
                       ".ltorg\n" ^ hf.func_name ^ ":\n" ^ iloc.loc_label;
                   }
               in
-              let hi' = set_loc hi iloc' in
+              let hi' = IU.set_loc hi iloc' in
               help acc tf (hi' :: ti)
             else if hf.func_begin_addr < iloc.loc_addr then help acc tf il
             else help (hi :: acc) fl ti
@@ -2781,11 +2579,12 @@ class arm_reassemble =
       List.rev (help [] ufuncs instrs)
 
     method add_bblock_label bbl instrs =
+      let module IU = Instr_utils in
       let rec help acc bl il =
         match (bl, il) with
         | [], il' -> List.rev_append il' acc
         | ib :: tb, hi :: ti ->
-            let iloc = get_loc hi and bloc = ib.bblock_begin_loc in
+            let iloc = IU.get_loc hi and bloc = ib.bblock_begin_loc in
             if bloc.loc_addr = iloc.loc_addr then
               let iloc' =
                 {
@@ -2793,7 +2592,7 @@ class arm_reassemble =
                   loc_label = ib.bblock_name ^ ":\n" ^ iloc.loc_label;
                 }
               in
-              let hi' = set_loc hi iloc' in
+              let hi' = IU.set_loc hi iloc' in
               help (hi' :: acc) tb ti
             else help (hi :: acc) bl ti
         | _ -> failwith "failed in add_bblock_label"
@@ -2823,14 +2622,15 @@ class arm_reassemble =
           val mutable remove_l = []
 
           method update_instrs instrs =
+            let module IU = Instr_utils in
             remove_l <- List.rev remove_l;
             let rec help il rl acc =
               match (il, rl) with
               | ih :: it, rh :: rt ->
-                  let lo = get_loc ih in
+                  let lo = IU.get_loc ih in
                   if lo.loc_addr = rh then
                     let ih' =
-                      set_loc ih
+                      IU.set_loc ih
                         {
                           loc_label = "";
                           loc_addr = lo.loc_addr;
@@ -2846,9 +2646,9 @@ class arm_reassemble =
             help instrs remove_l []
 
           method set_list instrs =
-            let dec_hex (s : int) : string = "0x" ^ Printf.sprintf "%X" s in
+            let module IU = Instr_utils in
             let help i =
-              let lo = get_loc i in
+              let lo = IU.get_loc i in
               if lo.loc_label <> "" && lo.loc_label = last_label then begin
                 (* remove it *)
                 (* bug :  new inserted instruction would have same location
@@ -2874,15 +2674,16 @@ class arm_reassemble =
           val mutable last_label = ""
 
           method unify_instrs instrs =
+            let module IU = Instr_utils in
             let rec help acc il =
               match il with
               | [] -> acc
               | ih :: it ->
-                  let lo = get_loc ih in
+                  let lo = IU.get_loc ih in
                   if lo.loc_label <> "" && lo.loc_label = last_label then
                     (* remove it *)
                     let ih' =
-                      set_loc ih
+                      IU.set_loc ih
                         {
                           loc_label = "";
                           loc_addr = lo.loc_addr;

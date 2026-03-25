@@ -1,10 +1,11 @@
 open Ail_utils
+open Utils
 open Pp_print
 open Type
 
 let init_got () : int =
   let split_by_space s = Str.split (Str.regexp " ") s in
-  let filelines : string list = read_lines "pic_secs.info" in
+  let filelines : string list = read_file "pic_secs.info" in
   let info = List.nth filelines 0 in
   let info_str = split_by_space info in
   let got_addr_str = "0x" ^ List.nth info_str 1 in
@@ -12,7 +13,6 @@ let init_got () : int =
 
 let got_rewrite_instr (got_reg : string) (got_addr : int)
     (result : (int, instr list) Hashtbl.t) (i : instr) : unit =
-  let module U = UIO in
   match i with
   | DoubleInstr
       ( Intel_OP (Intel_ControlOP (Intel_Jump JMP)),

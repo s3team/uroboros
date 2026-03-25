@@ -24,6 +24,12 @@ and label = string
 and jumpdes = int
 and calldes = func
 
+type cfgi = {
+  preds : (instr option, instr option list) Hashtbl.t;
+  succs : (instr option, instr option list) Hashtbl.t;
+  il : instr list;
+}
+
 (*****************)
 (**** All Arch ***)
 (*****************)

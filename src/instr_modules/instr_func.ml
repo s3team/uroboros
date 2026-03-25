@@ -1,29 +1,26 @@
-(**
-  Instrumentation Plugin: Function Entry and Exit
-  Filename: instr_func.ml
-  Usage: assign target function labels in target_func_labels
-
-  This instrumentation inserts two nops at:
-    - the entry of target functions
-    - the exit of target functions
-*)
 open Instrumentation
+(** Instrumentation Plugin: Function Entry and Exit Filename: instr_func.ml
+    Usage: assign target function labels in target_func_labels
+
+    This instrumentation inserts two nops at:
+    - the entry of target functions
+    - the exit of target functions *)
 
 module PLUGIN = struct
   open Ail_utils
   open Type
-  open Batteries
-  open Instr_utils
+  open Instrumentation_utils
 
   let insert_nop (inst : instr) :
       (instr * loc * instr_update * string) list list =
-    let inst_loc = get_loc inst in
+    let module IU = Instr_utils in
+    let inst_loc = IU.get_loc inst in
     let inst_loc_without_label = { inst_loc with loc_label = "" } in
     let nop = SingleInstr (CommonOP (Other NOP), inst_loc, None) in
     let nop_without_label =
       SingleInstr (CommonOP (Other NOP), inst_loc_without_label, None)
     in
-    let inst' = set_loc inst inst_loc_without_label in
+    let inst' = IU.set_loc inst inst_loc_without_label in
 
     set_update_fold nop_without_label inst_loc []
     |> set_update_fold nop inst_loc
@@ -56,7 +53,7 @@ module PLUGIN = struct
     let nop = SingleInstr (CommonOP (Other NOP), exit_loc, None) in
     let exit_inst' = set_loc exit_inst exit_loc' in
 
-    let open Instr_utils in
+    let open Instrumentation_utils in
     set_update_fold nop exit_loc instrs_update
     |> set_update_fold nop exit_loc
     |> sub_update_fold exit_inst' exit_loc exit_inst *)
@@ -102,9 +99,9 @@ module PLUGIN = struct
   let instrument (il : instr list) (fb_bbl : ('a, bblock list) Hashtbl.t)
       (bbl : bblock list) : instr list =
     print_endline "Enabling NOP padding at function entry and exit";
-    let module IV = Instr_visitor in
-    let module IU = Instr_utils in
-    let module EU = ELF_utils in
+    let module IV = Instrumentation_visitor in
+    let module IU = Instrumentation_utils in
+    let module EU = Elf_utils in
     let module DU = Dataset_utils in
     let module BU = BB_utils in
     let target_func_labels = [] in
@@ -150,5 +147,4 @@ module PLUGIN = struct
         il
 end
 
-let () =
-  plugin := Some (module PLUGIN)
+let () = plugin := Some (module PLUGIN)

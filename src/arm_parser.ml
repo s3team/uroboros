@@ -1,5 +1,5 @@
-open Batteries
 open Ail_utils
+open Utils
 open Common_parser
 open Type
 open Lex_new
@@ -273,7 +273,7 @@ class arm_parse =
     else if String.length s >= 3 && String.sub s 0 2 = "0x" then
       (* try 0x20124 *)
       Immediate (int_of_string s)
-    else if String.for_all Char.is_digit s then
+    else if String.for_all (fun c -> c >= '0' && c <= '9') s then
       (* try 20124 *)
       Immediate (int_of_string s)
     else failwith "const_symb"
@@ -904,7 +904,7 @@ class arm_parse =
         (* get last two characters *)
         let len = String.length s in
         if len < 2 then raise ParseError
-        else if contains ~str:s ~sub_str:"<und>" then
+        else if contains ~str:s ~sub:"<und>" then
           let cond_str = String.sub s (len - 5) 5 in
           let op_str = String.sub s 0 (len - 5) in
           let op = op_symb op_str is_special in
@@ -1074,7 +1074,7 @@ class arm_parse =
       else raise ParseError
 
     method jmptable_m_symb (s : string) =
-      if String.exists s "(," then
+      if contains ~str:s ~sub:"(," then
         let split = Str.split (Str.regexp_string ",") in
         let tokens = split s in
         let addr = List.nth tokens 0 in
@@ -1120,11 +1120,11 @@ class arm_parse =
                 with _ -> raise ParseError))))
 
     method push_stack lex (is_special : bool) =
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       match lex with
       | Lop s ->
           let str_list = Str.split (Str.regexp_string ".") in
-          if contains ~str:s ~sub_str:"undefined" then Op Undefined_OP
+          if contains ~str:s ~sub:"undefined" then Op Undefined_OP
           else if EU.elf_32 () then
             if List.length (str_list s) = 2 then
               let op_str = List.nth (str_list s) 0 in
@@ -1225,7 +1225,7 @@ class arm_parse =
         let compact (instr : string) =
           (* See [arm_postprocess.py#remove_caret] *)
           let instr' = Str.global_replace (Str.regexp ", ") "," instr in
-          if contains ~str:instr' ~sub_str:" " then
+          if contains ~str:instr' ~sub:" " then
             let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
             instr'
           else instr'
@@ -1234,10 +1234,9 @@ class arm_parse =
         let pre = prefix_identify compact_instr in
         let compact_instr' = prefix_sub compact_instr in
         let is_special_stackop (i : string) =
-          if contains ~str:i ~sub_str:"stmdb" && contains ~str:i ~sub_str:"sp!"
-          then true
-          else if
-            contains ~str:i ~sub_str:"ldmia" && contains ~str:i ~sub_str:"sp!"
+          if contains ~str:i ~sub:"stmdb" && contains ~str:i ~sub:"sp!" then
+            true
+          else if contains ~str:i ~sub:"ldmia" && contains ~str:i ~sub:"sp!"
           then true
           else false
         in

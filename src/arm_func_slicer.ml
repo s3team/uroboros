@@ -1,8 +1,8 @@
-open Batteries
 open Type
 open Pp_print
 open Common_func_slicer
 open Ail_utils
+open Utils
 
 class arm_func_slicer instrs funcs =
   object (self)
@@ -31,7 +31,7 @@ class arm_func_slicer instrs funcs =
         let parse_main_line line =
           let line = String.trim line in
           if line = "" then None
-          else if String.starts_with line "S_0x" then
+          else if String.starts_with ~prefix:"S_0x" line then
             try
               Some (int_of_string (String.sub line 2 (String.length line - 2)))
             with _ -> None
@@ -61,34 +61,35 @@ class arm_func_slicer instrs funcs =
         || Hashtbl.mem thumb_addrs addr
         || Hashtbl.mem main_addrs addr
       in
+      let module IU = Instr_utils in
       let has_pc_reg (lab : label) : bool =
         let has_brackets = String.contains lab '{' && String.contains lab '}' in
-        let has_pc = String.exists lab "pc" in
+        let has_pc = contains ~str:lab ~sub:"pc" in
         has_brackets && has_pc
       in
       let has_lr_reg (lab : label) : bool =
         let has_brackets = String.contains lab '{' && String.contains lab '}' in
-        let has_lr = String.exists lab "lr" in
+        let has_lr = contains ~str:lab ~sub:"lr" in
         has_brackets && has_lr
       in
       let has_fp_reg (lab : label) : bool =
         let has_brackets = String.contains lab '{' && String.contains lab '}' in
-        let has_fp = String.exists lab "fp" in
+        let has_fp = contains ~str:lab ~sub:"fp" in
         has_brackets && has_fp
       in
       let has_sp_reg (lab : label) : bool =
-        let has_sp = String.exists lab "sp" in
+        let has_sp = contains ~str:lab ~sub:"sp" in
         has_sp
       in
       let has_lsls_opcode (inst : instr) : bool =
         let op_str = pp_print_instr' inst in
         let op_str = String.lowercase_ascii op_str in
-        String.exists op_str "lsls"
+        contains ~str:op_str ~sub:"lsls"
       in
       let has_lsrs_opcode (inst : instr) : bool =
         let op_str = pp_print_instr' inst in
         let op_str = String.lowercase_ascii op_str in
-        String.exists op_str "lsrs"
+        contains ~str:op_str ~sub:"lsrs"
       in
       let get_loc_addr (l : loc) : int = l.loc_addr in
       let is_func_prologue (inst : instr) : bool =
@@ -166,7 +167,7 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false;
             if not push_lr_added then begin
-              func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+              func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
             end
             else begin
               push_lr_added <- false
@@ -190,7 +191,7 @@ class arm_func_slicer instrs funcs =
                 last_ret <- false;
                 last_special <- false;
                 last_pop <- false;
-                func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+                func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
             | _ -> begin
                 (* When there is a `push {..., lr}` within the next two instructions,
                  * add the current instruction as a function beginning
@@ -207,7 +208,7 @@ class arm_func_slicer instrs funcs =
                   last_pop <- false;
                   push_lr_added <- true;
                   detected_func_by_addr <- false;
-                  func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+                  func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
                 end
                 else ()
               end
@@ -232,10 +233,10 @@ class arm_func_slicer instrs funcs =
             let nnn_inst = List.nth ordered_il (idx + 3) in
             let nnnn_inst = List.nth ordered_il (idx + 4) in
             let is_atexit_pattern () =
-              let op = get_op inst in
-              let n_op = get_op n_inst in
-              let nn_op = get_op nn_inst in
-              let nnn_op = get_op nnn_inst in
+              let op = IU.get_op inst in
+              let n_op = IU.get_op n_inst in
+              let nn_op = IU.get_op nn_inst in
+              let nnn_op = IU.get_op nnn_inst in
               match (n_op, nn_op, nnn_op, nnnn_inst) with
               | ( Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _),
                   Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
@@ -255,7 +256,7 @@ class arm_func_slicer instrs funcs =
               last_ret <- false;
               last_special <- false;
               last_pop <- false;
-              func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+              func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
             end
             else ()
         (* add a function *)
@@ -275,7 +276,7 @@ class arm_func_slicer instrs funcs =
             last_ret <- false;
             last_special <- false;
             last_pop <- false;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+            func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
         (* ret
          * nop
          * S_0x400590:
@@ -292,7 +293,8 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false;
             detected_func_by_addr <- true;
-            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
+            func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
+        (* movs r0, r0 *)
         | _ ->
             last_nop <- false;
             last_ret <- false;

@@ -3,6 +3,7 @@ open Semantic_analysis
 module GotAbs : DfaAbs = struct
   open Type
   open Ail_utils
+  open Utils
   open Pp_print
 
   module ExpOrd = struct
@@ -24,7 +25,7 @@ module GotAbs : DfaAbs = struct
 
   let init_got () : int =
     let split_by_space s = Str.split (Str.regexp " ") s in
-    let filelines : string list = read_lines "pic_secs.info" in
+    let filelines : string list = read_file "pic_secs.info" in
     let info = List.nth filelines 0 in
     let info_str = split_by_space info in
     let got_addr_str = "0x" ^ List.nth info_str 1 in
@@ -363,10 +364,11 @@ module GotAbs : DfaAbs = struct
     | _ -> i
 
   let process_instr (i : instr) (ins : ExpSet.t) : unit =
+    let module IU = Instr_utils in
     let got_addr = init_got () in
     let newi = got_rewrite_instr i ins got_addr in
     if pp_print_instr newi <> pp_print_instr i then
-      Hashtbl.replace result (get_loc i).loc_addr [ newi ]
+      Hashtbl.replace result (IU.get_loc i).loc_addr [ newi ]
     else ()
 
   let print_abstraction abs = ExpSet.iter (fun e -> print_endline (p_exp e)) abs
@@ -374,10 +376,9 @@ module GotAbs : DfaAbs = struct
   let contains_existing_fact tag tag_key exp_set =
     (* exp_set: incoming facts
      * tag[tag_key]: existing fact *)
-    if Hashtbl.mem tag tag_key then
-      let tag_exp = Hashtbl.find tag tag_key in
-      match tag_exp with Exp e -> ExpSet.mem e exp_set | _ -> false
-    else false
+    match Hashtbl.find_opt tag tag_key with
+    | Some (Exp e) -> ExpSet.mem e exp_set
+    | _ -> false
 
   (** identify GOT pointer and propagate facts *)
   let flow_through (i : instr) (ins : ExpSet.t) : ExpSet.t =

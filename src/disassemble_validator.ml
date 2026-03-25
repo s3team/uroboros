@@ -1,7 +1,7 @@
-open Batteries
 open Visit
 open Type
 open Ail_utils
+open Utils
 
 class stack_of_loc =
   object (self)
@@ -49,16 +49,16 @@ class dis_validator =
     val mutable trim_tbl = Hashtbl.create 8
 
     method text_sec_collect =
-      let filelines = File.lines_of "text_sec.info"
+      let filelines = read_file "text_sec.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x" ^ List.nth items 1)
         and size = int_of_string ("0x" ^ List.nth items 3) in
         text_secs <- (addr, size) :: text_secs
       in
-      Enum.iter help filelines;
+      List.iter help filelines;
 
-      let module EU = ELF_utils in
+      let module EU = Elf_utils in
       if EU.elf_32 () then begin
         text_mem_addrs <-
           List.map
@@ -79,14 +79,14 @@ class dis_validator =
       end
 
     (*
-    let filelines = File.lines_of "init_sec.info"
+    let filelines = read_file "init_sec.info"
       and help l =
         let items = Str.split (Str.regexp " +") l in
         let addr = int_of_string ("0x"^(List.nth items 1))
         and size = int_of_string ("0x"^(List.nth items 3)) in
           text_secs <- (addr, size)::text_secs
         in
-        Enum.iter help filelines
+        List.iter help filelines
 *)
 
     method invalid_opcode (i : instr) : bool =
@@ -151,9 +151,10 @@ class dis_validator =
       | _ -> false
 
     method visit (il : instr list) : instr list =
+      let module IU = Instr_utils in
       let help acc i =
         if self#invalid_opcode i || self#invalid_transfer i then
-          let lo = get_loc i in
+          let lo = IU.get_loc i in
           lo.loc_addr :: acc
         else acc
       in
@@ -170,12 +171,13 @@ class dis_validator =
       ll
 
     method validate (il : instr list) =
+      let module IU = Instr_utils in
       let instr_array = Array.of_list il in
       let update_trimtbl b e =
-        if Hashtbl.mem trim_tbl b then
-          let e' = Hashtbl.find trim_tbl b in
-          if e > e' then Hashtbl.replace trim_tbl b e else ()
-        else Hashtbl.replace trim_tbl b e
+        match Hashtbl.find_opt trim_tbl b with
+        | Some e' when e > e' -> Hashtbl.replace trim_tbl b e
+        | Some _ -> ()
+        | None -> Hashtbl.replace trim_tbl b e
       in
       let is_icf p e =
         let r = match e with Some _ -> true | None -> false in
@@ -225,10 +227,10 @@ class dis_validator =
             | _ -> false
           end
       and is_icd i =
-        let l = get_loc i in
+        let l = IU.get_loc i in
         if String.length l.loc_label > 1 then true else false
       and is_err i =
-        let il = get_loc i in
+        let il = IU.get_loc i in
         List.mem il.loc_addr locs
       in
       (* this algorithm leverage a stack to store the unconditional control flow transfer
@@ -239,13 +241,13 @@ class dis_validator =
         if Queue.length five_q == 6 then ignore (Queue.take five_q)
       in
       let invalid_instr i =
-        let il = get_loc i in
+        let il = IU.get_loc i in
         List.mem il.loc_addr locs
       in
       let update_cft_stack (i : instr) : unit =
         let five_l = Queue.fold (fun acc q -> q :: acc) [] five_q in
         if List.exists invalid_instr five_l == false then
-          icf_stack#push (get_loc i)
+          icf_stack#push (IU.get_loc i)
         else ()
       in
       let update_cfd i =
@@ -262,7 +264,7 @@ class dis_validator =
           if List.exists invalid_instr tl == false then (
             looking_for_cfd <- false;
             let il = instr_array.(i) in
-            let ll = get_loc il in
+            let ll = IU.get_loc il in
             update_trimtbl up_bound.loc_addr ll.loc_addr)
           else ()
       in
@@ -278,7 +280,7 @@ class dis_validator =
             update_cfd index;
             update_cft_track i)
           else begin
-            let p = get_op i and e = get_cf_des i in
+            let p = IU.get_op i and e = IU.get_cf_des i in
             if is_call p then (
               (*this is wired, I don't believe
         situations like this could happen*)

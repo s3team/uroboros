@@ -1,4 +1,5 @@
 open Ail_utils
+open Utils
 open Type
 open Pp_print
 
@@ -51,8 +52,8 @@ let read_addr_bytes (buf : bytes) (offset : int) : int =
   Int32.to_int res
 
 let plt_mapping () =
-  let module EU = ELF_utils in
-  let filelines = read_lines "plt_whole.info" in
+  let module EU = Elf_utils in
+  let filelines = read_file "plt_whole.info" in
   if EU.elf_64 () then
     let lines_key =
       List.filter (fun l -> contains ~str:l ~sub:"endbr") filelines
@@ -85,7 +86,7 @@ let plt_mapping () =
       lines
 
 let rela_plt_mapping () =
-  let filelines = read_lines "rela_plt.info" in
+  let filelines = read_file "rela_plt.info" in
   let filelines' =
     List.filter (fun l -> contains ~str:l ~sub:"IRELATIV") filelines
   in
@@ -100,7 +101,7 @@ let rela_plt_mapping () =
     filelines'
 
 let addr_file_bytes_mapping () =
-  let filelines = read_lines "headers.info" in
+  let filelines = read_file "headers.info" in
   let filelines' =
     List.filter (fun l -> contains ~str:l ~sub:"LOAD") filelines
   in
@@ -114,7 +115,7 @@ let addr_file_bytes_mapping () =
     filelines'
 
 let func_sym_mapping () =
-  let filelines = read_lines "nm.info" in
+  let filelines = read_file "nm.info" in
   let filelines' =
     List.filter (fun l -> contains ~str:l ~sub:" i ") filelines
   in
@@ -127,10 +128,10 @@ let func_sym_mapping () =
     filelines'
 
 let parse_nm () : (int, string * string) Hashtbl.t =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
   let sym_addr2label = Hashtbl.create 100 in
   let seen = Hashtbl.create 100 in
-  let filelines = read_lines "nm.info" in
+  let filelines = read_file "nm.info" in
   List.iter
     (fun l ->
       if
@@ -165,7 +166,8 @@ let parse_nm () : (int, string * string) Hashtbl.t =
   sym_addr2label
 
 let is_call (i : instr) : bool =
-  let op = get_op i in
+  let module IU = Instr_utils in
+  let op = IU.get_op i in
   match op with
   | Intel_OP io -> begin
       match io with
@@ -202,7 +204,8 @@ let update_fname2css (fname2css : (string, int list) Hashtbl.t) (fname : string)
 
 let apply (il : instr list) (ufunc : func list) (f : string) :
     instr list * func list * (string, int list) Hashtbl.t =
-  let module EU = ELF_utils in
+  let module EU = Elf_utils in
+  let module IU = Instr_utils in
   if EU.elf_static () && EU.elf_unstrip () then
     if EU.elf_64 () then (
       plt_mapping ();
@@ -221,7 +224,7 @@ let apply (il : instr list) (ufunc : func list) (f : string) :
     | [] -> List.rev acc
     | i :: rest -> (
         let i' =
-          let i_loc = get_loc i in
+          let i_loc = IU.get_loc i in
           let i_addr = i_loc.loc_addr in
           let i_label = i_loc.loc_label in
           match Hashtbl.find_opt sym_addr2label i_addr with
@@ -309,9 +312,8 @@ let apply (il : instr list) (ufunc : func list) (f : string) :
               tags ) ->
             update_fname2css fname2css func_name loc.loc_addr;
             add_existing_symbols rest (i' :: acc)
-        | DoubleInstr
-            (Intel_OP (Intel_ControlOP CALL), _, loc, prefix_op, tags) ->
-          begin
+        | DoubleInstr (Intel_OP (Intel_ControlOP CALL), _, loc, prefix_op, tags)
+          -> begin
             add_existing_symbols rest (i' :: acc)
           end
         | _ -> add_existing_symbols rest (i' :: acc))

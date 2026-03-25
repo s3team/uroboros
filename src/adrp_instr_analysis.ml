@@ -3,6 +3,7 @@ open Semantic_analysis
 module AdrpAbs : DfaAbs = struct
   open Type
   open Ail_utils
+  open Utils
   open Pp_print
   module AdrpMap = Map.Make (String)
 
@@ -84,7 +85,7 @@ module AdrpAbs : DfaAbs = struct
 
   let flow_through (i : instr) (ins : abs_state) : abs_state =
     let module TU = Tags_utils in
-    let module EU = ELF_utils in
+    let module EU = Elf_utils in
     let outs = ins in
     match i with
     | TripleInstr
