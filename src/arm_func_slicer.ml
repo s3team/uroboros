@@ -8,8 +8,59 @@ class arm_func_slicer instrs funcs =
   object (self)
     inherit common_func_slicer instrs funcs
     val mutable push_lr_added : bool = false
+    val mutable detected_func_by_addr : bool = false
 
     method process2 =
+      let read_addr_set filename =
+        let tbl = Hashtbl.create 64 in
+        (try
+           let ic = open_in filename in
+           (try
+              while true do
+                let line = String.trim (input_line ic) in
+                if line <> "" then
+                  try Hashtbl.replace tbl (int_of_string line) () with _ -> ()
+              done
+            with End_of_file -> ());
+           close_in ic
+         with _ -> ());
+        tbl
+      in
+      let read_main_addr_set filename =
+        let tbl = Hashtbl.create 64 in
+        let parse_main_line line =
+          let line = String.trim line in
+          if line = "" then None
+          else if String.starts_with line "S_0x" then
+            try
+              Some (int_of_string (String.sub line 2 (String.length line - 2)))
+            with _ -> None
+          else None
+        in
+        begin try
+          let ic = open_in filename in
+          begin try
+            while true do
+              let line = input_line ic in
+              match parse_main_line line with
+              | Some addr -> Hashtbl.replace tbl addr ()
+              | None -> ()
+            done
+          with End_of_file -> ()
+          end;
+          close_in ic
+        with _ -> ()
+        end;
+        tbl
+      in
+      let arm32_addrs = read_addr_set "arm32_start_addrs.txt" in
+      let thumb_addrs = read_addr_set "thumb_start_addrs.txt" in
+      let main_addrs = read_main_addr_set "main.info" in
+      let in_start_addrs addr =
+        Hashtbl.mem arm32_addrs addr
+        || Hashtbl.mem thumb_addrs addr
+        || Hashtbl.mem main_addrs addr
+      in
       let has_pc_reg (lab : label) : bool =
         let has_brackets = String.contains lab '{' && String.contains lab '}' in
         let has_pc = String.exists lab "pc" in
@@ -63,7 +114,6 @@ class arm_func_slicer instrs funcs =
       let ordered_il = List.rev instrs in
       let rec help (idx : int) (inst : instr) =
         match inst with
-        (* pop {r7, pc} *)
         | DoubleInstr
             ( Arm_OP (Arm_ControlOP BX, _, _),
               Reg (Arm_Reg (Arm_LinkReg LR)),
@@ -74,13 +124,26 @@ class arm_func_slicer instrs funcs =
             last_ret <- false;
             last_special <- false;
             last_pop <- true
+        (* pop {r7, pc} *)
         | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _)
           when is_pop op && has_pc_reg lab ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- true
-        (* add a function *)
+        | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
+          when detected_func_by_addr ->
+            (* To avoid recognizing the push instruction as the start of a function:
+             * ldr     r2, [pc, #564]
+             * cmp     r0, #2
+             * ldr     r3, [pc, #560]
+             * add     r2, pc, r2
+             * push    {r4, r5, r6, r7, r8, r9, sl, lr} *)
+            last_nop <- false;
+            last_ret <- false;
+            last_special <- false;
+            last_pop <- false;
+            detected_func_by_addr <- false
         (* push {r4, lr} *)
         | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
         (* stmdb sp!, {r4, r5, lr} *)
@@ -91,12 +154,13 @@ class arm_func_slicer instrs funcs =
               _,
               _,
               _ )
-          when has_lr_reg lab || has_fp_reg lab
-               (* The above when condition was commented out due to the following case:
-                * in make-prime-list:
-                * 1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
-                * should be recognized as a function beginning
-                *) ->
+          when (has_lr_reg lab || has_fp_reg lab) && not detected_func_by_addr
+          ->
+            (* The above when condition was commented out due to the following case:
+             * in make-prime-list:
+             * 1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+             * should be recognized as a function beginning
+             *)
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -142,6 +206,7 @@ class arm_func_slicer instrs funcs =
                   last_special <- false;
                   last_pop <- false;
                   push_lr_added <- true;
+                  detected_func_by_addr <- false;
                   func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
                 end
                 else ()
@@ -160,7 +225,8 @@ class arm_func_slicer instrs funcs =
               loc,
               _,
               _ )
-          when List.length ordered_il > idx + 5 ->
+          when List.length ordered_il > idx + 5
+               && not (in_start_addrs loc.loc_addr) ->
             let n_inst = List.nth ordered_il (idx + 1) in
             let nn_inst = List.nth ordered_il (idx + 2) in
             let nnn_inst = List.nth ordered_il (idx + 3) in
@@ -220,7 +286,13 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false;
             func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
-        (* movs r0, r0 *)
+        | _ when in_start_addrs (get_loc inst |> get_loc_addr) ->
+            last_nop <- false;
+            last_ret <- false;
+            last_special <- false;
+            last_pop <- false;
+            detected_func_by_addr <- true;
+            func_begins <- (get_loc inst |> get_loc_addr) :: func_begins
         | _ ->
             last_nop <- false;
             last_ret <- false;

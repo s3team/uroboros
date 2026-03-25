@@ -322,19 +322,87 @@ def remove_unused_literal_pools_in_data(filename):
         f.writelines(new_content)
 
 
+def remove_width_specifiers(filename):
+    new_content = []
+    with open(filename, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            # Remove .w and .n width specifiers from instructions
+            new_line = line.replace(".w", "").replace(".n", "")
+            new_content.append(new_line)
+
+    with open(filename, "w") as f:
+        f.writelines(new_content)
+
+
+def convert_symbol_to_use_movw_movt(filename):
+    """
+    Use movw/movt to load the address of a symbol,
+    instead of using `.ltorg` directive which is harder to handle,
+    Below are two cases that we want to convert:
+
+    Case 1)
+    Before:
+    ldr r3,=S_0x179F4
+
+    After:
+    movw r3,#:lower16:S_0x179F4
+    movt r3,#:upper16:S_0x179F4
+
+    Case 2)
+    Before:
+    b S_0x12744
+
+    After:
+    ldr pc,=S_0x12744
+    """
+    new_content = []
+    with open(filename, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            if "ldr" in line and "=" in line:
+                parts = line.split()
+                opcode = parts[0].strip()
+                operands = parts[1].split(",")
+                dst_reg = operands[0].strip()
+                symbol = operands[1].lstrip("=").strip()
+                new_content.append(f"movw {dst_reg},#:lower16:{symbol}\n")
+                new_content.append(f"movt {dst_reg},#:upper16:{symbol}\n")
+            elif line.strip().startswith("b ") and "S_" in line:
+                parts = line.split()
+                symbol = parts[1]
+                new_content.append(f"ldr pc,={symbol}\n")
+            else:
+                new_content.append(line)
+
+    with open(filename, "w") as f:
+        f.writelines(new_content)
+
+
 def main(argv):
-    if len(argv) != 2:
-        print("Usage: python arm_postprocess.py <path_to_assembly_file>")
+    if len(argv) != 3:
+        print("Usage: python arm_postprocess.py <path_to_assembly_file> <arch>")
         sys.exit(1)
 
     assembly_path = argv[1]
+    arch = argv[2]
 
-    # The order of these functions could matter
-    handle_switch_tables(assembly_path)
-    remove_unused_literal_pools_in_data(assembly_path)
-    remove_caret(assembly_path)
-    insert_ltorg_directive(assembly_path)
-    # remove_invalid_d2c_labels(assembly_path)
+    if arch == "thumb":
+        # The order of these functions could matter
+        handle_switch_tables(assembly_path)
+        remove_unused_literal_pools_in_data(assembly_path)
+        insert_ltorg_directive(assembly_path)
+        remove_caret(assembly_path)
+        # remove_invalid_d2c_labels(assembly_path)
+    elif arch == "arm" and is_32():
+        remove_width_specifiers(assembly_path)
+        convert_symbol_to_use_movw_movt(assembly_path)
+        remove_caret(assembly_path)
+    elif arch == "arm" and not is_32():
+        remove_caret(assembly_path)
+    else:
+        print("Unsupported architecture. Supported architectures are: thumb, arm.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

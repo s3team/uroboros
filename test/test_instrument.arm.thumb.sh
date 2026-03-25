@@ -51,7 +51,6 @@ cp point_examples/points.test00.arm.thumb.ins points/
 tmpfile=$(mktemp)
 # tmp fix for arm file ordering reading issue
 python3 uroboros.py $(pwd)/../test/test00/test00.arm.thumb.nopie.dynamic.sym --arch thumb &> /dev/null
-python3 uroboros.py $(pwd)/../test/test00/test00.arm.thumb.nopie.dynamic.sym --arch thumb &> /dev/null
 qemu-arm -L /usr/arm-linux-gnueabihf $(pwd)/a.out &> "$tmpfile"
 
 if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then

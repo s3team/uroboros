@@ -1,6 +1,10 @@
+import bisect
 import os
 import sys
+
+import arm_arm32_disassembler
 import arm_symbol_manager
+from main_discover import get_entry_point_address
 
 disassemble_option = "-Dr"
 
@@ -41,38 +45,14 @@ def get_call_weak_fn_lines_from_arm32(filename) -> list[str]:
     return call_weak_fn_lines_from_arm32
 
 
-def disassemble_arm_thumb_binary(filename, output_dir):
+def get_call_weak_fn_addrs_from_thumb(filename) -> list[str]:
     """
-    Create a disassembled file for ARM thumb mode binaries.
+    Detect the call_weak_fn function in thumb disassembly and return its addresses.
 
-    For ARM thumb mode, we need to disassemble the binary in thumb mode and arm32 mode separately.:
-    1. Disassemble the binary with thumb mode option.
-    2. Disassemble the binary without thumb mode option.
-    3. Combine the two disassembled files properly.
-
-    This is because when we use objdump with "-M force-thumb" option for stripped binaries,
-    it does not disassemble the call_weak_fn pattern correctly.
-    See glibc-2.35 code:
-    https://elixir.bootlin.com/glibc/glibc-2.35/source/sysdeps/arm/crti.S#L63
-    https://github.com/bminor/glibc/blob/release/2.35/master/sysdeps/arm/crti.S#L63
-
-
-    Args:
-        fn (str): A filename
-        output_dir (str): An output directory. Default is the current directory.
+    The call_weak_fn pattern in thumb mode is misrecognised by objdump with -M force-thumb.
+    This function finds it by matching the known thumb opcode sequence and returns the
+    addresses of all instructions in the pattern so they can be filtered out.
     """
-
-    # For now, remove the call_weak_fn in thumb mode rather than replacing it with the one in arm32 mode.
-    call_weak_fn_lines_from_arm32 = []
-    # call_weak_fn_lines_from_arm32 = get_call_weak_fn_lines_from_arm32(filename)
-
-    os.system(
-        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp.thumb"
-    )
-    os.system(
-        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp.arm32"
-    )
-
     call_weak_fn_pattern = [
         "adds",
         "b.n",
@@ -93,64 +73,116 @@ def disassemble_arm_thumb_binary(filename, output_dir):
                 return False
         return True
 
-    result_lines = []
-    call_weak_fn_lines_from_thumb = []
-    with open(f"{filename}.temp.thumb") as f:
-        is_going_through_call_weak_fn = None
-        is_call_weak_fn_already_passed = False
+    addrs = []
+    with open(f"{filename}.temp.thumb", "r") as f:
         lines = f.readlines()
-        for i, line in enumerate(lines):
+        for i in range(len(lines)):
             if (
-                not is_call_weak_fn_already_passed
-                and i > 2
-                # check lines i from i  + 15
+                i > 2
+                and i + 15 <= len(lines)
                 and check_call_weak_fn_pattern(lines[i : i + 11])
             ):
-                # Skip the next 15 lines (the length of call_weak_fn pattern in thumb mode)
-                is_going_through_call_weak_fn = 15
-                # For debugging
-                call_weak_fn_lines_from_thumb.append(lines[i - 3])
-                call_weak_fn_lines_from_thumb.append(lines[i - 2])
-                call_weak_fn_lines_from_thumb.append(lines[i - 1])
-                call_weak_fn_lines_from_thumb.append("Pattern starts here\n")
+                for j in range(15):
+                    addr_str = lines[i + j].split(":")[0].strip()
+                    try:
+                        int(addr_str, 16)
+                        addrs.append(addr_str)
+                    except ValueError:
+                        pass
+                return addrs
 
-            # Collect instructions, excluding those in call_weak_fn in thumb mode
-            if not is_going_through_call_weak_fn:
-                result_lines.append(line)
-            else:
-                is_going_through_call_weak_fn -= 1
-                # For debugging
-                call_weak_fn_lines_from_thumb.append(line)
+    return addrs
 
-            if is_going_through_call_weak_fn == 0:
-                # End of call_weak_fn
-                is_going_through_call_weak_fn = False
-                # Prevent misdetection of similar patterns after collecting call_weak_fn
-                is_call_weak_fn_already_passed = True
-                result_lines.extend(call_weak_fn_lines_from_arm32)
 
-    # For debugging
-    with open(f"{filename}.call_weak_fn.thumb.debug", "w") as f:
-        f.writelines(call_weak_fn_lines_from_thumb)
+def disassemble_arm_thumb_binary(filename, output_dir):
+    """
+    Disassemble ARM thumb binary and remove functions added by gcc compiler.
 
-    # Print the result to a file
-    output_path = None
-    if not output_dir:
-        output_path = f"{filename}.temp"
-    else:
-        fn_without_path = os.path.basename(filename)
-        output_path = f"{output_dir}/{fn_without_path}.temp"
+    Applies the same CFG-from-main approach as disassemble_arm32_binary:
+    1. Disassemble in both thumb and arm32 modes.
+    2. Run build_mixed_disassembly starting from main in thumb mode.
+    3. Identify gcc-generated init functions and filter them out.
+    """
+    os.system(
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp.thumb"
+    )
+    os.system(
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp.arm32"
+    )
 
-    with open(f"{output_path}", "w") as f:
-        f.writelines(result_lines)
+    register_tm_clones_fn_addrs = get_register_tm_clones_fn_addrs(filename)
+    deregister_tm_clones_fn_addrs = get_deregister_tm_clones_fn_addrs(filename)
+    do_global_dtors_aux_fn_addrs = get_do_global_dtors_aux_fn_addrs(filename)
+    frame_dummy_fn_addrs = get_frame_dummy_fn_addrs(
+        filename, register_tm_clones_fn_addrs
+    )
 
-    # if os.path.exists(f"{filename}.thumb.temp"):
-    #     os.system(f"rm {filename}.thumb.temp")
+    frame_dummy_end_addr = None
+    if frame_dummy_fn_addrs:
+        frame_dummy_end_addr = int(frame_dummy_fn_addrs[-1], 16) + 2
 
-    # if is_call_weak_fn_already_passed is False:
-    #     # Terminate the entire program
-    #     print(f"[Error] call_weak_fn pattern not found in {filename}.")
-    #     exit(1)
+    extra_thumb_addrs = []
+    for addr_list in [
+        register_tm_clones_fn_addrs,
+        deregister_tm_clones_fn_addrs,
+        do_global_dtors_aux_fn_addrs,
+        frame_dummy_fn_addrs,
+    ]:
+        if addr_list:
+            extra_thumb_addrs.append(int(addr_list[0], 16))
+
+    result_lines = arm_arm32_disassembler.build_mixed_disassembly(
+        filename,
+        output_dir,
+        frame_dummy_end_addr=frame_dummy_end_addr,
+        extra_thumb_addrs=extra_thumb_addrs,
+        initial_mode="thumb",
+    )
+
+    call_weak_fn_addrs = get_call_weak_fn_addrs_from_thumb(filename)
+    start_fn_addrs, _ = get_start_fn_addrs(filename)
+    init_fn_addrs = call_weak_fn_addrs + start_fn_addrs
+
+    sorted_init_ints = sorted(int(a, 16) for a in init_fn_addrs)
+
+    def is_between(addr: str) -> bool:
+        try:
+            addr_int = int(addr, 16)
+        except ValueError:
+            return False
+
+        idx = bisect.bisect_left(sorted_init_ints, addr_int)
+
+        if idx == 0 or idx >= len(sorted_init_ints):
+            return False
+
+        prev = sorted_init_ints[idx - 1]
+        next_ = sorted_init_ints[idx]
+
+        if next_ - prev >= 6:
+            return False
+
+        return prev < addr_int < next_
+
+    filtered_content = []
+    for line in result_lines:
+        addr = line.split(":")[0].strip()
+        if addr in init_fn_addrs:
+            continue
+
+        if is_between(addr):
+            continue
+
+        filtered_content.append(line)
+
+    output_path = (
+        f"{filename}.temp"
+        if not output_dir
+        else f"{output_dir}/{os.path.basename(filename)}.temp"
+    )
+
+    with open(output_path, "w") as f:
+        f.writelines(filtered_content)
 
 
 def get_call_weak_fn_pattern_addr(filename):
@@ -167,7 +199,7 @@ def get_call_weak_fn_pattern_addr(filename):
         )
 
     call_weak_fn_addrs = []
-    with open(f"{filename}.temp", "r") as f:
+    with open(f"{filename}.temp.arm32", "r") as f:
         lines = f.readlines()
         for i, line in enumerate(lines):
             if i < len(lines) - 9 and is_call_weak_fn(lines[i : i + 9]):
@@ -198,40 +230,77 @@ def get_start_fn_addrs(filename):
     10690:       f7ff efe2       blx     10658 <abort@plt>
     10694:       0001196c        andeq   r1, r1, ip, ror #18
     10698:       00000060        andeq   r0, r0, r0, rrx
+
+    The last two lines could be as below when force-thumb option is applied:
+    1038c:       0c74            lsrs    r4, r6, #17
+    1038e:       0001            movs    r1, r0
+    10390:       0024            movs    r4, r4
+    10392:       0000            movs    r0, r0
     """
-
-    def is_start_fn(lines):
-        return (
-            "mov.w" in lines[0]
-            and "mov.w" in lines[1]
-            and "pop" in lines[2]
-            and "mov" in lines[3]
-            and "push" in lines[4]
-            and "push" in lines[5]
-            and "ldr.w" in lines[6]
-            and "add" in lines[7]
-            and "add" in lines[8]
-            and "mov.w" in lines[9]
-            and "push" in lines[10]
-            and "ldr" in lines[11]
-            and "ldr.w" in lines[12]
-            and "blx" in lines[13]
-            and "blx" in lines[14]
-        )
-
     start_fn_lines = []
     start_fn_addrs = []
+    start_addr_str = get_entry_point_address(filename)
+    start_addr = int(start_addr_str, 16)
+    if start_addr % 2 == 1:
+        start_addr -= 1
+        start_addr_str = hex(start_addr).lstrip("0x")
+
+    def get_instr_size(line):
+        parts = line.split("\t")
+        if len(parts) < 2:
+            return None
+        hex_chars = parts[1].strip().replace(" ", "")
+        if not hex_chars:
+            return None
+        return len(hex_chars) // 2
+
+    collecting = False
+    prev_was_blx = False
     with open(f"{filename}.temp.thumb", "r") as f:
         lines = f.readlines()
         for i, line in enumerate(lines):
-            if i < len(lines) - 17 and is_start_fn(lines[i : i + 17]):
-                # return the address of the start function
-                #   10668:       f04f 0b00       mov.w   fp, #0
-                for j in range(18):
-                    start_fn_lines.append(lines[i + j].strip())
-                    addr = lines[i + j].split(":")[0].strip()
-                    start_fn_addrs.append(addr)
-                return start_fn_addrs, start_fn_lines
+            addr_str = line.split(":")[0].strip()
+            try:
+                addr = int(addr_str, 16)
+            except ValueError:
+                continue
+
+            if addr >= start_addr:
+                collecting = True
+
+            if collecting:
+                start_fn_lines.append(line.strip())
+                start_fn_addrs.append(addr_str)
+
+                if "blx" in line:
+                    if prev_was_blx:
+                        # Collect the literal pool that follows _start.
+                        # Peek at the next instruction's size to decide count:
+                        #   4-byte instruction -> collect 2 instructions
+                        #   2-byte instruction -> collect 4 instructions
+                        next_instr_size = None
+                        for next_line in lines[i + 1 :]:
+                            size = get_instr_size(next_line)
+                            if size is not None:
+                                next_instr_size = size
+                                break
+                        pool_count = 2 if next_instr_size == 4 else 4
+                        collected = 0
+                        for pool_line in lines[i + 1 :]:
+                            if collected >= pool_count:
+                                break
+                            pool_addr_str = pool_line.split(":")[0].strip()
+                            try:
+                                int(pool_addr_str, 16)
+                            except ValueError:
+                                continue
+                            start_fn_lines.append(pool_line.strip())
+                            start_fn_addrs.append(pool_addr_str)
+                            collected += 1
+                        break
+                    prev_was_blx = True
+                else:
+                    prev_was_blx = False
 
     return start_fn_addrs, start_fn_lines
 
@@ -371,69 +440,169 @@ def get_do_global_dtors_aux_fn_addrs(filename):
     return do_global_dtors_aux_fn_addrs
 
 
+def get_frame_dummy_fn_addrs(filename, register_tm_clones_fn_addrs):
+    """
+    000103c4 <frame_dummy>:
+      103c4:       e7dc            b.n     10380 <register_tm_clones>
+      103c6:       bf00            nop
+
+    For stripped binaries, symbol names are absent:
+      103c4:       e7dc            b.n     10380
+      103c6:       bf00            nop
+
+    So we compare the branch target address with the first address of register_tm_clones.
+    """
+    if not register_tm_clones_fn_addrs:
+        return []
+
+    register_tm_clones_start = register_tm_clones_fn_addrs[0]
+
+    def get_branch_target(line):
+        # e.g. "   103c4:       e7dc            b.n     10380 <register_tm_clones>"
+        # or   "   103c4:       e7dc            b.n     10380"
+        parts = line.split()
+        for j, token in enumerate(parts):
+            if token == "b.n" and j + 1 < len(parts):
+                # target may be "10380" or "10380 <register_tm_clones>" (already split by whitespace)
+                return parts[j + 1].split("<")[0].strip()
+        return None
+
+    def is_frame_dummy_fn(sub_lines):
+        if "b.n" not in sub_lines[0] or "nop" not in sub_lines[1]:
+            return False
+        target = get_branch_target(sub_lines[0])
+        return target == register_tm_clones_start
+
+    frame_dummy_fn_addrs = []
+    with open(f"{filename}.temp.thumb", "r") as f:
+        lines = f.readlines()
+        for i, line in enumerate(lines):
+            if i < len(lines) - 1 and is_frame_dummy_fn(lines[i : i + 2]):
+                for j in range(2):
+                    addr = lines[i + j].split(":")[0].strip()
+                    frame_dummy_fn_addrs.append(addr)
+                return frame_dummy_fn_addrs
+
+    return frame_dummy_fn_addrs
+
+
 def disassemble_arm32_binary(filename, output_dir):
     """
     Disassemble ARM32 binary and remove functions added by gcc compiler.
     """
 
     os.system(
-        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp"
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text {filename} > {filename}.temp.arm32"
     )
     os.system(
         f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp.thumb"
     )
 
-    call_weak_fn_addrs = get_call_weak_fn_pattern_addr(filename)
-    start_fn_addrs, start_fn_lines = get_start_fn_addrs(filename)
-    deregister_tm_clones_fn_addrs = get_deregister_tm_clones_fn_addrs(filename)
-    register_tm_clones_fn_addrs = get_register_tm_clones_fn_addrs(filename)
-    do_global_dtors_aux_fn_addrs = get_do_global_dtors_aux_fn_addrs(filename)
-    init_fn_addrs = (
-        call_weak_fn_addrs
-        + start_fn_addrs
-        + deregister_tm_clones_fn_addrs
-        + register_tm_clones_fn_addrs
-        + do_global_dtors_aux_fn_addrs
+    # For main_discover, we need a file ending with .temp
+    os.system(
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .text -M force-thumb {filename} > {filename}.temp"
     )
 
+    register_tm_clones_fn_addrs = get_register_tm_clones_fn_addrs(filename)
+    deregister_tm_clones_fn_addrs = get_deregister_tm_clones_fn_addrs(filename)
+    do_global_dtors_aux_fn_addrs = get_do_global_dtors_aux_fn_addrs(filename)
+    frame_dummy_fn_addrs = get_frame_dummy_fn_addrs(
+        filename, register_tm_clones_fn_addrs
+    )
+
+    # The address immediately after frame_dummy's last instruction (nop, 2 bytes).
+    # Instructions at or beyond this address default to arm32 mode unless
+    # explicitly identified as thumb/arm32 by bl/blx targets.
+    frame_dummy_end_addr = None
+    if frame_dummy_fn_addrs:
+        frame_dummy_end_addr = int(frame_dummy_fn_addrs[-1], 16) + 2
+
+    # Collect the start addresses of thumb init functions so that
+    # build_mixed_disassembly can visit them correctly even when they appear
+    # before main (and are therefore unreachable via CFG fallthrough from main).
+    extra_thumb_addrs = []
+    for addr_list in [
+        register_tm_clones_fn_addrs,
+        deregister_tm_clones_fn_addrs,
+        do_global_dtors_aux_fn_addrs,
+        frame_dummy_fn_addrs,
+    ]:
+        if addr_list:
+            extra_thumb_addrs.append(int(addr_list[0], 16))
+
+    result_lines = arm_arm32_disassembler.build_mixed_disassembly(
+        filename,
+        output_dir,
+        frame_dummy_end_addr=frame_dummy_end_addr,
+        extra_thumb_addrs=extra_thumb_addrs,
+    )
+
+    call_weak_fn_addrs = get_call_weak_fn_pattern_addr(filename)
+    start_fn_addrs, start_fn_lines = get_start_fn_addrs(filename)
+    # frame_dummy is referenced by .init_array, so it must remain in the
+    # disassembly so the reassembler can resolve S_0x<frame_dummy_addr>.
+    # register_tm_clones must also remain because frame_dummy branches to it
+    # via b.n. Similarly, do_global_dtors_aux is referenced by .fini_array
+    # and calls deregister_tm_clones, so both must stay.
+    init_fn_addrs = call_weak_fn_addrs + start_fn_addrs
+
+    sorted_init_ints = sorted(int(a, 16) for a in init_fn_addrs)
+
     def is_between(addr: str, addr_list: list) -> bool:
+        """
+        Return True if addr falls strictly between two consecutive entries
+        in the sorted addr_list AND the gap between those entries is < 6 bytes.
+
+        The < 6 byte gap constraint prevents excluding real instructions that
+        happen to lie between two init-function addresses from different regions.
+        The gap tolerance accounts for ~2-byte mode (thumb/arm32) address differences.
+        """
         try:
-            addr = int(addr, 16)
-            addr -= 2
-            addr = hex(addr).lstrip("0x")
+            addr_int = int(addr, 16)
         except ValueError:
             return False
 
-        if addr in addr_list:
-            return True
+        idx = bisect.bisect_left(sorted_init_ints, addr_int)
 
-        return False
+        # addr_int must be strictly between two consecutive entries
+        if idx == 0 or idx >= len(sorted_init_ints):
+            return False
+
+        prev = sorted_init_ints[idx - 1]
+        next_ = sorted_init_ints[idx]
+
+        # Avoid excluding valid instructions in a gap between separate init regions
+        if next_ - prev >= 6:
+            return False
+
+        return prev < addr_int < next_
 
     filtered_content = []
-    with open(f"{filename}.temp", "r") as f:
-        lines = f.readlines()
-        for line in lines:
-            addr = line.split(":")[0].strip()
-            if addr in init_fn_addrs:
-                continue
+    for line in result_lines:
+        addr = line.split(":")[0].strip()
+        if addr in init_fn_addrs:
+            continue
 
-            if is_between(addr, init_fn_addrs):
-                continue
+        if is_between(addr, init_fn_addrs):
+            continue
 
-            filtered_content.append(line)
+        filtered_content.append(line)
 
     start_fn_lines = ["   " + l + "\n" for l in start_fn_lines]
+
+    # Remove .w suffix in start_fn_lines
+    # because the disassembled file is in thumb mode.
+    start_fn_lines = [l.replace(".w", "") for l in start_fn_lines]
+
     new_content = []
     for line in filtered_content:
         new_content.append(line)
-        if "<.text>" in line:
-            new_content.extend(start_fn_lines)
 
     with open(f"{filename}.temp", "w") as f:
         f.writelines(new_content)
 
 
-def disassemble_text_section_as_data(fn):
+def dump_text_section_as_data(fn):
     """
     Disassemble the text section as data.
     This function is used to handle inline data in the text section.
@@ -492,7 +661,7 @@ def disassemble_text_section_as_data(fn):
     # os.system("rm text_section_as_data.temp")
 
 
-def disassemble_got_section_as_data(fn):
+def dump_got_section_as_data(fn):
     os.system(
         f"arm-linux-gnueabihf-objdump {disassemble_option} -j .got {fn} > got_section_as_data.temp"
     )
@@ -518,6 +687,34 @@ def disassemble_got_section_as_data(fn):
             f.write(f"{addr}{data}\n")  # 21000:00020f18
 
     os.system("rm got_section_as_data.temp")
+
+
+def dump_data_section_as_data(fn):
+    os.system(
+        f"arm-linux-gnueabihf-objdump {disassemble_option} -j .data {fn} > data_section_as_data.temp"
+    )
+    lines = []
+    with open("data_section_as_data.temp", "r") as f:
+        raw_lines = f.readlines()
+        # start when the line has "<.data>:"
+        for i, line in enumerate(raw_lines):
+            if "<.data>:" in line:
+                # skip the first line
+                lines = raw_lines[i + 1 :]
+                break
+
+    with open("data_section_as_data.txt", "w") as f:
+        for i, line in enumerate(lines):
+            line = line.strip()
+            line = line.split("\t")
+            if len(line) < 2:
+                continue
+
+            addr = line[0]
+            data = line[1].strip()
+            f.write(f"{addr}{data}\n")  # 21000:00020f18
+
+    os.system("rm data_section_as_data.temp")
 
 
 def adjust_floating_point_instructions(fn):
@@ -667,13 +864,15 @@ if __name__ == "__main__":
     filename = sys.argv[1]
     arch = sys.argv[2]
     output_dir = sys.argv[3] if len(sys.argv) > 3 else None
+
+    dump_text_section_as_data(filename)
+    dump_got_section_as_data(filename)
+    dump_data_section_as_data(filename)
+
     if arch == "thumb":
         disassemble_arm_thumb_binary(filename, output_dir)
+        arm_symbol_manager.extract_arm32_instructions_for_thumb(filename)
     elif arch == "arm":
         disassemble_arm32_binary(filename, output_dir)
-    if not (arch == "arm" and is_64()):
-        arm_symbol_manager.extract_arm32_instructions(filename)
-        disassemble_text_section_as_data(filename)
-        disassemble_got_section_as_data(filename)
-        adjust_floating_point_instructions(filename)
-    # remove_literal_pools(filename)
+
+    adjust_floating_point_instructions(filename)

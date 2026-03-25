@@ -1,14 +1,11 @@
-import sys
 import os
 import subprocess
+import sys
 
 from arm_concrete_eval import ArmConcreteEval
 from arm_inst import Inst
 
-fn = sys.argv[1]
-arch = sys.argv[2]
-
-os.system("file " + fn + " > elf.info")
+is_thumb = False
 
 
 def is_32():
@@ -54,7 +51,7 @@ def check_thumb_mode(arch: str, entry_point: int) -> bool:
     return arch == "thumb"
 
 
-def get_entry_point_address() -> str:
+def get_entry_point_address(fn) -> str:
     output = subprocess.getoutput("readelf -h " + fn)
     entry_point = ""
 
@@ -78,21 +75,32 @@ def find_intel_start_section(lines, entry_point_str):
 
 def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
     # For ARM 32-bit binary, the entry function is Thumb mode
+    adjusted_entry_point_str = ""
     if is_32bit_binary:
         entry_point = int(entry_point_str, 16)
         entry_point -= 1
         entry_point_str = hex(entry_point)[2:]
 
+        # Misaligned instructions may cause the entry point to be missed.
+        # For such cases, use the adjusted entry point together.
+        adjusted_entry_point = entry_point + 2
+        adjusted_entry_point_str = hex(adjusted_entry_point)[2:]
+
     ll = len(lines)
     for i in range(ll):
-        if entry_point_str == lines[i].strip().split(":")[0]:
+        if (
+            entry_point_str == lines[i].strip().split(":")[0]
+            or adjusted_entry_point_str == lines[i].strip().split(":")[0]
+        ):
             ln = i
             if is_32bit_binary:
                 while (ln < ll) and "Cannot identify main function using entry point":
                     # There could be other forms of nop for ARM such as "nop", "movs r8, r8", etc.
                     # So far, did not handle those cases.
-                    if "movs" in lines[ln] and "movs" in lines[ln + 1]:
-                        return lines[i : ln + 1]
+                    if ("movs" in lines[ln] and "movs" in lines[ln + 1]) or (
+                        "blx" in lines[ln] and "blx" in lines[ln + 1]
+                    ):
+                        return lines[i : ln + 2]
                     ln += 1
             else:
                 while (ln < ll) and "Cannot identify main function using entry point":
@@ -107,7 +115,7 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
                     ln += 1
 
 
-def find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode):
+def find_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mode, arch):
     if arch == "intel":
         return find_intel_start_section(lines, entry_point_str)
     elif arch == "thumb" or arch == "arm":
@@ -194,7 +202,7 @@ def get_intel_main_symbol(start_section):
     return main_symbol
 
 
-def get_main_symbol(start_section, is_32bit_binary):
+def get_main_symbol(start_section, is_32bit_binary, arch):
     if arch == "intel":
         return get_intel_main_symbol(start_section)
     elif arch == "thumb" or arch == "arm":
@@ -204,83 +212,105 @@ def get_main_symbol(start_section, is_32bit_binary):
         raise Exception("Unknown architecture")
 
 
-if is_exe() == False:  # share library
-    pass
-else:
-    entry_point_str = get_entry_point_address()
-    is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
-    is_32bit_binary = is_32()
+def main(fn: str, arch: str) -> int:
+    global is_thumb
+    os.system("file " + fn + " > elf.info")
 
-    lines = []
+    if is_exe() == False:  # share library
+        pass
+    else:
+        entry_point_str = get_entry_point_address(fn)
+        is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
+        is_32bit_binary = is_32()
 
-    with open(fn + ".temp") as f:
-        lines = f.readlines()
+        lines = []
 
-    main_symbol = ""
-
-    if check_main_symbol():
-        # For not stripped binary, take advantage of the function discover result
-        with open("faddr_old.txt") as f:
-            faddr_lines = f.readlines()
-            for line in faddr_lines:
-                if "<main>" in line:
-                    main_symbol = "0x" + line.split()[0].lstrip("0")
-                    break
-    elif is_pie():
-        if is_32bit_binary:
-            pass
+        disassemble_file = None
+        if arch == "intel" or (arch == "arm" and not is_32bit_binary):
+            disassemble_file = fn + ".temp"
+        elif arch == "thumb" or arch == "arm":
+            disassemble_file = fn + ".temp.thumb"
         else:
-            # For stripped 64 bit PIE binary, find the main function using entry point
-            #   109d:	48 83 e4 f0          	and    $0xfffffffffffffff0,%rsp
-            #   10a1:	50                   	push   %rax
-            #   10a2:	54                   	push   %rsp
-            #   10a3:	4c 8d 05 46 01 00 00 	lea    0x146(%rip),%r8        # 11f0 <__libc_csu_fini>
-            #   10aa:	48 8d 0d cf 00 00 00 	lea    0xcf(%rip),%rcx        # 1180 <__libc_csu_init>
-            #   10b1:	48 8d 3d a8 ff ff ff 	lea    -0x58(%rip),%rdi        # 1060 <main>
-            #   10b8:	ff 15 22 2f 00 00    	callq  *0x2f22(%rip)        # 3fe0 <__libc_start_main@GLIBC_2.2.5>
-            #   10be:	f4                   	hlt
-            #   10bf:	90                   	nop
+            raise Exception("Unknown architecture")
+
+        with open(disassemble_file) as f:
+            lines = f.readlines()
+
+        main_symbol = ""
+
+        if check_main_symbol():
+            # For not stripped binary, take advantage of the function discover result
+            with open("faddr_old.txt") as f:
+                faddr_lines = f.readlines()
+                for line in faddr_lines:
+                    if "<main>" in line:
+                        main_symbol = "0x" + line.split()[0].lstrip("0")
+                        break
+        elif is_pie():
+            if is_32bit_binary:
+                pass
+            else:
+                # For stripped 64 bit PIE binary, find the main function using entry point
+                #   109d:	48 83 e4 f0          	and    $0xfffffffffffffff0,%rsp
+                #   10a1:	50                   	push   %rax
+                #   10a2:	54                   	push   %rsp
+                #   10a3:	4c 8d 05 46 01 00 00 	lea    0x146(%rip),%r8        # 11f0 <__libc_csu_fini>
+                #   10aa:	48 8d 0d cf 00 00 00 	lea    0xcf(%rip),%rcx        # 1180 <__libc_csu_init>
+                #   10b1:	48 8d 3d a8 ff ff ff 	lea    -0x58(%rip),%rdi        # 1060 <main>
+                #   10b8:	ff 15 22 2f 00 00    	callq  *0x2f22(%rip)        # 3fe0 <__libc_start_main@GLIBC_2.2.5>
+                #   10be:	f4                   	hlt
+                #   10bf:	90                   	nop
+                start_section = find_start_section(
+                    lines, entry_point_str, is_32bit_binary, False, arch
+                )
+                i = len(start_section) - 1
+
+                while i > 0:
+                    if "call" in start_section[i] or "callq" in start_section[i]:
+                        base_addr = int(start_section[i].split(":")[0], 16)
+                        offset = int(start_section[i - 1].split("(")[0].split()[-1], 16)
+                        main_symbol = hex(base_addr + offset)
+                        break
+                    i -= 1
+
+        else:
+            # For stripped non-PIE binary, find the main function manually
             start_section = find_start_section(
-                lines, entry_point_str, is_32bit_binary, False
+                lines, entry_point_str, is_32bit_binary, is_thumb, arch
             )
+            if start_section is None:
+                raise Exception("Cannot identify main function using entry point")
+            main_symbol = get_main_symbol(start_section, is_32bit_binary, arch)
             i = len(start_section) - 1
 
-            while i > 0:
-                if "call" in start_section[i] or "callq" in start_section[i]:
-                    base_addr = int(start_section[i].split(":")[0], 16)
-                    offset = int(start_section[i - 1].split("(")[0].split()[-1], 16)
-                    main_symbol = hex(base_addr + offset)
-                    break
-                i -= 1
+        # Some of the PIC code/module rely on typical pattern to locate
+        # such as:
 
-    else:
-        # For stripped non-PIE binary, find the main function manually
-        start_section = find_start_section(
-            lines, entry_point_str, is_32bit_binary, is_thumb
-        )
-        main_symbol = get_main_symbol(start_section, is_32bit_binary)
-        i = len(start_section) - 1
+        # 804c460: push   %ebx
+        # 804c461: call   804c452 <__i686.get_pc_thunk.bx>
+        # 804c466: add    $0x2b8e,%ebx
+        # 804c46c: sub    $0x18,%esp
 
-    # Some of the PIC code/module rely on typical pattern to locate
-    # such as:
+        # What we can do this pattern match `<__i686.get_pc_thunk.bx>` and calculate
+        # the address by adding 0x2b8e and 0x804c466, which equals to the begin address of GOT.PLT table
 
-    # 804c460: push   %ebx
-    # 804c461: call   804c452 <__i686.get_pc_thunk.bx>
-    # 804c466: add    $0x2b8e,%ebx
-    # 804c46c: sub    $0x18,%esp
+        # symbols can be leveraged in re-assemble are
+        # _GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
+        # ....
 
-    # What we can do this pattern match `<__i686.get_pc_thunk.bx>` and calculate
-    # the address by adding 0x2b8e and 0x804c466, which equals to the begin address of GOT.PLT table
+        if os.path.exists("main.info"):
+            os.system("rm main.info")
 
-    # symbols can be leveraged in re-assemble are
-    # _GLOBAL_OFFSET_TABLE_   ==    ** .got.plt **
-    # ....
+        if "0x" in main_symbol:
+            main_symbol = main_symbol.split("0x")[1]
 
-    if os.path.exists("main.info"):
-        os.system("rm main.info")
+        with open("main.info", "w") as f:
+            f.writelines("S_0x" + main_symbol.upper() + "\n")
 
-    if "0x" in main_symbol:
-        main_symbol = main_symbol.split("0x")[1]
+        return int(main_symbol, 16)
 
-    with open("main.info", "w") as f:
-        f.writelines("S_0x" + main_symbol.upper() + "\n")
+
+if __name__ == "__main__":
+    fn = sys.argv[1]
+    arch = sys.argv[2]
+    main(fn, arch)

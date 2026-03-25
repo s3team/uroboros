@@ -1,4 +1,5 @@
 from arm_inst import Inst
+from spliter import split_got_info
 
 
 def is_32():
@@ -49,6 +50,7 @@ class ArmConcreteEval(object):
         if got_start_addr is None or got_size is None:
             return
 
+        split_got_info()
         with open("got_split.info", "r") as f:
             lines = f.readlines()
             lines.reverse()

@@ -104,7 +104,14 @@ def branch_target_extractor(filename) -> list[tuple[int, str, int]]:
     return targets
 
 
-def extract_arm32_instructions(program_name):
+def extract_arm32_instructions_for_thumb(program_name):
+    """
+    When handling Thumb binaries, some functions may be compiled in ARM32 mode.
+    e.g., _init, call_weak_fn, memmove, memset, __memcpy_neon, etc.
+    This function identifies such functions by analyzing branch instructions
+    and extracts the corresponding ARM32 instructions to replace them in the disassembly.
+    """
+
     filename = f"{program_name}.temp"
     from_to_address_pair = []
     blx_addresses = set()
@@ -278,7 +285,7 @@ def main(argv):
         sys.exit(1)
 
     # test_branch_target_extractor(argv[1])
-    extract_arm32_instructions(argv[1])
+    extract_arm32_instructions_for_thumb(argv[1])
 
 
 if __name__ == "__main__":

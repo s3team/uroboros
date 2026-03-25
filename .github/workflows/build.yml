@@ -51,8 +51,8 @@ jobs:
       run: |
         find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
         $(pwd)/test/test_coreutils.sh
- 
- 
+
+
   execute-tests-ubuntu24:
     runs-on: ubuntu-24.04
     steps:

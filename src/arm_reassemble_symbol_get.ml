@@ -2375,8 +2375,9 @@ class arm_reassemble =
             in
             let deref_tag = InstrTag Deref in
             let deref_added_tags =
-              Hashtbl.replace tags "instr_tag" deref_tag;
-              tags
+              let t = Hashtbl.copy tags in
+              Hashtbl.replace t "instr_tag" deref_tag;
+              t
             in
             let deref_instr = set_tags deref_instr' deref_added_tags in
             match self#check_sec value with
@@ -2388,7 +2389,7 @@ class arm_reassemble =
                       match self#check_sec deref_value with
                       | Some deref_s ->
                           if deref_s.sec_name = ".data.rel.ro" then deref_instr
-                          else if deref_s.sec_name = ".bss" then pointer_instr
+                          else if deref_s.sec_name = ".bss" then deref_instr
                           else pointer_instr
                       | None -> begin
                           if arch = "thumb" then begin
@@ -2430,30 +2431,6 @@ class arm_reassemble =
                 tags )
         | FifInstr (p, e1, e2, e3, e4, l, pre, tags) ->
             FifInstr (p, e1, self#v_exp2 e2 i f false, e3, e4, l, pre, tags)
-
-    method vinst_symbol (f : instr -> bool) (i : instr) : instr =
-      match i with
-      | TripleInstr (p, Label label, e2, l, pre, tags)
-        when contains ~str:label ~sub:"=S_" -> begin
-          let sub_label = String.sub label 3 (String.length label - 3) in
-          let addr = int_of_string sub_label in
-          match self#check_sec addr with
-          | Some s -> begin
-              if s.sec_name = ".rodata" then
-                (* Assume that the "pointer" matters, no need to change it *)
-                i
-              else
-                (* Assume that the "dereferenced value" of the pointer matters *)
-                let new_instr = replace_instr_tag i (Some Deref) in
-                new_instr
-            end
-          | None ->
-              if self#has_text_as_data addr then
-                let new_instr = replace_instr_tag i (Some Deref) in
-                new_instr
-              else i
-        end
-      | _ -> i
 
     method jmp_table_rewrite (instrs : instr list) = instrs
     method jmp_table_rewrite64 (instrs : instr list) = instrs

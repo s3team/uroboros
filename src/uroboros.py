@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-import time
-import datetime
 import argparse
-import sys
+import datetime
 import os
-import subprocess
 import shutil
+import subprocess
+import sys
 import tempfile
-import arm_preprocess
-
-from argparse import RawTextHelpFormatter
-from argparse import ArgumentParser
+import time
+from argparse import ArgumentParser, RawTextHelpFormatter
 
 # keep the intermediate binary/final.s or not.
 k = False
@@ -92,11 +89,11 @@ def reassemble(assembly_file, arch):
             compile_option += "-m64 -lcrypto -lselinux -lgmp "
     elif arch == "thumb":
         compiler = "arm-linux-gnueabihf-gcc"
-        compile_option += "-march=armv7-a -mthumb -mfpu=vfpv3-d16 -mfloat-abi=hard "
+        compile_option += "-mthumb -march=armv7-a -mfpu=vfpv3-d16 -mfloat-abi=hard "
     elif arch == "arm":
         if is_32bit_binary:
             compiler = "arm-linux-gnueabihf-gcc"
-            compile_option += "-marm "
+            compile_option += "-marm -march=armv7-a -mfpu=vfpv3-d16 -mfloat-abi=hard "
         else:
             compiler = "aarch64-linux-gnu-gcc"
             compile_option += "-march=armv9-a "
@@ -154,27 +151,6 @@ def get_entry_point_address(fn) -> str:
 
     return entry_point
 
-
-def dump(fn):
-    entry_point_str = get_entry_point_address(fn)
-    is_thumb = check_thumb_mode(arch, int(entry_point_str, 16))
-    is_32bit_binary = is_32()
-
-    if arch == "intel":
-        os.system(f"objdump -Dr -j .text {fn} > {fn}.temp")
-    elif arch == "thumb" or arch == "arm":
-        if is_32bit_binary:
-            if is_thumb:
-                arm_preprocess.disassemble_arm_thumb_binary(fn, None)
-            else:
-                arm_preprocess.disassemble_arm32_binary(fn, None)
-        else:
-            os.system(f"aarch64-linux-gnu-objdump -Dr -j .text {fn} > {fn}.temp")
-    else:
-        print("dump: Invalid architecture")
-        raise Exception("Invalid architecture")
-
-
 def process(f, i, arch):
     is_32bit_binary = is_32()
     strip_command = ""
@@ -219,7 +195,6 @@ def process(f, i, arch):
             os.system(f"readelf -r {f} > rela_plt.info")
             os.system(f"readelf -l {f} > headers.info")
         os.system(f"{strip_command} {f}")
-        dump(f)
 
         bit_mode = "32" if is_32bit_binary else "64"
         cmd = f"opam exec -- dune exec init {f} {arch} {bit_mode}"
@@ -252,7 +227,7 @@ def process(f, i, arch):
         os.system("python3 label_adjust.py")
 
         if arch == "thumb" or arch == "arm":
-            os.system("python3 arm_postprocess.py final.s")
+            os.system(f"python3 arm_postprocess.py final.s {arch}")
 
         os.system(f"python3 compile_process.py {arch}")
         reassemble("final.s", arch)

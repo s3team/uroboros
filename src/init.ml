@@ -31,23 +31,9 @@ class ailInit =
           objdump_command <- "aarch64-linux-gnu-objdump"
         else failwith "unsupported architecture"
 
-    method disassemble (f : string) (arch : string) : unit =
-      let disassemble_arm_binary (f : string) =
-        let ret = ref 0 in
-        ret := Sys.command ("python3 arm_preprocess.py " ^ f ^ " " ^ arch)
-      in
-
+    method disassemble_metadata (f : string) (arch : string) : unit =
       let ret = ref 0 in
       print_endline "1: linearly disassemble";
-
-      if arch = "thumb" || (arch = "arm" && !is_32) then
-        disassemble_arm_binary f
-      else
-        ret :=
-          Sys.command
-            (objdump_command ^ " -Dr -j .text " ^ f ^ " > " ^ f ^ ".temp");
-
-      self#checkret ret (f ^ ".temp");
 
       ignore
         (Sys.command
@@ -119,6 +105,21 @@ class ailInit =
         self#checkret ret "__libc_freeres_ptrs.info"
       end
 
+    method intel_disassemble (f : string) : unit =
+      if arch = "intel" || (arch = "arm" && not !is_32) then
+        let _ =
+          Sys.command
+            (objdump_command ^ " -Dr -j .text " ^ f ^ " > " ^ f ^ ".temp")
+        in
+        ()
+      else ()
+
+    method arm_disassemble (f : string) (arch : string) : unit =
+      if arch = "thumb" || (arch = "arm" && !is_32) then
+        let _ = Sys.command ("python3 arm_preprocess.py " ^ f ^ " " ^ arch) in
+        ()
+      else ()
+
     method process (f : string) (arch : string) (bit_mode : string) : unit =
       self#text_process f arch bit_mode;
       if !is_32 = true then self#section_process_32 f
@@ -152,6 +153,7 @@ class ailInit =
 
     method text_process (f : string) (arch : string) (bit_mode : string) : unit
         =
+      (* .disassemble file is created here *)
       ignore (Sys.command ("python3 useless_func_del.py " ^ f));
       let fields =
         if arch = "intel" then "1,3"
@@ -187,6 +189,14 @@ class ailInit =
         (Sys.command
            ("cat " ^ f
           ^ ".disassemble | grep \"<\" | grep \">:\" > userfuncs.info"))
+
+    method section_process (f : string) : unit =
+      if !is_32 then begin
+        self#section_process_32 f
+      end
+      else begin
+        self#section_process_64 f
+      end
 
     method section_process_32 (f : string) : unit =
       let module EU = ELF_utils in
@@ -407,10 +417,11 @@ let main () =
       let _ = Random.self_init () in
       let init = new ailInit in
       init#init arch bit_mode;
-      init#disassemble elf arch;
-      (* create text and data files *)
+      init#section_process elf;
+      init#intel_disassemble elf;
+      init#disassemble_metadata elf arch;
+      init#arm_disassemble elf arch;
       init#process elf arch bit_mode;
-      (* create other text files *)
       init#ail_process elf)
     else print_string ("binary file " ^ elf ^ " doesn't exist\n")
 
