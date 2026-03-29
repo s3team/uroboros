@@ -36,12 +36,11 @@ find_text = False
 if is_32:
     for i in range(ll):
         m = re.search(r'jmp\s+\*(%e\w{2})',lines[i])
-# TODO: why this...
-#        if m:
-#            if re.search(r'add\s+%e\w{2},'+m.group(1),lines[i-1]):
-#                lines[i-1] = "nop\n"
-#            elif re.search(r'add\s+%e\w{2},'+m.group(1),lines[i-2]):
-#                lines[i-2] = "nop\n"
+        if m:
+            if re.search(r'add\s+(?:%e\w{2}|\$0x[A-Z0-9]+),'+m.group(1),lines[i-1]):
+                lines[i-1] = "nop\n"
+            elif re.search(r'add\s+(?:%e\w{2}|\$0x[A-Z0-9]+),'+m.group(1),lines[i-2]):
+                lines[i-2] = "nop\n"
 else:
     for i in range(ll):
         m1 = re.search(r'jmp\s+\*(%r\w{2})', lines[i])

@@ -12,7 +12,6 @@ let init_got () : int =
 
 let got_rewrite_instr (got_reg : string) (got_addr : int)
     (result : (int, instr list) Hashtbl.t) (i : instr) : unit =
-  (*let _ = print_endline (pp_print_instr' i) in*)
   let module U = UIO in
   match i with
   | DoubleInstr

@@ -103,21 +103,6 @@ module GotAbs : DfaAbs = struct
             prefix,
             tags )
     | TripleInstr
-        ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
-          Reg reg1,
-          Reg reg2,
-          loc,
-          prefix,
-          tags )
-      when ExpSet.mem (Reg reg2) ins ->
-        TripleInstr
-          ( Intel_OP (Intel_CommonOP (Intel_Arithm ADD)),
-            Reg reg1,
-            Const (Normal got_addr),
-            loc,
-            prefix,
-            tags )
-    | TripleInstr
         ( Intel_OP (Intel_CommonOP (Intel_Assign LEA)),
           dest_ptr,
           Ptr (BinOP_MINUS (reg, const)),

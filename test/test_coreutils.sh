@@ -4,7 +4,7 @@ BINDIR=$(pwd)/coreutils-32bit/src
 SRCDIR=$(pwd)/src
 
 if [[ ! -d "$BINDIR" ]]; then
-    ./install/install_coreutils.sh
+    ./install/install_coreutils.intel.sh
 fi
 
 # Define a list of programs to skip (e.g., dcgen, program2, program3)
@@ -55,7 +55,7 @@ for i in $(ls *.out); do
     echo "$i..."
 
     # Run the program and check if it exits successfully
-    ./$i --help >>$i.help
+    script -q -c "./$i --help" "$i.help"
     if grep -iqE "$STOP_WORDS" "$i.help"; then
             echo "Found a error."
             exit 1  # Terminate the script if the word is found
@@ -118,7 +118,7 @@ for i in $(ls *.out); do
     echo "$i..."
 
     # Run the program and check if it exits successfully
-    ./$i --help >>$i.help
+    script -q -c "./$i --help" "$i.help"
     if grep -iqE "$STOP_WORDS" "$i.help"; then
             echo "Found a error."
             exit 1  # Terminate the script if the word is found
