@@ -1,5 +1,20 @@
 open Utils
 
+let arch : string ref = ref ""
+let bit_mode : string ref = ref ""
+
+let init_config (a : string) (b : string) =
+  arch := a;
+  bit_mode := b
+
+let get_arch () =
+  assert (!arch <> "");
+  !arch
+
+let get_bit_mode () =
+  assert (!bit_mode <> "");
+  !bit_mode
+
 let elf_32 () =
   (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
   contains ~str:l ~sub:"ELF 32-bit"

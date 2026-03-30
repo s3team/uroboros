@@ -94,7 +94,7 @@ def get_call_weak_fn_addrs_from_thumb(filename) -> list[str]:
     return addrs
 
 
-def disassemble_arm_thumb_binary(filename, output_dir):
+def disassemble_thumb_binary(filename, output_dir):
     """
     Disassemble ARM thumb binary and remove functions added by gcc compiler.
 
@@ -131,21 +131,23 @@ def disassemble_arm_thumb_binary(filename, output_dir):
         if addr_list:
             extra_thumb_addrs.append(int(addr_list[0], 16))
 
+    call_weak_fn_addrs = get_call_weak_fn_addrs_from_thumb(filename)
+    start_fn_addrs, _ = get_start_fn_addrs(filename)
+    init_fn_addrs = call_weak_fn_addrs + start_fn_addrs
+
     result_lines = arm_arm32_disassembler.build_mixed_disassembly(
         filename,
         output_dir,
         frame_dummy_end_addr=frame_dummy_end_addr,
         extra_thumb_addrs=extra_thumb_addrs,
         initial_mode="thumb",
+        init_fn_addrs=init_fn_addrs,
     )
-
-    call_weak_fn_addrs = get_call_weak_fn_addrs_from_thumb(filename)
-    start_fn_addrs, _ = get_start_fn_addrs(filename)
-    init_fn_addrs = call_weak_fn_addrs + start_fn_addrs
 
     sorted_init_ints = sorted(int(a, 16) for a in init_fn_addrs)
 
     def is_between(addr: str) -> bool:
+        # Filter instructions between init functions.
         try:
             addr_int = int(addr, 16)
         except ValueError:
@@ -164,13 +166,24 @@ def disassemble_arm_thumb_binary(filename, output_dir):
 
         return prev < addr_int < next_
 
+    def is_init_addr(addr: str) -> bool:
+        if addr in init_fn_addrs:
+            return True
+
+        if is_between(addr):
+            return True
+
+        return False
+
     filtered_content = []
     for line in result_lines:
         addr = line.split(":")[0].strip()
-        if addr in init_fn_addrs:
+        # Filter out instructions in init functions.
+        if is_init_addr(addr):
             continue
 
-        if is_between(addr):
+        # Filter out instructions with <UNPREDICTABLE> in their comments.
+        if "<UNPREDICTABLE>" in line:
             continue
 
         filtered_content.append(line)
@@ -254,8 +267,27 @@ def get_start_fn_addrs(filename):
             return None
         return len(hex_chars) // 2
 
+    def is_direct_call(line):
+        """Return True if line is a bl/blx to a hex address (not a register).
+
+        objdump lines are tab-delimited:
+            <addr>:\t<hex bytes>\t<opcode>\t<operands>
+        """
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) < 4:
+            return False
+        opcode = parts[2].strip().lower()
+        if opcode not in {"bl", "blx"}:
+            return False
+        # Operand must be a hex address (possibly with 0x prefix), not a register.
+        # objdump appends " <symbol>" after the address; take only the first token.
+        operand = parts[3].strip().lower().split()[0] if parts[3].strip() else ""
+        if operand.startswith("0x"):
+            operand = operand[2:]
+        return bool(operand) and all(c in "0123456789abcdef" for c in operand)
+
     collecting = False
-    prev_was_blx = False
+    prev_was_direct_call = False
     with open(f"{filename}.temp.thumb", "r") as f:
         lines = f.readlines()
         for i, line in enumerate(lines):
@@ -272,8 +304,8 @@ def get_start_fn_addrs(filename):
                 start_fn_lines.append(line.strip())
                 start_fn_addrs.append(addr_str)
 
-                if "blx" in line:
-                    if prev_was_blx:
+                if is_direct_call(line):
+                    if prev_was_direct_call:
                         # Collect the literal pool that follows _start.
                         # Peek at the next instruction's size to decide count:
                         #   4-byte instruction -> collect 2 instructions
@@ -298,9 +330,9 @@ def get_start_fn_addrs(filename):
                             start_fn_addrs.append(pool_addr_str)
                             collected += 1
                         break
-                    prev_was_blx = True
+                    prev_was_direct_call = True
                 else:
-                    prev_was_blx = False
+                    prev_was_direct_call = False
 
     return start_fn_addrs, start_fn_lines
 
@@ -442,48 +474,104 @@ def get_do_global_dtors_aux_fn_addrs(filename):
 
 def get_frame_dummy_fn_addrs(filename, register_tm_clones_fn_addrs):
     """
-    000103c4 <frame_dummy>:
-      103c4:       e7dc            b.n     10380 <register_tm_clones>
-      103c6:       bf00            nop
+    Find frame_dummy, the function that ends with:
+      b.n  <register_tm_clones>
+      nop
 
-    For stripped binaries, symbol names are absent:
-      103c4:       e7dc            b.n     10380
-      103c6:       bf00            nop
+    frame_dummy may be a trivial 2-instruction stub or a more complex function
+    (e.g. when compiled with a non-empty constructor list).  In both cases the
+    last two instructions are always ``b.n <register_tm_clones>`` + ``nop``.
 
-    So we compare the branch target address with the first address of register_tm_clones.
+    Returns [start_addr_hex, nop_addr_hex] where
+    - start_addr_hex: first instruction of frame_dummy
+    - nop_addr_hex:   the trailing nop (used to compute frame_dummy_end_addr)
+
+    The scan normalises the ``0x`` prefix that some objdump versions emit on
+    branch targets so that the comparison with register_tm_clones_start works
+    regardless of objdump version.
     """
     if not register_tm_clones_fn_addrs:
         return []
 
     register_tm_clones_start = register_tm_clones_fn_addrs[0]
+    # Normalise: strip leading 0x if present so the comparison is format-agnostic.
+    if register_tm_clones_start.lower().startswith("0x"):
+        register_tm_clones_start = register_tm_clones_start[2:]
 
     def get_branch_target(line):
-        # e.g. "   103c4:       e7dc            b.n     10380 <register_tm_clones>"
-        # or   "   103c4:       e7dc            b.n     10380"
+        # e.g. "   103c4:  e7dc  b.n  10380 <register_tm_clones>"
+        # or   "   105d4:  e7be  b.n  0x10554"
         parts = line.split()
         for j, token in enumerate(parts):
             if token == "b.n" and j + 1 < len(parts):
-                # target may be "10380" or "10380 <register_tm_clones>" (already split by whitespace)
-                return parts[j + 1].split("<")[0].strip()
+                target = parts[j + 1].split("<")[0].strip()
+                if target.lower().startswith("0x"):
+                    target = target[2:]
+                return target
         return None
 
-    def is_frame_dummy_fn(sub_lines):
-        if "b.n" not in sub_lines[0] or "nop" not in sub_lines[1]:
+    def is_return_like(line):
+        """Return True if line is a function-exit instruction."""
+        lower = line.lower()
+        parts = lower.split()
+        if len(parts) < 3:
             return False
-        target = get_branch_target(sub_lines[0])
-        return target == register_tm_clones_start
+        opcode = parts[2]
+        if opcode.startswith("bx") and ("lr" in lower or "r14" in lower):
+            return True
+        if opcode.startswith("pop") and "pc" in lower:
+            return True
+        if opcode.startswith("ldmia") and "sp" in lower and "pc" in lower:
+            return True
+        return False
 
-    frame_dummy_fn_addrs = []
+    def is_nop(line):
+        parts = line.split()
+        return len(parts) >= 3 and parts[2].lower() == "nop"
+
+    def addr_str(line):
+        """Return the hex address string of an instruction line, or None."""
+        colon = line.find(":")
+        if colon < 0:
+            return None
+        candidate = line[:colon].strip()
+        if candidate and all(c in "0123456789abcdefABCDEF" for c in candidate):
+            return candidate
+        return None
+
+    # Load only instruction lines (lines that start with a hex address).
+    instruction_lines = []
     with open(f"{filename}.temp.thumb", "r") as f:
-        lines = f.readlines()
-        for i, line in enumerate(lines):
-            if i < len(lines) - 1 and is_frame_dummy_fn(lines[i : i + 2]):
-                for j in range(2):
-                    addr = lines[i + j].split(":")[0].strip()
-                    frame_dummy_fn_addrs.append(addr)
-                return frame_dummy_fn_addrs
+        for line in f:
+            if addr_str(line) is not None:
+                instruction_lines.append(line)
 
-    return frame_dummy_fn_addrs
+    for i in range(len(instruction_lines) - 1):
+        line0 = instruction_lines[i]
+        line1 = instruction_lines[i + 1]
+        # The trailing nop must be a 2-byte nop, not nop.w.
+        if "b.n" not in line0 or "nop" not in line1 or "nop.w" in line1:
+            continue
+        if get_branch_target(line0) != register_tm_clones_start:
+            continue
+
+        # Found the b.n + nop pair.  Scan backwards to locate the function start:
+        # the first non-nop instruction after the most recent return instruction.
+        fn_start_idx = 0
+        for j in range(i - 1, -1, -1):
+            if is_return_like(instruction_lines[j]):
+                k = j + 1
+                while k < i and is_nop(instruction_lines[k]):
+                    k += 1
+                fn_start_idx = k
+                break
+
+        start = addr_str(instruction_lines[fn_start_idx])
+        nop = addr_str(line1)
+        if start is not None and nop is not None:
+            return [start, nop]
+
+    return []
 
 
 def disassemble_arm32_binary(filename, output_dir):
@@ -530,13 +618,6 @@ def disassemble_arm32_binary(filename, output_dir):
         if addr_list:
             extra_thumb_addrs.append(int(addr_list[0], 16))
 
-    result_lines = arm_arm32_disassembler.build_mixed_disassembly(
-        filename,
-        output_dir,
-        frame_dummy_end_addr=frame_dummy_end_addr,
-        extra_thumb_addrs=extra_thumb_addrs,
-    )
-
     call_weak_fn_addrs = get_call_weak_fn_pattern_addr(filename)
     start_fn_addrs, start_fn_lines = get_start_fn_addrs(filename)
     # frame_dummy is referenced by .init_array, so it must remain in the
@@ -545,6 +626,14 @@ def disassemble_arm32_binary(filename, output_dir):
     # via b.n. Similarly, do_global_dtors_aux is referenced by .fini_array
     # and calls deregister_tm_clones, so both must stay.
     init_fn_addrs = call_weak_fn_addrs + start_fn_addrs
+
+    result_lines = arm_arm32_disassembler.build_mixed_disassembly(
+        filename,
+        output_dir,
+        frame_dummy_end_addr=frame_dummy_end_addr,
+        extra_thumb_addrs=extra_thumb_addrs,
+        init_fn_addrs=init_fn_addrs,
+    )
 
     sorted_init_ints = sorted(int(a, 16) for a in init_fn_addrs)
 
@@ -870,7 +959,7 @@ if __name__ == "__main__":
     dump_data_section_as_data(filename)
 
     if arch == "thumb":
-        disassemble_arm_thumb_binary(filename, output_dir)
+        disassemble_thumb_binary(filename, output_dir)
         arm_symbol_manager.extract_arm32_instructions_for_thumb(filename)
     elif arch == "arm":
         disassemble_arm32_binary(filename, output_dir)

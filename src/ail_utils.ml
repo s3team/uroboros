@@ -147,6 +147,7 @@ module Opcode_utils = struct
         | _ -> false)
     | Arm_OP (ao, _, _) -> (
         match ao with
+        (* TODO: Add more ARM control operations. *)
         | Arm_ControlOP B -> true
         | Arm_ControlOP CBNZ -> true
         | Arm_ControlOP CBZ -> true
@@ -157,31 +158,32 @@ module Opcode_utils = struct
 
   let is_cond_jmp (op : op) : bool =
     match op with
-    | Intel_OP io -> begin
-        match io with
-        | Intel_ControlOP ico -> begin
-            match ico with
+    | Intel_OP io ->
+        begin match io with
+        | Intel_ControlOP ico ->
+            begin match ico with
             | Intel_Jump JMP -> false
             | Intel_Jump JMPQ -> false
             | Intel_Jump _ -> true
             | _ -> false
-          end
+            end
         | _ -> false
-      end
-    | Arm_OP (ao, cond, _) -> begin
-        match ao with
-        | Arm_ControlOP aco -> begin
-            match aco with B when cond <> None -> true | _ -> false
-          end
+        end
+    | Arm_OP (ao, cond, _) ->
+        begin match ao with
+        | Arm_ControlOP aco ->
+            begin match aco with B when cond <> None -> true | _ -> false
+            end
         | _ -> false
-      end
+        end
 
   (* this is a conservative judge *)
-  let is_assign (op : op) : bool =
-    match op with
-    | Intel_OP io -> begin
-        match io with Intel_CommonOP (Intel_Assign _) -> true | _ -> false
-      end
+  let is_assign : op -> bool = function
+    | Intel_OP io ->
+        begin match io with
+        | Intel_CommonOP (Intel_Assign _) -> true
+        | _ -> false
+        end
     | Arm_OP _ -> failwith "unsupported arm opcode"
 
   let is_push (op : op) : bool =
@@ -190,8 +192,7 @@ module Opcode_utils = struct
     | Arm_OP (Arm_StackOP PUSH, _, _) -> true
     | _ -> false
 
-  let is_stack_op (op : op) : bool =
-    match op with
+  let is_stack_op : op -> bool = function
     | Intel_OP io -> begin
         match io with
         | Intel_StackOP PUSH
@@ -203,10 +204,10 @@ module Opcode_utils = struct
         | Intel_ControlOP LEAVE ->
             true
         | _ -> false
-      end
-    | Arm_OP (ao, _, _) -> begin
-        match ao with Arm_StackOP _ -> true | _ -> false
-      end
+        end
+    | Arm_OP (ao, _, _) ->
+        begin match ao with Arm_StackOP _ -> true | _ -> false
+        end
     | _ -> false
 
   let is_mov (op : intel_op) : bool =
@@ -217,20 +218,20 @@ module Opcode_utils = struct
 
   let is_call (op : op) : bool =
     match op with
-    | Intel_OP iop -> begin
-        match iop with
-        | Intel_ControlOP c -> begin
-            match c with CALL -> true | CALLQ -> true | _ -> false
-          end
+    | Intel_OP iop ->
+        begin match iop with
+        | Intel_ControlOP c ->
+            begin match c with CALL -> true | CALLQ -> true | _ -> false
+            end
         | _ -> false
-      end
-    | Arm_OP (ao, _, _) -> begin
-        match ao with
-        | Arm_ControlOP aco -> begin
-            match aco with BL | BLX -> true | _ -> false
-          end
+        end
+    | Arm_OP (ao, _, _) ->
+        begin match ao with
+        | Arm_ControlOP aco ->
+            begin match aco with BL | BLX -> true | _ -> false
+            end
         | _ -> false
-      end
+        end
     | _ -> false
 
   let is_cmp_op (op : intel_op) : bool =
@@ -245,8 +246,7 @@ module Exp_utils = struct
   let is_func (e : exp) : bool =
     match e with Symbol (CallDes _) -> true | _ -> false
 
-  let is_indirect (e : exp) : bool =
-    match e with
+  let is_indirect : exp -> bool = function
     | Symbol s -> begin
         match s with StarDes _ -> true | _ -> false
         (* this is triky:  repz ret could be parsed into
@@ -258,7 +258,7 @@ module Exp_utils = struct
          *  Let's ad-hoc identify it in this way
          *)
         (* | Label s -> s = "ret" || s = "retq" *)
-      end
+        end
     | _ -> false
 
   let rec is_mem_exp (e : exp) : bool =
@@ -285,6 +285,8 @@ module Instr_utils = struct
     | TripleInstr (_, _, _, _, pre, _) -> pre
     | FourInstr (_, _, _, _, _, pre, _) -> pre
     | FifInstr (_, _, _, _, _, _, pre, _) -> pre
+    | SixInstr (_, _, _, _, _, _, _, pre, _) -> pre
+    | SevenInstr (_, _, _, _, _, _, _, _, pre, _) -> pre
 
   let get_loc (i : instr) : loc =
     match i with
@@ -293,6 +295,8 @@ module Instr_utils = struct
     | TripleInstr (_, _, _, l, _, _) -> l
     | FourInstr (_, _, _, _, l, _, _) -> l
     | FifInstr (_, _, _, _, _, l, _, _) -> l
+    | SixInstr (_, _, _, _, _, _, l, _, _) -> l
+    | SevenInstr (_, _, _, _, _, _, _, l, _, _) -> l
 
   let set_loc (i : instr) (l : loc) : instr =
     match i with
@@ -304,6 +308,10 @@ module Instr_utils = struct
         FourInstr (p, e1, e2, e3, l, pre, tags)
     | FifInstr (p, e1, e2, e3, e4, _, pre, tags) ->
         FifInstr (p, e1, e2, e3, e4, l, pre, tags)
+    | SixInstr (p, e1, e2, e3, e4, e5, _, pre, tags) ->
+        SixInstr (p, e1, e2, e3, e4, e5, l, pre, tags)
+    | SevenInstr (p, e1, e2, e3, e4, e5, e6, _, pre, tags) ->
+        SevenInstr (p, e1, e2, e3, e4, e5, e6, l, pre, tags)
 
   let update_label (i : instr) (l : string) : instr =
     let loc = get_loc i in
@@ -324,6 +332,8 @@ module Instr_utils = struct
     | TripleInstr (p, _, _, _, _, _) -> p
     | FourInstr (p, _, _, _, _, _, _) -> p
     | FifInstr (p, _, _, _, _, _, _, _) -> p
+    | SixInstr (p, _, _, _, _, _, _, _, _) -> p
+    | SevenInstr (p, _, _, _, _, _, _, _, _, _) -> p
 
   let change_op (i : instr) (new_op : op) : instr =
     match i with
@@ -335,6 +345,10 @@ module Instr_utils = struct
         FourInstr (new_op, e1, e2, e3, l, pre, tags)
     | FifInstr (_, e1, e2, e3, e4, l, pre, tags) ->
         FifInstr (new_op, e1, e2, e3, e4, l, pre, tags)
+    | SixInstr (_, e1, e2, e3, e4, e5, l, pre, tags) ->
+        SixInstr (new_op, e1, e2, e3, e4, e5, l, pre, tags)
+    | SevenInstr (_, e1, e2, e3, e4, e5, e6, l, pre, tags) ->
+        SevenInstr (new_op, e1, e2, e3, e4, e5, e6, l, pre, tags)
 
   let change_condsuff (i : instr) (new_condsuff : arm_condsuff option) : instr =
     let op = get_op i in
@@ -356,6 +370,8 @@ module Instr_utils = struct
     | TripleInstr (_, e, _, _, _, _) -> e
     | FourInstr (_, e, _, _, _, _, _) -> e
     | FifInstr (_, e, _, _, _, _, _, _) -> e
+    | SixInstr (_, e, _, _, _, _, _, _, _) -> e
+    | SevenInstr (_, e, _, _, _, _, _, _, _, _) -> e
 
   (** Get the second exp. e.g.: mov r0, r1 -> r0 add r1, r2, r3 -> r2 *)
   let get_exp_2 (i : instr) : exp =
@@ -365,6 +381,8 @@ module Instr_utils = struct
     | TripleInstr (_, _, e, _, _, _) -> e
     | FourInstr (_, _, e, _, _, _, _) -> e
     | FifInstr (_, _, e, _, _, _, _, _) -> e
+    | SixInstr (_, _, e, _, _, _, _, _, _) -> e
+    | SevenInstr (_, _, e, _, _, _, _, _, _, _) -> e
 
   let has_lr_reg (i : instr) : bool =
     let exp = get_exp_1 i in
@@ -415,53 +433,53 @@ module Instr_utils = struct
 
   let is_jmp (i : instr) : bool =
     match get_op i with
-    | Intel_OP iop -> begin
-        match iop with
-        | Intel_ControlOP ico -> begin
-            match ico with Intel_Jump JMP -> true | _ -> false
-          end
+    | Intel_OP iop ->
+        begin match iop with
+        | Intel_ControlOP ico ->
+            begin match ico with Intel_Jump JMP -> true | _ -> false
+            end
         | _ -> false
-      end
-    | Arm_OP (ao, _, _) -> begin
-        match ao with
-        | Arm_ControlOP aco -> begin
-            match aco with
+        end
+    | Arm_OP (ao, _, _) ->
+        begin match ao with
+        | Arm_ControlOP aco ->
+            begin match aco with
             (* TODO: ARM: *)
             (* should be distinguished from "BX LR", which is a return. *)
             | B | BXJ -> true
             | BX when not (has_lr_reg i) -> true
             | _ -> false
-          end
+            end
         | _ -> false
-      end
+        end
     | _ -> false
 
   let is_ret (i : instr) : bool =
     match get_op i with
-    | Intel_OP iop -> begin
-        match iop with
-        | Intel_ControlOP c -> begin
-            match c with RET | RETN | RETQ -> true | _ -> false
-          end
+    | Intel_OP iop ->
+        begin match iop with
+        | Intel_ControlOP c ->
+            begin match c with RET | RETN | RETQ -> true | _ -> false
+            end
         | _ -> false
-      end
-    | Arm_OP (aop, _, _) -> begin
-        match aop with
-        | Arm_ControlOP aco -> begin
-            match aco with
+        end
+    | Arm_OP (aop, _, _) ->
+        begin match aop with
+        | Arm_ControlOP aco ->
+            begin match aco with
             (* TODO: ARM: This is naive because we need to check if BX uses LR register *)
             | BX when has_lr_reg i -> true
             | RET -> true
             | _ -> false
-          end
-        | Arm_StackOP aso -> begin
-            match aso with
+            end
+        | Arm_StackOP aso ->
+            begin match aso with
             (* TODO: ARM: This is naive because we need to check if POP uses PC register *)
             | POP when has_pc_reg i -> true
             | _ -> false
-          end
+            end
         | _ -> false
-      end
+        end
     | _ -> false
 
   let is_control_transfer_op (i : instr) : bool =
@@ -481,13 +499,14 @@ module Instr_utils = struct
         | _ -> false)
     | _ -> false
 
-  let print_instr_type (i : instr) : unit =
-    match i with
+  let print_instr_type : instr -> unit = function
     | SingleInstr _ -> print_string "single instr"
     | DoubleInstr _ -> print_string "double instr"
     | TripleInstr _ -> print_string "triple instr"
     | FourInstr _ -> print_string "four instr"
     | FifInstr _ -> print_string "five instr"
+    | SixInstr _ -> print_string "six instr"
+    | SevenInstr _ -> print_string "seven instr"
 end
 
 module IL_utils = struct
@@ -498,7 +517,7 @@ module IL_utils = struct
        the function. This function find the adjusted stack variable
        offset for accurate fact propagation in the data-flow analysis *)
     (* this is specific to 32-bit intel binaries *)
-    let rec traverse = function
+    let rec traverse : instr list -> instr list = function
       | i1 :: i2 :: i3 :: rest -> begin
           match (i2, i3) with
           | ( TripleInstr
@@ -538,7 +557,7 @@ module IL_utils = struct
               i1 :: traverse (i2 :: i3_new :: rest)
             end
           | _ -> i1 :: traverse (i2 :: i3 :: rest)
-        end
+          end
       | rest -> rest
     in
     traverse il
@@ -567,18 +586,18 @@ module Func_utils = struct
       match l with
       | [] -> []
       | h :: [] -> List.rev_append acc [ h ]
-      | h1 :: h2 :: t -> begin
-          if h1.func_begin_addr == h2.func_begin_addr then begin
-            if contains ~str:h1.func_name ~sub:"S_0x" then
+      | h1 :: h2 :: t ->
+          begin if h1.func_begin_addr == h2.func_begin_addr then
+            begin if contains ~str:h1.func_name ~sub:"S_0x" then
               (* print_string ("remove : "^(h1.func_name)^"\n"); *)
               help (h2 :: t) acc
             else if contains ~str:h2.func_name ~sub:"S_0x" then
               (* print_string ("remove : "^(h2.func_name)^"\n"); *)
               help (h1 :: t) acc
             else help (h2 :: t) (h1 :: acc)
-          end
+            end
           else help (h2 :: t) (h1 :: acc)
-        end
+          end
     in
     help l []
 
@@ -734,8 +753,8 @@ module Func_utils = struct
           let i_addr = (get_loc hi).loc_addr in
           if i_addr >= f_ea then update tf il (hf :: acc)
           else if i_addr < f_ba then update fl ti acc
-          else begin
-            match IU.get_ct_des hi with
+          else
+            begin match IU.get_ct_des hi with
             | Some des when des >= f_ea && des >= text_start && des < text_end
               -> begin
                 (* intra jump target is after function ends.
@@ -759,7 +778,7 @@ module Func_utils = struct
                 | None -> update fl ti acc
               end
             | _ -> update fl ti acc
-          end
+            end
     in
     update fl il []
 
@@ -800,6 +819,23 @@ module Func_utils = struct
   let func2cfg (il : instr list) (funcs : func list) : (string, cfgi) Hashtbl.t
       =
     let module IU = Instr_utils in
+    let is_commented_out i =
+      let tags =
+        match i with
+        | SingleInstr (_, _, _, t) -> t
+        | DoubleInstr (_, _, _, _, t) -> t
+        | TripleInstr (_, _, _, _, _, t) -> t
+        | FourInstr (_, _, _, _, _, _, t) -> t
+        | FifInstr (_, _, _, _, _, _, _, t) -> t
+        | SixInstr (_, _, _, _, _, _, _, _, t) -> t
+        | SevenInstr (_, _, _, _, _, _, _, _, _, t) -> t
+      in
+      Hashtbl.mem tags "commented_out"
+    in
+    (* Exclude commented-out instructions (e.g. literal pool data marked by
+       remove_literal_pools) from CFG construction and data-flow analysis.
+       They are kept in ail_parser#get_instrs for pp_print output only. *)
+    let il = List.filter (fun i -> not (is_commented_out i)) il in
     let il =
       List.sort
         (fun i1 i2 -> compare (get_loc i1).loc_addr (get_loc i2).loc_addr)
@@ -986,8 +1022,8 @@ module Instrumentation_utils = struct
       match (l_u, l) with
       | h_u :: t_u, h :: t -> begin
           let i, loc1, ty, i_s = h_u and loc2 = get_loc h in
-          if same loc1 loc2 then begin
-            match ty with
+          if same loc1 loc2 then
+            begin match ty with
             | SUB -> begin
                 let open Pp_print in
                 let h_s = pp_print_instr h in
@@ -995,7 +1031,7 @@ module Instrumentation_utils = struct
                 else help l_u t (h :: acc)
               end
             | INSERT -> help t_u (h :: t) (i :: acc)
-          end
+            end
           else help l_u t (h :: acc)
         end
       | [], l' -> List.rev_append acc l'
@@ -1086,22 +1122,22 @@ module Instrumentation_utils = struct
     | DoubleInstr (op, _, _, _, _) when is_stack_op op ->
         (* push & pop *)
         Some DOUBLE_READ
-    | TripleInstr (op, _, e2, _, _, _) when is_mem_exp e2 -> begin
-        match op with
-        | Intel_OP io -> begin
-            match io with
+    | TripleInstr (op, _, e2, _, _, _) when is_mem_exp e2 ->
+        begin match op with
+        | Intel_OP io ->
+            begin match io with
             | Intel_CommonOP (Intel_Assign io)
               when io = LEA || io = LEAL || io = LEAQ ->
                 None
             | Intel_CommonOP (Intel_Assign _) -> Some TRIPLE_READ
             | _ -> None
-          end
-        | Arm_OP (ao, _, _) -> begin
-            match ao with
+            end
+        | Arm_OP (ao, _, _) ->
+            begin match ao with
             | Arm_CommonOP (Arm_Assign _) -> Some TRIPLE_READ
             | _ -> None
-          end
-      end
+            end
+        end
     | _ -> None
 
   let is_mem_instr instr =

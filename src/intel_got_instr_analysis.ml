@@ -540,6 +540,9 @@ module GotAbs : DfaAbs = struct
     | Some (Exp e) -> ExpSet.mem e exp_set
     | _ -> false
 
+  (** ExpSet domain is monotone-increasing; widening is identity *)
+  let widen _old_abs new_abs = new_abs
+
   (** identify GOT pointer and propagate facts *)
   let flow_through (i : instr) (ins : ExpSet.t) : ExpSet.t =
     let outs = ins in

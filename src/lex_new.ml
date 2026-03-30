@@ -140,6 +140,29 @@ let fifth_instr (op : string) (el : string list) (l : string) =
   lexm.(5) <- Lloc l;
   lexm
 
+let sixth_instr (op : string) (el : string list) (l : string) =
+  let lexm = Array.make 8 Lend in
+  lexm.(0) <- Lop op;
+  lexm.(1) <- Lexp (List.nth el 0);
+  lexm.(2) <- Lexp (List.nth el 1);
+  lexm.(3) <- Lexp (List.nth el 2);
+  lexm.(4) <- Lexp (List.nth el 3);
+  lexm.(5) <- Lexp (List.nth el 4);
+  lexm.(6) <- Lloc l;
+  lexm
+
+let seventh_instr (op : string) (el : string list) (l : string) =
+  let lexm = Array.make 9 Lend in
+  lexm.(0) <- Lop op;
+  lexm.(1) <- Lexp (List.nth el 0);
+  lexm.(2) <- Lexp (List.nth el 1);
+  lexm.(3) <- Lexp (List.nth el 2);
+  lexm.(4) <- Lexp (List.nth el 3);
+  lexm.(5) <- Lexp (List.nth el 4);
+  lexm.(6) <- Lexp (List.nth el 5);
+  lexm.(7) <- Lloc l;
+  lexm
+
 let do_exp (e : string) (op : string) (l : string) (arch : string) =
   let cl =
     if arch = "intel" then comma_in_parentheses e
@@ -159,6 +182,12 @@ let do_exp (e : string) (op : string) (l : string) (arch : string) =
   else if cl_len == 3 then (*fourth exp instr*)
     let el = split_by_list e cl in
     fifth_instr op el l
+  else if cl_len == 4 then
+    let el = split_by_list e cl in
+    sixth_instr op el l
+  else if cl_len == 5 then
+    let el = split_by_list e cl in
+    seventh_instr op el l
   else failwith "unsupport exp length"
 
 let lexer' instr' location' (arch : string) =

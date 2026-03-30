@@ -8,6 +8,8 @@ let get_tags : instr -> (string, tags_val) Hashtbl.t = function
   | TripleInstr (_, _, _, _, _, tags) -> tags
   | FourInstr (_, _, _, _, _, _, tags) -> tags
   | FifInstr (_, _, _, _, _, _, _, tags) -> tags
+  | SixInstr (_, _, _, _, _, _, _, _, tags) -> tags
+  | SevenInstr (_, _, _, _, _, _, _, _, _, tags) -> tags
 
 let set_tags (i : instr) (new_tags : (string, tags_val) Hashtbl.t) : instr =
   match i with
@@ -19,6 +21,10 @@ let set_tags (i : instr) (new_tags : (string, tags_val) Hashtbl.t) : instr =
       FourInstr (p, e1, e2, e3, l, pre, new_tags)
   | FifInstr (p, e1, e2, e3, e4, l, pre, _) ->
       FifInstr (p, e1, e2, e3, e4, l, pre, new_tags)
+  | SixInstr (p, e1, e2, e3, e4, e5, l, pre, _) ->
+      SixInstr (p, e1, e2, e3, e4, e5, l, pre, new_tags)
+  | SevenInstr (p, e1, e2, e3, e4, e5, e6, l, pre, _) ->
+      SevenInstr (p, e1, e2, e3, e4, e5, e6, l, pre, new_tags)
 
 let get_instr_tag (i : instr) : instr_tag option =
   match Hashtbl.find_opt (get_tags i) "instr_tag" with
@@ -48,6 +54,20 @@ let set_tag_by_kv k v tags =
   let _ = Hashtbl.add new_tags k v in
   new_tags
 
+let mark_commented_out instr =
+  let tags =
+    match instr with
+    | SingleInstr (_, _, _, t) -> t
+    | DoubleInstr (_, _, _, _, t) -> t
+    | TripleInstr (_, _, _, _, _, t) -> t
+    | FourInstr (_, _, _, _, _, _, t) -> t
+    | FifInstr (_, _, _, _, _, _, _, t) -> t
+    | SixInstr (_, _, _, _, _, _, _, _, t) -> t
+    | SevenInstr (_, _, _, _, _, _, _, _, _, t) -> t
+  in
+  Hashtbl.replace tags "commented_out" (Str "orphan_condsuff");
+  instr
+
 let has_sym_instr_tag (i : instr) : bool =
   match get_instr_tag i with Some (Sym _) -> true | _ -> false
 
@@ -68,11 +88,11 @@ let handle_sym (ilist : instr list) =
   let rec help ilist acc =
     match ilist with
     | [] -> List.rev acc
-    | i :: t -> begin
-        match get_instr_tag i with
+    | i :: t ->
+        begin match get_instr_tag i with
         | Some (Sym addr) -> help t (convert_to_symbol i addr :: acc)
         | _ -> help t (i :: acc)
-      end
+        end
   in
   help ilist []
 
@@ -80,8 +100,8 @@ let handle_deref (ilist : instr list) =
   let rec help ilist acc =
     match ilist with
     | [] -> List.rev acc
-    | i :: t -> begin
-        match i with
+    | i :: t ->
+        begin match i with
         | TripleInstr (op, e1, Reg reg, l, pre, tags)
           when get_instr_tag i = Some Deref ->
             let deref_instr =
@@ -89,8 +109,28 @@ let handle_deref (ilist : instr list) =
             in
             let _ = remove_instr_tag i in
             help t (deref_instr :: i :: acc)
+        | TripleInstr (_, Const (Immediate value), (Reg _ as dst), l, pre, tags)
+          when Hashtbl.find_opt tags "instr_tag" = Some (Str "movw_movt") ->
+            let movw_op = Arm_OP (Arm_CommonOP (Arm_Assign MOVW), None, None) in
+            let movt_op = Arm_OP (Arm_CommonOP (Arm_Assign MOVT), None, None) in
+            let lo16 = value land 0xFFFF in
+            let hi16 = value lsr 16 in
+            let movw_instr =
+              TripleInstr
+                (movw_op, Const (Immediate lo16), dst, l, pre, Hashtbl.create 0)
+            in
+            let movt_instr =
+              TripleInstr
+                ( movt_op,
+                  Const (Immediate hi16),
+                  dst,
+                  { l with loc_label = "" },
+                  pre,
+                  Hashtbl.create 0 )
+            in
+            help t (movt_instr :: movw_instr :: acc)
         | _ -> help t (i :: acc)
-      end
+        end
   in
   help ilist []
 
@@ -98,14 +138,14 @@ let handle_del (ilist : instr list) =
   let rec help ilist acc =
     match ilist with
     | [] -> List.rev acc
-    | i :: t -> begin
-        match get_instr_tag i with
+    | i :: t ->
+        begin match get_instr_tag i with
         | Some Del -> begin
             let _ = Printf.printf "Del: %s\n" (pp_print_instr' i) in
             help t acc (* Skip instructions with Del instr_tag *)
           end
         | _ -> help t (i :: acc)
-      end
+        end
   in
   help ilist []
 

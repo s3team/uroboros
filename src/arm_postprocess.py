@@ -379,6 +379,200 @@ def convert_symbol_to_use_movw_movt(filename):
         f.writelines(new_content)
 
 
+import re as _re
+
+# Matches cbz/cbnz instructions, capturing indent, mnemonic, register, and target.
+_CBZ_RE = _re.compile(r'^(\s*)(cbnz|cbz)\s+(\w+),(.+?)\s*$')
+# Matches a label definition at the start of a (stripped) line.
+_LABEL_DEF_RE = _re.compile(r'^([A-Za-z_.][A-Za-z0-9_.]*):\s*')
+
+
+def _thumb_instr_size(opcode, operands_str):
+    """Return estimated byte size of a Thumb-2 instruction.
+
+    Returns 2 for instructions that are always 16-bit, 4 otherwise.
+    """
+    op = opcode.lower()
+    operands = [o.strip() for o in operands_str.split(',')]
+
+    if op in ('cbz', 'cbnz', 'nop', 'bkpt'):
+        return 2
+    if op.endswith('.n'):
+        return 2
+    if op.endswith('.w'):
+        return 4
+    if op in ('bl', 'blx') and (not operands or not _re.match(r'^r\d+$', operands[0])):
+        return 4  # branch-to-label form
+    # bx rN / blx rN (register form) → 16-bit
+    if op in ('bx', 'blx') and operands and _re.match(r'^r\d+$', operands[0]):
+        return 2
+    # movs rN, rM  (low regs) or  movs rN, #imm8 → 16-bit
+    if op == 'movs' and len(operands) >= 2:
+        dst, src = operands[0], operands[1]
+        if _re.match(r'^r[0-7]$', dst) and _re.match(r'^r[0-7]$', src):
+            return 2
+        if _re.match(r'^r[0-7]$', dst) and _re.match(r'^#(?:0x[\da-fA-F]+|\d+)$', src):
+            try:
+                if 0 <= int(src.lstrip('#'), 0) <= 255:
+                    return 2
+            except ValueError:
+                pass
+    return 4  # conservative default: assume 32-bit
+
+
+def _build_offset_map(lines):
+    """Estimate byte offsets for every line and collect label→offset mappings.
+
+    Tracks literal-pool entries queued by  ldr r,=symbol  instructions and
+    flushes them (4 bytes each, 4-byte aligned) at each .ltorg directive.
+
+    Returns:
+        line_offsets  – list[int]: estimated byte offset at the start of each line
+        label_offsets – dict[str, int]: label name → estimated byte offset
+    """
+    label_offsets = {}
+    line_offsets = []
+    pending_literals = 0
+    current_offset = 0
+    in_text = False
+
+    for line in lines:
+        line_offsets.append(current_offset)
+        stripped = line.strip()
+
+        if '.section .text' in line:
+            in_text = True
+        elif in_text and '.section' in line and '.text' not in line:
+            in_text = False
+
+        if not in_text or not stripped:
+            continue
+        if stripped[0] in ('@', '#'):
+            continue
+
+        # Extract any label prefix (e.g. "S_0x1234: movs r0,r1" or "S_0x1234:")
+        lm = _LABEL_DEF_RE.match(stripped)
+        if lm:
+            label_offsets[lm.group(1)] = current_offset
+            stripped = stripped[lm.end():].strip()
+            if not stripped:
+                continue
+
+        if stripped.startswith('.'):
+            if stripped.startswith('.ltorg'):
+                if current_offset % 4:
+                    current_offset += 4 - (current_offset % 4)
+                current_offset += pending_literals * 4
+                pending_literals = 0
+            elif _re.match(r'\.(long|word|4byte)\b', stripped):
+                current_offset += 4
+            elif _re.match(r'\.(hword|short|2byte)\b', stripped):
+                current_offset += 2
+            elif stripped.startswith('.byte'):
+                current_offset += 1
+            elif _re.match(r'\.align\b', stripped):
+                try:
+                    align = 1 << int(stripped.split()[1])
+                    if current_offset % align:
+                        current_offset += align - (current_offset % align)
+                except Exception:
+                    pass
+            continue
+
+        # ldr r,=symbol  queues one 4-byte literal-pool entry
+        if _re.match(r'ldr\S*\s+\w+\s*,\s*=', stripped):
+            pending_literals += 1
+            current_offset += 4
+            continue
+
+        parts = stripped.split(None, 1)
+        opcode = parts[0]
+        ops_str = parts[1] if len(parts) > 1 else ''
+        current_offset += _thumb_instr_size(opcode, ops_str)
+
+    return line_offsets, label_offsets
+
+
+def expand_out_of_range_cbz_cbnz(filename):
+    """Expand cbz/cbnz instructions whose branch targets exceed the 126-byte limit.
+
+    cbz/cbnz in Thumb can only branch forward up to 126 bytes from the instruction's
+    PC (instruction address + 4).  Literal-pool insertions during reassembly can push
+    some targets beyond that limit.
+
+    Transformation applied when the target is out of range:
+
+        cbz  rN, far_target        →   cbnz rN, .Lcbz_skip_K
+                                        b.w  far_target
+                                        .Lcbz_skip_K:
+
+        cbnz rN, far_target        →   cbz  rN, .Lcbz_skip_K
+                                        b.w  far_target
+                                        .Lcbz_skip_K:
+
+    The generated  b.w  instructions will receive a .ltorg directive from the
+    subsequent  insert_ltorg_directive  pass (which must run after this function).
+
+    Note: cbz/cbnz that reference labels not present in the file (a separate
+    labelling bug in the OCaml pipeline) are also expanded here so that the
+    assembler reports "undefined symbol" rather than "branch out of range",
+    making the root cause easier to identify.
+    """
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    line_offsets, label_offsets = _build_offset_map(lines)
+
+    new_lines = []
+    skip_counter = 0
+
+    for i, line in enumerate(lines):
+        m = _CBZ_RE.match(line)
+        if not m:
+            new_lines.append(line)
+            continue
+
+        indent, mnemonic, reg, target = (
+            m.group(1), m.group(2), m.group(3), m.group(4)
+        )
+        instr_off = line_offsets[i]
+
+        out_of_range = False
+        if _re.match(r'^S_0x[0-9A-Fa-f]+$', target):
+            tgt_off = label_offsets.get(target)
+            if tgt_off is None:
+                # Label defined in the file but not yet assembled (missing label
+                # from the OCaml pipeline).  Expand so the assembler reports
+                # "undefined symbol" rather than "branch out of range".
+                out_of_range = True
+            else:
+                # cbz/cbnz are 16-bit; PC = instruction_address + 4.
+                # Valid forward range: offset ∈ [0, 126].
+                offset = tgt_off - (instr_off + 4)
+                if offset < 0 or offset > 126:
+                    out_of_range = True
+        else:
+            # Raw absolute-address target (e.g. #0x2ea56).  The binary may have
+            # shifted due to inserted literal pools, making the offset negative.
+            # Always expand so b.w handles the wider range.
+            out_of_range = True
+
+        if out_of_range:
+            skip_counter += 1
+            skip_label = f'.Lcbz_skip_{skip_counter}'
+            inverse = 'cbz' if mnemonic == 'cbnz' else 'cbnz'
+            # Strip leading '#' from raw hex targets: b.w does not use the '#' prefix.
+            bw_target = target.lstrip('#')
+            new_lines.append(f'{indent}{inverse} {reg},{skip_label}\n')
+            new_lines.append(f'{indent}b.w {bw_target}\n')
+            new_lines.append(f'{indent}{skip_label}:\n')
+        else:
+            new_lines.append(line)
+
+    with open(filename, 'w') as f:
+        f.writelines(new_lines)
+
+
 def main(argv):
     if len(argv) != 3:
         print("Usage: python arm_postprocess.py <path_to_assembly_file> <arch>")
@@ -391,6 +585,7 @@ def main(argv):
         # The order of these functions could matter
         handle_switch_tables(assembly_path)
         remove_unused_literal_pools_in_data(assembly_path)
+        expand_out_of_range_cbz_cbnz(assembly_path)
         insert_ltorg_directive(assembly_path)
         remove_caret(assembly_path)
         # remove_invalid_d2c_labels(assembly_path)

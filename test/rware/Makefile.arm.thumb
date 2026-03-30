@@ -1,6 +1,6 @@
 #:Compiler and flags
 CC = arm-linux-gnueabihf-gcc
-CFLAGS = -O3 -no-pie -I./tiny-AES-c -I./tiny-ECDH-c
+CFLAGS = -O3 -no-pie -static -I./tiny-AES-c -I./tiny-ECDH-c
 
 # Source files
 GENECDH_SRC = src/genecdh.c tiny-ECDH-c/ecdh.c

@@ -177,7 +177,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       let module EU = Elf_utils in
       if EU.elf_static () then
         let plt_filelines = read_file "plt_sec.info" in
-        plt_sec <- read_sec_start_end (List.hd plt_filelines)
+        if plt_filelines <> [] then
+          plt_sec <- read_sec_start_end (List.hd plt_filelines)
 
     method check_text addr =
       let judge_mem_list addr = bbn_byloc addr text_mem_arr in
@@ -187,7 +188,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       let pb, psize = plt_sec in
       let pe = pb + psize in
       let module EU = Elf_utils in
-      if addr = 0xffff then false
+      if addr = 0xffff then
+        false
         (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
          found instructions like this in the code:
@@ -279,8 +281,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
             Buffer.add_string b (get_v v1);
             let v_str = Buffer.contents b in
             match string_to_int32 v_str with
-            | Some v -> begin
-                match self#check_sec v with
+            | Some v ->
+                begin match self#check_sec v with
                 | Some s ->
                     if assumption_two then begin
                       in_jmptable <- false;
@@ -299,8 +301,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                         :: (l1, ".long S_0x" ^ v_str')
                         :: acc)
                         t (addr + 8) sec
-                | None -> begin
-                    match self#check_text v with
+                | None ->
+                    begin match self#check_text v with
                     | true ->
                         let c =
                           if assumption_three = true then check_func_begin v
@@ -356,8 +358,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                          :: (l4, v4) :: (l3, v3) :: (l2, v2) :: (l1, v1) :: acc
                           )
                           t (addr + 8) sec
-                  end
-              end
+                    end
+                end
             | None -> begin
                 in_jmptable <- false;
                 match self#check_offset_64 v_str addr sec with
@@ -465,8 +467,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
               else v_str_num
             in
             match v_str_num' with
-            | Some v -> begin
-                match self#check_sec v with
+            | Some v ->
+                begin match self#check_sec v with
                 | Some s ->
                     if assumption_two then begin
                       in_jmptable <- false;
@@ -484,8 +486,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                         :: (l1, ".long S_0x" ^ v_str')
                         :: acc)
                         t (addr + 4) sec
-                | None -> begin
-                    match self#check_text v with
+                | None ->
+                    begin match self#check_text v with
                     | true ->
                         let c =
                           (* we use assumption three  *)
@@ -530,8 +532,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                             :: acc)
                             t (addr + 4) sec
                         end
-                    | false -> begin
-                        match self#check_offset v funcs sec with
+                    | false ->
+                        begin match self#check_offset v funcs sec with
                         | Some v ->
                             in_jmptable <- true;
                             cur_func_name <- self#fn_byloc v;
@@ -552,9 +554,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                               ((l4, v4) :: (l3, v3) :: (h2, v2) :: (l1, v1)
                              :: acc)
                               t (addr + 4) sec
-                      end
-                  end
-              end
+                        end
+                    end
+                end
             | None ->
                 (*in_jmptable <- false;
                 let h::t = l in  (*let it crash it not matched*)
@@ -783,9 +785,9 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         else None
       in
       match sec with
-      | ".rodata" -> begin
-          match peek filelines with Some l -> help l offset | _ -> None
-        end
+      | ".rodata" ->
+          begin match peek filelines with Some l -> help l offset | _ -> None
+          end
       | _ -> None
 
     method pp_print_2 l =
@@ -863,8 +865,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         object (sp)
           method process lbs =
             let rec help = function
-              | (n, l) :: t -> begin
-                  match n with
+              | (n, l) :: t ->
+                  begin match n with
                   | ".data" ->
                       let off = l - self#section_addr ".data" in
                       let s' = dec_hex l in
@@ -898,7 +900,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                             help t
                         | _ -> help t
                       else help t
-                end
+                  end
               | _ -> ()
             in
             help lbs
@@ -930,8 +932,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         object (sp)
           method process lbs sym_addr2label =
             let rec help = function
-              | (n, l) :: t -> begin
-                  match n with
+              | (n, l) :: t ->
+                  begin match n with
                   | ".text_as_data" ->
                       let off = l - fst text_sec in
                       let s' = dec_hex_col_sym l in
@@ -1079,7 +1081,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                         | ".tbss" -> help t
                         | _ -> raise (Reassemble_Error ("data_output: " ^ n))
                       else raise (Reassemble_Error ("data_output: " ^ n))
-                end
+                  end
               | _ -> ()
             in
             help lbs
@@ -1107,8 +1109,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                   let tail = if e = 0 then [] else sublist (b - 1) (e - 1) t in
                   if b > 0 then tail else h :: tail
             in
-            text_as_data_list <-
-              (".section .text_as_data\n", "") :: text_as_data_list;
+            (* .text_as_data is not regular section name. Use .text instead. *)
+            text_as_data_list <- (".section .text\n", "") :: text_as_data_list;
             rodata_list <- (".section .rodata\n", "") :: rodata_list;
             got_list <- (".section .got\n", "") :: got_list;
             data_list <- (".section .data\n", "") :: data_list;
@@ -1213,7 +1215,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
         __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
         tbss_list <- Array.to_list tbss_array;
-        self#static_plt_handler
+        if EU.get_arch () <> "thumb" then self#static_plt_handler
       end
       else ();
       p#insert_dummy;
@@ -1231,9 +1233,11 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         List.iter
           (fun l ->
             let items = Str.split (Str.regexp "[ \t]+") l in
-            let k = "0x" ^ List.nth items 0 |> int_of_string |> dec_hex_sym in
-            let v = "0x" ^ List.nth items 3 |> int_of_string |> dec_hex_sym in
-            Hashtbl.add rela_plt_map k v)
+            if List.length items > 3 then begin
+              let k = "0x" ^ List.nth items 0 |> int_of_string |> dec_hex_sym in
+              let v = "0x" ^ List.nth items 3 |> int_of_string |> dec_hex_sym in
+              Hashtbl.add rela_plt_map k v
+            end)
           filelines';
         rela_plt_map
       in
@@ -1721,7 +1725,8 @@ class arm_reassemble =
       let pb, psize = plt_sec in
       let pe = pb + psize in
       let module EU = Elf_utils in
-      if addr = 0xffff then false
+      if addr = 0xffff then
+        false
         (* this is dangerous, when processing 64-bit shared object, for example,
          ssh, the text section range includes memory address 0xffff. However, I
          found instructions like this in the code:
@@ -1867,8 +1872,8 @@ class arm_reassemble =
                   else e
                 else e
         end
-      | Symbol s -> begin
-          match s with
+      | Symbol s ->
+          begin match s with
           | JumpDes l ->
               if self#check_text l then
                 if self#has_text l then
@@ -1909,9 +1914,9 @@ class arm_reassemble =
                 else e
               else e
           | _ -> e
-        end
-      | Ptr s -> begin
-          match s with
+          end
+      | Ptr s ->
+          begin match s with
           | BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)
             when offset mod 2 = 0
                  && not (Hashtbl.mem instr_addrs_set (IU.get_loc i).loc_addr) ->
@@ -1938,8 +1943,8 @@ class arm_reassemble =
                 raise
                   (Reassemble_Error
                      "pc relative addr not in data section and text section")
-          | BinOP_PLUS (r, addr) -> begin
-              match self#check_sec addr with
+          | BinOP_PLUS (r, addr) ->
+              begin match self#check_sec addr with
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
@@ -1986,10 +1991,10 @@ class arm_reassemble =
                   else begin
                     e
                   end
-            end
+              end
           (* I don't know whether it can go this way, but it doesn't hurt *)
-          | BinOP_MINUS (r, addr) -> begin
-              match self#check_sec addr with
+          | BinOP_MINUS (r, addr) ->
+              begin match self#check_sec addr with
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
@@ -2006,9 +2011,9 @@ class arm_reassemble =
                     Ptr (BinOP_MINUS_S (r, s_label))
                   end
               | None -> e
-            end
-          | FourOP_PLUS (r1, r2, off, addr) -> begin
-              match self#check_sec addr with
+              end
+          | FourOP_PLUS (r1, r2, off, addr) ->
+              begin match self#check_sec addr with
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
@@ -2025,10 +2030,10 @@ class arm_reassemble =
                     Ptr (FourOP_PLUS_S (r1, r2, off, s_label))
                   end
               | None -> e
-            end
+              end
           (* I don't know whether it can go this way, but it doesn't hurt *)
-          | FourOP_MINUS (r1, r2, off, addr) -> begin
-              match self#check_sec addr with
+          | FourOP_MINUS (r1, r2, off, addr) ->
+              begin match self#check_sec addr with
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
@@ -2045,9 +2050,9 @@ class arm_reassemble =
                     Ptr (FourOP_PLUS_S (r1, r2, off, s_label))
                   end
               | None -> e
-            end
-          | JmpTable_PLUS (addr, r, off) -> begin
-              match self#check_sec addr with
+              end
+          | JmpTable_PLUS (addr, r, off) ->
+              begin match self#check_sec addr with
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
@@ -2080,9 +2085,9 @@ class arm_reassemble =
                       Ptr (JmpTable_PLUS_S (s_label, r, off))
                     end
                   else e
-            end
-          | JmpTable_MINUS (addr, r, off) -> begin
-              match self#check_sec addr with
+              end
+          | JmpTable_MINUS (addr, r, off) ->
+              begin match self#check_sec addr with
               | Some s ->
                   if self#has_data addr then begin
                     let s_label = "-S_" ^ dec_hex addr in
@@ -2115,26 +2120,43 @@ class arm_reassemble =
                       Ptr (JmpTable_MINUS_S (s_label, r, off))
                     end
                   else e
-            end
+              end
           | _ -> e
-        end
+          end
       | _ -> e
 
     method vinst2 (arch : string) (f : instr -> bool) (i : instr) : instr =
       let instr_tag = get_instr_tag i in
       if instr_tag = Some Del then i
       else
-        let is_test = function
-          | Intel_OP io -> begin
-              match io with
+        let is_test : op -> bool = function
+          | Intel_OP io ->
+              begin match io with
               | Intel_CommonOP (Intel_Compare TEST)
               | Intel_CommonOP (Intel_Compare TESTL)
               | Intel_CommonOP (Intel_Compare TESTW)
               | Intel_CommonOP (Intel_Compare TESTB) ->
                   true
               | _ -> false
-            end
+              end
           | Arm_OP _ -> false
+        in
+        (* Returns true for ARM opcodes where an Immediate constant last operand
+         * is always a plain value and must never be symbolized as a code address.
+         * Affected categories: Arm_Compare (CMP/CMN/TST/TEQ), Arm_Arithm (ADD/SUB/AND/…),
+         * Arm_Logic (ORR/EOR/BIC/…), and MOV-family assigns (MOV/MOVS/MOVW/MOVT/MVN/MVNS/CPY). *)
+        let is_const_opcode op =
+          match op with
+          | Arm_OP (Arm_CommonOP (Arm_Compare _), _, _) -> true
+          | Arm_OP (Arm_CommonOP (Arm_Arithm _), _, _) -> true
+          | Arm_OP (Arm_CommonOP (Arm_Logic _), _, _) -> true
+          | Arm_OP
+              ( Arm_CommonOP
+                  (Arm_Assign (MOV | MOVS | MOVW | MOVT | MVN | MVNS | CPY)),
+                _,
+                _ ) ->
+              true
+          | _ -> false
         in
         match i with
         | SingleInstr (p, l, pre, _) -> i
@@ -2159,6 +2181,32 @@ class arm_reassemble =
                 l,
                 pre,
                 tags )
+        | TripleInstr
+            ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
+              Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), offset)),
+              dst,
+              l,
+              pre,
+              tags )
+          when offset mod 2 = 0 ->
+            let module AU = ArmUtils in
+            let pc_relative_addr = AU.get_pc_relative_addr arch i in
+            if self#has_text_as_data pc_relative_addr then begin
+              let value =
+                match Hashtbl.find_opt text_as_data_set pc_relative_addr with
+                | Some s -> int_of_string ("0x" ^ s)
+                | None -> pc_relative_addr
+              in
+              let movwt_tags =
+                let t = Hashtbl.copy tags in
+                Hashtbl.replace t "instr_tag" (Str "movw_movt");
+                t
+              in
+              let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
+              TripleInstr
+                (ldr_op, Const (Immediate value), dst, l, pre, movwt_tags)
+            end
+            else i
         | TripleInstr (p, e1, e2, l, pre, tags) when has_sym_instr_tag i ->
           begin
             (* The following patterns should not be handled here.
@@ -2189,16 +2237,17 @@ class arm_reassemble =
             match self#check_sec value with
             | Some s ->
                 if s.sec_name = ".rodata" then pointer_instr
-                else if s.sec_name = ".got" then begin
-                  match self#get_got_as_data_int value with
-                  | Some deref_value -> begin
-                      match self#check_sec deref_value with
+                else if s.sec_name = ".got" then
+                  begin match self#get_got_as_data_int value with
+                  | Some deref_value ->
+                      begin match self#check_sec deref_value with
                       | Some deref_s ->
                           if deref_s.sec_name = ".data.rel.ro" then deref_instr
                           else if deref_s.sec_name = ".bss" then deref_instr
+                          else if deref_s.sec_name = ".data" then deref_instr
                           else pointer_instr
-                      | None -> begin
-                          if arch = "thumb" then begin
+                      | None ->
+                          begin if arch = "thumb" then begin
                             (* got-to-text references are odd numbers in ARM Thumb mode *)
                             let deref_value' =
                               if deref_value mod 2 = 1 then deref_value - 1
@@ -2208,10 +2257,10 @@ class arm_reassemble =
                             else pointer_instr
                           end
                           else pointer_instr
-                        end
-                    end
+                          end
+                      end
                   | None -> pointer_instr
-                end
+                  end
                 else deref_instr
             | None -> pointer_instr
           end
@@ -2219,24 +2268,31 @@ class arm_reassemble =
             TripleInstr
               (p, self#v_exp2 e1 i f true, self#v_exp2 e2 i f true, l, pre, tags)
         | TripleInstr (p, e1, e2, l, pre, tags) ->
-            TripleInstr
-              ( p,
-                self#v_exp2 e1 i f false,
-                self#v_exp2 e2 i f false,
-                l,
-                pre,
-                tags )
+            (* e1 is the last assembly operand (stack is stored in reverse order).
+             * For arithmetic/logic/compare/mov opcodes an Immediate constant at
+             * that position is a plain value, not a code address, so skip v_exp2. *)
+            let e1' =
+              match e1 with
+              | Const (Immediate _) when arch = "thumb" && is_const_opcode p ->
+                  e1
+              | _ -> self#v_exp2 e1 i f false
+            in
+            TripleInstr (p, e1', self#v_exp2 e2 i f false, l, pre, tags)
         | FourInstr (p, e1, e2, e3, l, pre, tags) ->
-            FourInstr
-              ( p,
-                self#v_exp2 e1 i f false,
-                self#v_exp2 e2 i f false,
-                e3,
-                l,
-                pre,
-                tags )
+            (* Same reversal applies: e1 is the last assembly operand. *)
+            let e1' =
+              match e1 with
+              | Const (Immediate _) when arch = "thumb" && is_const_opcode p ->
+                  e1
+              | _ -> self#v_exp2 e1 i f false
+            in
+            FourInstr (p, e1', self#v_exp2 e2 i f false, e3, l, pre, tags)
         | FifInstr (p, e1, e2, e3, e4, l, pre, tags) ->
             FifInstr (p, e1, self#v_exp2 e2 i f false, e3, e4, l, pre, tags)
+        | SixInstr (p, e1, e2, e3, e4, e5, l, pre, tags) as six_instr ->
+            six_instr
+        | SevenInstr (p, e1, e2, e3, e4, e5, e6, l, pre, tags) as seven_instr ->
+            seven_instr
 
     method jmp_table_rewrite (instrs : instr list) = instrs
     method jmp_table_rewrite64 (instrs : instr list) = instrs
@@ -2247,10 +2303,12 @@ class arm_reassemble =
         let filelines =
           List.filter (fun l -> contains ~str:l ~sub:"IRELATI") filelines
         in
-        List.map
+        List.filter_map
           (fun l ->
             let items = Str.split (Str.regexp "[ \t]+") l in
-            "0x" ^ List.nth items 3 |> int_of_string |> dec_hex_sym)
+            if List.length items > 3 then
+              Some ("0x" ^ List.nth items 3 |> int_of_string |> dec_hex_sym)
+            else None)
           filelines
       in
       List.iter (fun rpf -> deslist <- rpf :: deslist) rela_plt_funcs
@@ -2480,18 +2538,18 @@ class arm_reassemble =
       let rec intersect l1 l2 =
         match l1 with
         | [] -> []
-        | h1 :: t1 -> begin
-            match l2 with
+        | h1 :: t1 ->
+            begin match l2 with
             | [] -> []
             | h2 :: t2 when h1 < h2 -> intersect t1 l2
             | h2 :: t2 when h1 > h2 -> intersect l1 t2
-            | h2 :: t2 -> begin
-                match intersect t1 t2 with
+            | h2 :: t2 ->
+                begin match intersect t1 t2 with
                 | [] -> [ h1 ]
                 | h3 :: t3 as l when h3 = h1 -> l
                 | h3 :: t3 as l -> h1 :: l
-              end
-          end
+                end
+            end
       in
       print_int (List.length sl1);
       print_string "\n";
@@ -2599,6 +2657,46 @@ class arm_reassemble =
           bbl
       in
       List.rev (help [] bbl' instrs)
+
+    method add_ltorg_after_terminators instrs =
+      let module IU = Instr_utils in
+      let has_pc_reg (lab : label) : bool =
+        String.contains lab '{' && String.contains lab '}'
+        && contains ~str:lab ~sub:"pc"
+      in
+      let is_pop (op : arm_stackop) : bool =
+        match op with POP | VPOP | LDMIA -> true | _ -> false
+      in
+      let is_unconditional_terminator (i : instr) : bool =
+        match i with
+        | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _)
+          when is_pop op && has_pc_reg lab ->
+            true
+        | DoubleInstr
+            ( Arm_OP (Arm_ControlOP BX, _, _),
+              Reg (Arm_Reg (Arm_LinkReg LR)),
+              _,
+              _,
+              _ ) ->
+            true
+        | DoubleInstr (Arm_OP (Arm_ControlOP B, None, _), _, _, _, _) -> true
+        | _ -> false
+      in
+      let rec help acc prev_terminates = function
+        | [] -> List.rev acc
+        | hi :: ti ->
+            let hi' =
+              if prev_terminates then
+                let iloc = IU.get_loc hi in
+                let iloc' =
+                  { iloc with loc_label = ".ltorg\n" ^ iloc.loc_label }
+                in
+                IU.set_loc hi iloc'
+              else hi
+            in
+            help (hi' :: acc) (is_unconditional_terminator hi) ti
+      in
+      help [] false instrs
 
     method pp_print_1 l =
       let rec help = function

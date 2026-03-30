@@ -26,6 +26,7 @@ module ArmGotAbsWithValues : DfaAbs = struct
   let literal_pools : (int, string) Hashtbl.t = Hashtbl.create 200
   let data_pools : (int, string) Hashtbl.t = Hashtbl.create 200
   let (got_addr : int ref) = ref 0
+  let arm_reassemble_lazy = lazy (new arm_reassemble)
 
   let init_literal_pools () =
     let filelines = read_file "text_section_as_data.txt"
@@ -169,22 +170,16 @@ module ArmGotAbsWithValues : DfaAbs = struct
 
   let check_and_replace_instr (addr : int) (dst_e : exp) (loc : loc)
       (prefix : prefix option) =
-    let module AR = Arm_reassemble_symbol_get in
-    let arm_reassemble = new AR.arm_reassemble in
+    let arm_reassemble = Lazy.force arm_reassemble_lazy in
     let sec = arm_reassemble#check_sec addr in
     match sec with
-    | Some s ->
-        if
-          s.sec_name = ".rodata" || s.sec_name = ".bss"
-          || s.sec_name = ".data.rel.ro"
-          || s.sec_name = ".data"
-        then
-          let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
-          let new_instr =
-            TripleInstr
-              (ldr_op, Const (Point addr), dst_e, loc, prefix, Hashtbl.create 0)
-          in
-          Hashtbl.replace result loc.loc_addr [ new_instr ]
+    | Some _s ->
+        let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
+        let new_instr =
+          TripleInstr
+            (ldr_op, Const (Point addr), dst_e, loc, prefix, Hashtbl.create 0)
+        in
+        Hashtbl.replace result loc.loc_addr [ new_instr ]
     | None ->
         if arm_reassemble#check_text addr then
           let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
@@ -195,15 +190,29 @@ module ArmGotAbsWithValues : DfaAbs = struct
           Hashtbl.replace result loc.loc_addr [ new_instr ]
         else ()
 
+  (** Widening: intersection-based to guarantee convergence.
+      - First visit (old = initial empty): accept new_abs as-is.
+      - Subsequent visits: keep ONLY registers already in old_abs with the same
+        value. This makes out_map monotonically shrink after the first visit,
+        bounding total work to O(|instructions| * |registers|). *)
+  let widen (old_abs : abs_state) (new_abs : abs_state) : abs_state =
+    if RegMap.is_empty old_abs then new_abs (* First visit: accept everything *)
+    else
+      RegMap.filter
+        (fun reg new_val ->
+          match RegMap.find_opt reg old_abs with
+          | None -> false (* not in old: drop (intersection, not union) *)
+          | Some old_val -> old_val = new_val (* keep only if value unchanged *))
+        new_abs
+
   (** Transfer function: compute output state from input state *)
   let flow_through (i : instr) (ins : abs_state) : abs_state =
     init ();
     let module AU = ArmUtils in
     let outs = ins in
-    let arm_parser = new Arm_parser.arm_parse in
     match i with
-    | DoubleInstr (p, e, loc, _, _) -> begin
-        match (p, e) with
+    | DoubleInstr (p, e, loc, _, _) ->
+        begin match (p, e) with
         | Arm_OP (Arm_StackOP POP, _, _), Label label ->
             (* pop {r4,r7,pc}
              * Currently, we handle {...} exp as a Label.
@@ -217,13 +226,13 @@ module ArmGotAbsWithValues : DfaAbs = struct
             let regs = parse_label_to_regs label in
             List.fold_left (fun state reg -> RegMap.remove reg state) outs regs
         | _ -> outs
-      end
-    | TripleInstr (p, e1, e2, loc, prefix, _) -> begin
-        match (p, e1, e2) with
+        end
+    | TripleInstr (p, e1, e2, loc, prefix, _) ->
+        begin match (p, e1, e2) with
         | ( Arm_OP (Arm_CommonOP (Arm_Assign (LDR | LDRB)), _, _),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), imm)),
-            Reg (Arm_Reg dst) ) -> begin
-            match tracked_reg_name_of_arm_reg dst with
+            Reg (Arm_Reg dst) ) ->
+            begin match tracked_reg_name_of_arm_reg dst with
             | Some dst_reg_name ->
                 (* No need to pass [imm] to [AU.get_pc_relative_addr]. *)
                 let pc_relative_addr = AU.get_pc_relative_addr !arch i in
@@ -236,14 +245,11 @@ module ArmGotAbsWithValues : DfaAbs = struct
                   update_register outs dst_reg_name data
                 end
                 else
-                  let _ =
-                    Printf.printf "This case should not happen: %x\n"
-                      pc_relative_addr
-                  in
-                  let _ = Printf.printf "\t%s\n" (pp_print_instr' i) in
-                  failwith "No literal pool data found"
+                  (* pc-relative address not in literal pool (e.g. points to
+                     .data section); kill the destination register *)
+                  remove_register outs dst_reg_name
             | None -> outs
-          end
+            end
         | ( Arm_OP (Arm_CommonOP (Arm_Assign (LDR | LDRB)), _, _),
             Ptr (BinOP_PLUS (Arm_Reg (Arm_CommonReg src), imm)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
@@ -283,13 +289,8 @@ module ArmGotAbsWithValues : DfaAbs = struct
                   update_register outs dst_reg_name data
                 end
                 else
-                  (* TODO: might need to combine data_pools and literal_pools *)
-                  let _ =
-                    Printf.printf "This case should not happen: %x\n"
-                      pc_relative_addr
-                  in
-                  let _ = Printf.printf "\t%s\n" (pp_print_instr' i) in
-                  failwith "No literal pool data found"
+                  (* pc-relative address not in data pool; kill dst *)
+                  remove_register outs (p_arm_reg (Arm_CommonReg dst))
               end
             | None ->
                 (* cannot get the value of the src register, kill dst *)
@@ -297,18 +298,18 @@ module ArmGotAbsWithValues : DfaAbs = struct
           end
         | ( Arm_OP (Arm_CommonOP (Arm_Assign (LDR | LDRB)), _, _),
             _,
-            Reg (Arm_Reg dst) ) -> begin
-            match tracked_reg_name_of_arm_reg dst with
+            Reg (Arm_Reg dst) ) ->
+            begin match tracked_reg_name_of_arm_reg dst with
             | Some dst_reg_name -> remove_register outs dst_reg_name
             | None -> outs
-          end
+            end
         | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Reg (Arm_Reg (Arm_PCReg _)),
-            Reg (Arm_Reg dst) ) -> begin
+            Reg (Arm_Reg dst) ) ->
             (* ADD <tracked>, pc - handle common/stack/link dst registers uniformly *)
-            match tracked_reg_name_of_arm_reg dst with
-            | Some dst_reg_name -> begin
-                match get_register_value ins dst_reg_name with
+            begin match tracked_reg_name_of_arm_reg dst with
+            | Some dst_reg_name ->
+                begin match get_register_value ins dst_reg_name with
                 | Some dst_reg_value ->
                     let pc = loc.loc_addr + 4 in
                     let dst_reg_value' = AU.to_signed_int dst_reg_value in
@@ -319,9 +320,9 @@ module ArmGotAbsWithValues : DfaAbs = struct
                     let _ = check_and_replace_instr aligned_sum e2 loc prefix in
                     update_register outs dst_reg_name aligned_sum
                 | None -> remove_register outs dst_reg_name
-              end
+                end
             | None -> outs
-          end
+            end
         | ( Arm_OP (Arm_CommonOP (Arm_Assign mov_op), _, _),
             Reg (Arm_Reg (Arm_CommonReg src)),
             Reg (Arm_Reg (Arm_CommonReg dst)) )
@@ -337,10 +338,26 @@ module ArmGotAbsWithValues : DfaAbs = struct
                 (* src value unknown, kill dst *)
                 remove_register outs dst_reg_name
           end
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign (MOV | MOVS | MOVW)), None, _),
+            Const (Immediate _),
+            Reg (Arm_Reg dst) ) ->
+            (* MOV/MOVS/MOVW dst, #imm - kill dst (don't track constants, only GOT addresses) *)
+            begin match tracked_reg_name_of_arm_reg dst with
+            | Some dst_reg_name -> remove_register outs dst_reg_name
+            | None -> outs
+            end
+        | ( Arm_OP (Arm_CommonOP (Arm_Arithm _ | Arm_Logic _ | Arm_Rol _), _, _),
+            _,
+            Reg (Arm_Reg dst) ) ->
+            (* Arithmetic/logical/shift ops writing to a tracked reg: kill the dest *)
+            begin match tracked_reg_name_of_arm_reg dst with
+            | Some dst_reg_name -> remove_register outs dst_reg_name
+            | None -> outs
+            end
         | _ -> outs
-      end
-    | FourInstr (p, e1, e2, e3, loc, prefix, _) -> begin
-        match (p, e1, e2, e3) with
+        end
+    | FourInstr (p, e1, e2, e3, loc, prefix, _) ->
+        begin match (p, e1, e2, e3) with
         | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Reg (Arm_Reg (Arm_CommonReg src1)),
             Reg (Arm_Reg (Arm_CommonReg src2)),
@@ -364,17 +381,17 @@ module ArmGotAbsWithValues : DfaAbs = struct
         | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Reg (Arm_Reg src),
             Reg (Arm_Reg (Arm_PCReg _)),
-            Reg (Arm_Reg dst) ) -> begin
+            Reg (Arm_Reg dst) ) ->
             (* add <tracked>, pc, <tracked> where src/dst are same reg kind *)
-            match
+            begin match
               ( tracked_reg_name_of_arm_reg src,
                 tracked_reg_name_of_arm_reg dst,
                 tracked_reg_kind_of_arm_reg src,
                 tracked_reg_kind_of_arm_reg dst )
             with
             | Some src_reg_name, Some dst_reg_name, Some src_kind, Some dst_kind
-              when src_kind = dst_kind -> begin
-                match get_register_value ins src_reg_name with
+              when src_kind = dst_kind ->
+                begin match get_register_value ins src_reg_name with
                 | Some src_reg_value ->
                     let pc =
                       if !arch = "arm" then loc.loc_addr + 8
@@ -387,9 +404,9 @@ module ArmGotAbsWithValues : DfaAbs = struct
                     let _ = check_and_replace_instr aligned_sum e3 loc prefix in
                     update_register outs dst_reg_name aligned_sum
                 | None -> remove_register outs dst_reg_name
-              end
+                end
             | _ -> outs
-          end
+            end
         | ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
             Const (Immediate imm),
             Reg (Arm_Reg (Arm_LinkReg src)),
@@ -418,8 +435,17 @@ module ArmGotAbsWithValues : DfaAbs = struct
                 update_register outs dst_reg_name sum
             | None -> remove_register outs dst_reg_name
           end
+        | ( Arm_OP (Arm_CommonOP (Arm_Arithm _ | Arm_Logic _ | Arm_Rol _), _, _),
+            _,
+            _,
+            Reg (Arm_Reg dst) ) ->
+            (* Arithmetic/logical/shift ops writing to a tracked reg: kill the dest *)
+            begin match tracked_reg_name_of_arm_reg dst with
+            | Some dst_reg_name -> remove_register outs dst_reg_name
+            | None -> outs
+            end
         | _ -> outs
-      end
+        end
     | _ -> outs
 
   (** Process instruction to detect GOT-based memory accesses and rewrite them
@@ -433,8 +459,8 @@ module ArmGotAbsWithValues : DfaAbs = struct
       | None -> false
     in
     match i with
-    | TripleInstr (p, e1, e2, loc, prefix, tags) -> begin
-        match (p, e1, e2) with
+    | TripleInstr (p, e1, e2, loc, prefix, tags) ->
+        begin match (p, e1, e2) with
         | ( Arm_OP (Arm_CommonOP (Arm_Assign (LDR | LDRB)), _, _),
             Ptr (BinOP_PLUS_R (Arm_CommonReg src1, Arm_CommonReg src2)),
             Reg (Arm_Reg (Arm_CommonReg dst)) ) -> begin
@@ -458,31 +484,31 @@ module ArmGotAbsWithValues : DfaAbs = struct
             let _ = print_reg_values () in *)
             (* end debug *)
             if has_got_addr src1_name || has_got_addr src2_name then begin
-              let sym_addr =
+              let sym_addr_opt =
                 if has_got_addr src1_name then
                   match get_register_value ins src2_name with
-                  | Some v -> v + !got_addr
-                  | None ->
-                      let _ = Printf.printf "%s\n" (pp_print_instr' i) in
-                      failwith "Expected src2 value but got None"
+                  | Some v -> Some (v + !got_addr)
+                  | None -> None
                 else
                   match get_register_value ins src1_name with
-                  | Some v -> v + !got_addr
-                  | None ->
-                      let _ = Printf.printf "%s\n" (pp_print_instr' i) in
-                      failwith "Expected src1 value but got None"
+                  | Some v -> Some (v + !got_addr)
+                  | None -> None
               in
-              let sym_instr_tag = InstrTag (Sym sym_addr) in
-              let new_tags = Hashtbl.copy tags in
-              Hashtbl.replace new_tags "instr_tag" sym_instr_tag;
-              let new_instr = TripleInstr (p, e1, e2, loc, prefix, new_tags) in
-              Hashtbl.replace result (IU.get_loc i).loc_addr [ new_instr ];
-              ()
+              match sym_addr_opt with
+              | None -> ()
+              | Some sym_addr ->
+                  let sym_instr_tag = InstrTag (Sym sym_addr) in
+                  let new_tags = Hashtbl.copy tags in
+                  Hashtbl.replace new_tags "instr_tag" sym_instr_tag;
+                  let new_instr =
+                    TripleInstr (p, e1, e2, loc, prefix, new_tags)
+                  in
+                  Hashtbl.replace result (IU.get_loc i).loc_addr [ new_instr ]
             end
             else ()
           end
         | _ -> ()
-      end
+        end
     | _ -> ()
 
   let print_abstraction abs =

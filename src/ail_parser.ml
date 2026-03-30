@@ -76,9 +76,21 @@ class ailParser =
     | _ -> false
   in
 
+  let is_exp_lr_reg (i : instr) =
+    let module IU = Instr_utils in
+    let exp = IU.get_exp_1 i in
+    match exp with Reg (Arm_Reg (Arm_LinkReg LR)) -> true | _ -> false
+  in
+
+  let is_movs (op : op) : bool =
+    match op with
+    | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), None, _) -> true
+    | _ -> false
+  in
+
   let is_mov (op : op) : bool =
     match op with
-    | Arm_OP (Arm_CommonOP (Arm_Assign MOV), _, _) -> true
+    | Arm_OP (Arm_CommonOP (Arm_Assign MOV), None, _) -> true
     | _ -> false
   in
 
@@ -113,8 +125,8 @@ class ailParser =
       | _ -> false
     in
     if idx + 1 < List.length instrs && not_func_start () then false
-    else begin
-      match i with
+    else
+      begin match i with
       | TripleInstr
           (Arm_OP (Arm_CommonOP (Arm_Arithm SUB), _, _), _, exp2, _, _, _)
         when exp2 = Reg (Arm_Reg (Arm_StackReg SP)) -> begin
@@ -127,8 +139,8 @@ class ailParser =
           | Arm_OP (Arm_StackOP op, _, _) when is_push op -> true
           | _ -> false
         end
-      | _ -> begin
-          match IU.get_op i with
+      | _ ->
+          begin match IU.get_op i with
           | Arm_OP (Arm_StackOP PUSH, _, _) when has_r2_reg i && has_r3_reg i ->
               true
           | Arm_OP (Arm_StackOP PUSH, _, _) when has_r7_reg i -> true
@@ -144,8 +156,8 @@ class ailParser =
             when is_push op && (IU.has_lr_reg i || has_fp_reg i) ->
               true
           | _ -> false
-        end
-    end
+          end
+      end
   in
 
   let is_func_end (i : instr) =
@@ -161,6 +173,22 @@ class ailParser =
     | _ -> false
   in
 
+  let collect_branch_targets (instrs : instr list) =
+    let module IU = Instr_utils in
+    List.fold_left
+      (fun acc i ->
+        match IU.get_op i with
+        | Arm_OP (Arm_ControlOP aco, _, _) -> begin
+            let exp = IU.get_exp_1 i in
+            match exp with
+            | Symbol (JumpDes j) -> j :: acc
+            | Const (Immediate j) -> j :: acc
+            | _ -> acc
+          end
+        | _ -> acc)
+      [] instrs
+  in
+
   object (self)
     val mutable instrs : instr list = []
     val mutable funcs : func list = []
@@ -174,18 +202,18 @@ class ailParser =
         match l with
         | [] -> acc
         | h :: [] -> List.rev_append acc [ h ]
-        | h1 :: h2 :: t -> begin
-            if h1.func_begin_addr == h2.func_begin_addr then begin
-              if contains ~str:h1.func_name ~sub:"S_0x" then
+        | h1 :: h2 :: t ->
+            begin if h1.func_begin_addr == h2.func_begin_addr then
+              begin if contains ~str:h1.func_name ~sub:"S_0x" then
                 let h2' = { h2 with func_end_addr = h1.func_end_addr } in
                 help (h2' :: t) (h1 :: acc)
               else if contains ~str:h2.func_name ~sub:"S_0x" then
                 let h1' = { h1 with func_end_addr = h2.func_end_addr } in
                 help (h2 :: t) (h1' :: acc)
               else help (h2 :: t) (h1 :: acc)
-            end
+              end
             else help (h2 :: t) (h1 :: acc)
-          end
+            end
       in
       help l []
 
@@ -229,28 +257,39 @@ class ailParser =
       let plt_range =
         if EU.elf_arm () && EU.elf_static () then
           let plt_info = read_file "plt_sec.info" in
-          let plt_info = List.nth plt_info 0 in
-          let plt_items = Str.split (Str.regexp " +") plt_info in
-          let plt_addr = int_of_string ("0x" ^ List.nth plt_items 1)
-          and plt_size = int_of_string ("0x" ^ List.nth plt_items 3) in
-          Some (plt_addr, plt_size)
+          if plt_info = [] then
+            let _ =
+              Printf.printf
+                "Warning: No plt section info found. Skip filtering functions \
+                 by plt section.\n"
+            in
+            None
+          else begin
+            let plt_info = List.nth plt_info 0 in
+            let plt_items = Str.split (Str.regexp " +") plt_info in
+            let plt_addr = int_of_string ("0x" ^ List.nth plt_items 1)
+            and plt_size = int_of_string ("0x" ^ List.nth plt_items 3) in
+            Some (plt_addr, plt_size)
+          end
         else None
       in
       List.filter
         (fun f ->
           let fl = String.length f.func_name in
           if fl < 3 then true
-          else begin
-            match int_of_string_opt (String.sub f.func_name 2 (fl - 2)) with
+          else
+            begin match
+              int_of_string_opt (String.sub f.func_name 2 (fl - 2))
+            with
             | None -> true
-            | Some n -> begin
-                match plt_range with
+            | Some n ->
+                begin match plt_range with
                 | Some (plt_addr, plt_size) ->
                     (n >= text_addr && n < text_addr + text_size)
                     || (n >= plt_addr && n < plt_addr + plt_size)
                 | None -> n >= text_addr && n < text_addr + text_size
-              end
-          end)
+                end
+            end)
         fl
 
     method print_funcs funcs =
@@ -282,7 +321,7 @@ class ailParser =
       let fs = self#create_func_slicer instrs funcs arch in
       fs#update_text_info;
       fs#update_func;
-      fs#get_funcs
+      fs#get_funcs arch
 
     method set_secs (l : section list) = secs <- l
 
@@ -298,23 +337,40 @@ class ailParser =
          However, we keep the instructions after the last pop instruction,
          because they might not be literal pools. *)
       let module IU = Instr_utils in
+      (* In mixed ARM32/Thumb binaries, ARM32 instructions must not be treated
+         as function-end/start boundaries for literal pool detection.
+         Load the address→mode map written by arm_arm32_disassembler.py. *)
+      let arm32_addr_set : (int, unit) Hashtbl.t = Hashtbl.create 16 in
+      (if arch = "arm" then
+         let map_file = "instruction_addr_mode_map.txt" in
+         try
+           let lines = Utils.read_file map_file in
+           List.iter
+             (fun line ->
+               match String.split_on_char ':' line with
+               | [ addr_s; mode_s ] -> (
+                   if String.trim mode_s = "arm32" then
+                     match int_of_string_opt (String.trim addr_s) with
+                     | Some addr -> Hashtbl.replace arm32_addr_set addr ()
+                     | None -> ())
+               | _ -> ())
+             lines
+         with Sys_error _ -> ());
+      let is_arm32_instr (i : instr) =
+        Hashtbl.mem arm32_addr_set (get_loc i).loc_addr
+      in
       let ordered_il = List.rev instr_list in
       let branch_target_addrs = ref [] in
-      let newnew = ref [] in
       let instrs_after_pop = ref [] in
       let instrs_to_keep = ref [] in
       let is_going_through_literal_pool = ref false in
       let pop_detected = ref false in
       let collect_branch_target_addr (i : instr) =
-        match IU.get_op i with
-        | Arm_OP (Arm_ControlOP aco, _, _) -> begin
-            let exp = IU.get_exp_1 i in
-            match exp with
-            | Symbol (JumpDes j) ->
-                branch_target_addrs := j :: !branch_target_addrs
-            | _ -> ()
-          end
-        | _ -> ()
+        (* Use get_ct_des to handle all branch target encodings:
+           Symbol(JumpDes), Const(Immediate), Const(Point), etc. *)
+        match IU.get_ct_des i with
+        | Some j -> branch_target_addrs := j :: !branch_target_addrs
+        | None -> ()
       in
       let check_if_target_in_branch_target_addrs (addr_list : int list)
           (i : instr) : bool =
@@ -340,29 +396,32 @@ class ailParser =
           in
           if c2c_symbol_detected then begin
             (* keep instructions *)
-            newnew := !instrs_after_pop @ !newnew;
+            instrs_to_keep := !instrs_after_pop @ !instrs_to_keep;
             instrs_after_pop := [];
             true
           end
           else begin
             (* check the length to find the following pattern and keep the instruction:
-             *  e.g., make-prime-list
-             *    107e4:	e8bd 0ff0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
-             *    107e8:	4770      	bx	lr ; want to keep
-             *    107ea:	e92d 43b0 	stmdb	sp!, {r4, r5, r7, r8, r9, lr}
-             *)
+               e.g., make-prime-list
+                 107e4:	e8bd 0ff0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+                 107e8:	4770      	bx	lr ; want to keep
+                 107ea:	e92d 43b0 	stmdb	sp!, {r4, r5, r7, r8, r9, lr} *)
             if List.length !instrs_after_pop = 1 then begin
               let ii = List.hd !instrs_after_pop in
               match IU.get_op ii with
               | Arm_OP (Arm_ControlOP BX, _, _) ->
                   (* keep the branch instruction *)
-                  newnew := !instrs_after_pop @ !newnew;
+                  instrs_to_keep := !instrs_after_pop @ !instrs_to_keep;
                   instrs_after_pop := []
               | _ -> instrs_after_pop := []
             end
             else begin
-              (* remove instructions *)
-              instrs_after_pop := []
+              (* Remove (comment out) instructions *)
+              List.iter
+                (fun i ->
+                  let commented_out_instr = mark_commented_out i in
+                  instrs_to_keep := commented_out_instr :: !instrs_to_keep)
+                !instrs_after_pop
             end;
             false
           end
@@ -376,7 +435,7 @@ class ailParser =
       in
       let rec aux acc index = function
         | [] -> begin
-            let result = !instrs_after_pop @ !newnew in
+            let result = !instrs_after_pop @ !instrs_to_keep in
             result
           end
         | instr :: t -> begin
@@ -389,7 +448,7 @@ class ailParser =
             end
             else begin
               collect_branch_target_addr instr;
-              newnew := instr :: !newnew;
+              instrs_to_keep := instr :: !instrs_to_keep;
               aux (instr :: acc) (index + 1) t
             end
           end
@@ -462,9 +521,9 @@ class ailParser =
          movs r1,r0
          lsls r0,r3,#0x5
          movs r0,r0
- 
+
          Note that there could be a nop instruction after the the blx instruction.
- 
+
          12f0c:	f3af 8000 	nop.w
          ...
          12f18:	0001      	movs	r1, r0
@@ -473,7 +532,7 @@ class ailParser =
          12f1e:	0000      	movs	r0, r0
          12f20:	7698      	strb	r0, [r3, #26]
          12f22:	0001      	movs	r1, r0
- 
+
          There could be undefined instructions in literal pools:
          e.g., In Coreutils mv,
          1a332:	e36e      	b.n	1aa12 <putc_unlocked@plt+0x882e>
@@ -493,20 +552,8 @@ class ailParser =
       let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx =
         function
         | [] -> acc
-        | instr :: t -> begin
-            match IU.get_op instr with
-            (* | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _)
-            when idx + 2 < List.length ordered_il -> begin
-              let nn_instr = List.nth ordered_il (idx + 2) in
-              match get_op nn_instr with
-              | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _)
-                when check_if_common_reg (get_exp_1 nn_instr)
-                    && check_if_common_reg (get_exp_2 nn_instr) -> begin
-                  (* skip this instruction *)
-                  aux acc true false false (idx + 1) t
-                end
-              | _ -> aux (instr :: acc) false false false (idx + 1) t
-            end *)
+        | instr :: t ->
+            begin match IU.get_op instr with
             | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier W))
             | Arm_OP (Arm_ControlOP B, _, Some (Arm_Opqualifier N))
               when (not is_literal_pool) && idx + 3 < List.length ordered_il ->
@@ -547,8 +594,11 @@ class ailParser =
                       upper_half = "0000" || upper_half = "0001"
                       || upper_half = "0002"
                     then begin
-                      (* skip this instruction *)
-                      aux acc true false false (idx + 1) t
+                      (* Skip (comment out) this instruction *)
+                      let commented_out_instr = mark_commented_out instr in
+                      aux
+                        (commented_out_instr :: acc)
+                        true false false (idx + 1) t
                     end
                     else begin
                       (* stop skipping instructions *)
@@ -561,12 +611,18 @@ class ailParser =
                     let cur_op = IU.get_op instr in
                     let next_op = IU.get_op n_instr in
                     if (not is_second_movs) && is_movs next_op then begin
-                      (* skip this instruction *)
-                      aux acc true false true (idx + 1) t
+                      (* Skip (comment out) this instruction *)
+                      let commented_out_instr = mark_commented_out instr in
+                      aux
+                        (commented_out_instr :: acc)
+                        true false true (idx + 1) t
                     end
                     else if is_second_movs && is_movs cur_op then begin
-                      (* skip this instruction *)
-                      aux acc true false false (idx + 1) t
+                      (* Skip (comment out) this instruction *)
+                      let commented_out_instr = mark_commented_out instr in
+                      aux
+                        (commented_out_instr :: acc)
+                        true false false (idx + 1) t
                     end
                     else begin
                       (* stop skipping instructions *)
@@ -578,7 +634,7 @@ class ailParser =
                     aux (instr :: acc) false false false (idx + 1) t
                   end
               end
-          end
+            end
       in
       aux [] false false false 0 ordered_il
 
@@ -589,10 +645,10 @@ class ailParser =
       let rec aux acc is_literal_pool is_nop_after_blx is_second_movs idx =
         function
         | [] -> acc
-        | instr :: t -> begin
-            match IU.get_op instr with
-            | Arm_OP (Arm_ControlOP BLX, _, _) -> begin
-                match IU.get_exp_1 instr with
+        | instr :: t ->
+            begin match IU.get_op instr with
+            | Arm_OP (Arm_ControlOP BLX, _, _) ->
+                begin match IU.get_exp_1 instr with
                 | Symbol (CallDes func)
                   when func.func_name = "exit" || func.func_name = "abort" ->
                   begin
@@ -616,7 +672,7 @@ class ailParser =
                       end
                   end
                 | _ -> aux (instr :: acc) false false false (idx + 1) t
-              end
+                end
             | Arm_OP (Arm_CommonOP (Arm_Other NOP), _, _) when is_nop_after_blx
               -> begin
                 (* keep nop instruction located right after blx
@@ -624,20 +680,25 @@ class ailParser =
                  *)
                 aux (instr :: acc) true false false (idx + 1) t
               end
-            | _ -> begin
-                if is_literal_pool && idx + 1 < List.length ordered_il then begin
+            | _ ->
+                begin if is_literal_pool && idx + 1 < List.length ordered_il
+                then begin
                   let n_instr = List.nth ordered_il (idx + 1) in
                   let cur_op = IU.get_op instr in
                   let next_op = IU.get_op n_instr in
                   if (not is_second_movs) && (is_movs next_op || is_mov next_op)
                   then begin
-                    (* skip this instruction *)
-                    aux acc true false true (idx + 1) t
+                    (* Skip (comment out) this instruction *)
+                    let commented_out_instr = mark_commented_out instr in
+                    aux (commented_out_instr :: acc) true false true (idx + 1) t
                   end
                   else if is_second_movs && (is_movs cur_op || is_mov cur_op)
                   then begin
-                    (* skip this instruction *)
-                    aux acc true false false (idx + 1) t
+                    (* Skip (comment out) this instruction *)
+                    let commented_out_instr = mark_commented_out instr in
+                    aux
+                      (commented_out_instr :: acc)
+                      true false false (idx + 1) t
                   end
                   else begin
                     (* stop skipping instructions *)
@@ -648,13 +709,15 @@ class ailParser =
                   (* last instruction *)
                   aux (instr :: acc) false false false (idx + 1) t
                 end
-              end
-          end
+                end
+            end
       in
       aux [] false false false 0 ordered_il
 
     method remove_literal_pools_after_branch (instr_list : instr list) :
         instr list =
+      (* Remove instructions after branch opcodes unless they are pointed by
+         other instructions *)
       let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let branch_target_addrs = ref [] in
@@ -664,6 +727,8 @@ class ailParser =
             let exp = IU.get_exp_1 i in
             match exp with
             | Symbol (JumpDes j) ->
+                branch_target_addrs := j :: !branch_target_addrs
+            | Const (Immediate j) ->
                 branch_target_addrs := j :: !branch_target_addrs
             | _ -> ()
           end
@@ -691,11 +756,12 @@ class ailParser =
                * later instructions can point back to earlier ones (e.g., backward branches). *)
               if pointed then aux (instr :: acc) [] false (idx + 1) t
               else
-                (* remove the instruction *)
-                aux acc (instr :: instr_buffer) true (idx + 1) t
+                (* Remove (comment out) the instruction *)
+                let commented_out_instr = mark_commented_out instr in
+                aux (commented_out_instr :: acc) [] true (idx + 1) t
             end
-            else begin
-              match IU.get_op instr with
+            else
+              begin match IU.get_op instr with
               | Arm_OP (Arm_ControlOP B, None, _)
                 when is_nop (IU.get_op n_instr) ->
                   (* keep the nop instruction to prevent the "undefined reference" issue *)
@@ -703,53 +769,71 @@ class ailParser =
               | Arm_OP (Arm_ControlOP B, None, _) ->
                   aux (instr :: acc) [] true (idx + 1) t
               | _ -> aux (instr :: acc) [] false (idx + 1) t
-            end
+              end
           end
       in
       aux [] [] false 0 ordered_il
-    (** Remove instructions after branch opcodes unless they are pointed by
-        other instructions *)
 
     method remove_inline_paddings (instr_list : instr list) : instr list =
-      (* e.g., In Coreutils printf,
-     * 1ceb0:	0000      	movs	r0, r0
-     * 1ceb2:	0000      	movs	r0, r0
-     * 1ceb4:	0000      	movs	r0, r0
-     * 1ceb6:	3fb0      	subs	r7, #176	; 0xb0
+      (* Remove padding patterns.
+       e.g., In Coreutils printf,
+       1ceb0:	0000      	movs	r0, r0
+       1ceb2:	0000      	movs	r0, r0
+       1ceb4:	0000      	movs	r0, r0
+       1ceb6:	3fb0      	subs	r7, #176	; 0xb0
 
-     * The last opcode can be lsrs, rors, subs and so on
-     *)
+       The last opcode can be lsrs, rors, subs and so on *)
       let ordered_il = List.rev instr_list in
       let rec aux acc idx = function
         | [] -> acc
         | instr :: n_instr :: nn_instr :: nnn_instr :: t
           when is_movs_r0_r0 instr && is_movs_r0_r0 n_instr
                && is_movs_r0_r0 nn_instr -> begin
-            (* skip four instructions *)
-            aux acc (idx + 4) t
+            (* Skip (comment out) four instructions *)
+            let commented_out_instr = mark_commented_out instr in
+            let commented_out_n_instr = mark_commented_out n_instr in
+            let commented_out_nn_instr = mark_commented_out nn_instr in
+            let commented_out_nnn_instr = mark_commented_out nnn_instr in
+            aux
+              (commented_out_nnn_instr :: commented_out_nn_instr
+             :: commented_out_n_instr :: commented_out_instr :: acc)
+              (idx + 4) t
           end
         | instr :: t -> aux (instr :: acc) (idx + 1) t
       in
       aux [] 0 ordered_il
-    (** Remove padding patterns *)
 
     method remove_literal_pools_by_pc_relative_load (instr_list : instr list) :
         instr list =
+      (* Remove instructions pointed to by PC-relative loads *)
       let ordered_il = List.rev instr_list in
       let pc_relative_addrs = ref [] in
+      (* Build a set of all known instruction addresses so we never comment out
+         a real instruction: a literal pool data entry that happens to decode as
+         an LDR with a target inside actual code would otherwise incorrectly
+         mark that code instruction as a literal pool. *)
+      let instr_addr_set : (int, unit) Hashtbl.t = Hashtbl.create 2048 in
+      List.iter
+        (fun i -> Hashtbl.replace instr_addr_set (get_loc i).loc_addr ())
+        ordered_il;
       (* [instr_buffer] is for temporarily keeping literal pools until another function begins *)
       let rec aux acc instr_buffer = function
         | [] -> acc
         | instr :: [] -> (instr :: instr_buffer) @ acc
-        | instr :: t -> begin
-            if
+        | instr :: t ->
+            begin if
               List.exists
                 (fun addr -> addr = (get_loc instr).loc_addr)
                 !pc_relative_addrs
-            then
-              (* skip this instruction *)
-              aux acc (instr :: instr_buffer) t
+            then begin
+              (* Skip (comment out) this instruction *)
+              let commented_out_instr = mark_commented_out instr in
+              aux (commented_out_instr :: acc) (instr :: instr_buffer) t
+            end
             else begin
+              let is_commented_out i =
+                Hashtbl.mem (get_tags i) "commented_out"
+              in
               match instr with
               | TripleInstr
                   ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
@@ -758,20 +842,26 @@ class ailParser =
                     loc,
                     _,
                     _ )
-                when offset mod 2 = 0 -> begin
+                when offset mod 2 = 0 && not (is_commented_out instr) -> begin
                   let module AU = ArmUtils in
                   let pc_addr = AU.get_pc_relative_addr "thumb" instr in
-                  pc_relative_addrs := pc_addr :: !pc_relative_addrs;
+                  (* Only treat the target as a literal pool if it is not
+                     already a known instruction address. If it is, the LDR
+                     itself is likely a literal pool data entry that was
+                     decoded as an LDR instruction but actually contains a
+                     pointer into executable code. *)
+                  if not (Hashtbl.mem instr_addr_set pc_addr) then
+                    pc_relative_addrs := pc_addr :: !pc_relative_addrs;
                   aux (instr :: acc) [] t
                 end
               | _ -> begin aux (instr :: acc) [] t end
             end
-          end
+            end
       in
       aux [] [] ordered_il
-    (** Remove instructions pointed to by PC-relative loads *)
 
     method tag_inline_paddings (instr_list : instr list) : instr list =
+      (* Tag inline paddings to preserve them *)
       let ordered_il = List.rev instr_list in
       let rec aux acc idx = function
         | [] -> acc
@@ -790,9 +880,9 @@ class ailParser =
         | instr :: t -> aux (instr :: acc) (idx + 1) t
       in
       aux [] 0 ordered_il
-    (** Tag inline paddings to preserve them *)
 
     method tag_branch_islands (instr_list : instr list) : instr list =
+      (* Tag branch islands to preserve them *)
       let ordered_il = List.rev instr_list in
       let rec aux acc idx = function
         | [] -> acc
@@ -811,7 +901,6 @@ class ailParser =
         | instr :: t -> aux (instr :: acc) (idx + 1) t
       in
       aux [] 0 ordered_il
-    (** Tag branch islands to preserve them *)
 
     method remove_illegal_instructions (instr_list : instr list) (arch : string)
         : instr list =
@@ -819,17 +908,107 @@ class ailParser =
       let ordered_il = List.rev instr_list in
       match arch with
       | "thumb" -> begin
+          let has_pc e =
+            match e with Reg (Arm_Reg (Arm_PCReg _)) -> true | _ -> false
+          in
+          let reg_list_has sub e =
+            match e with Label s -> contains ~str:s ~sub | _ -> false
+          in
           let check_illegal (i : instr) : bool =
             match IU.get_op i with
             | Arm_OP (Arm_SystemOP PLDW, _, _) -> true
             | Arm_OP (Arm_CommonOP (Arm_Arithm VHADD), _, _) -> true
+            (* vaddl decodes from literal pool data in Thumb binaries:
+               it appears after bl/b instructions before .ltorg, always
+               followed by the lsls r0,r1,#1 / movs r0,r0 marker pattern *)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm VADDL), _, _) -> true
+            (* The pc register is not allowed with CMP *)
+            | Arm_OP (Arm_CommonOP (Arm_Compare CMP), _, _) ->
+                begin match i with
+                | TripleInstr (_, e1, e2, _, _, _) -> has_pc e1 || has_pc e2
+                | _ -> false
+                end
+            (* ARMv8-M instructions not present in ARMv7 Thumb binaries.
+               Might need to remove this when ARMv8-M support is added *)
+            | Arm_OP (Arm_SystemOP SETPAN, _, _) -> true
+            | Arm_OP (Arm_ControlOP BXNS, _, _) -> true
+            | Arm_OP (Arm_ControlOP BLXNS, _, _) -> true
+            (* STR with PC as the source register is UNPREDICTABLE *)
+            | Arm_OP (Arm_CommonOP (Arm_Assign STR), _, _) ->
+                begin match i with
+                | TripleInstr (_, _, e2, _, _, _) -> has_pc e2
+                | _ -> false
+                end
+            (* SDIV with PC as any operand is UNPREDICTABLE *)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SDIV), _, _) ->
+                begin match i with
+                | FourInstr (_, e1, e2, e3, _, _, _) ->
+                    has_pc e1 || has_pc e2 || has_pc e3
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Assign LDRD), _, _) ->
+                begin match i with
+                | FourInstr (_, _, _, e3, _, _, _) -> has_pc e3
+                | _ -> false
+                end
+            (* Multiply-long where rdhi == rdlo is UNPREDICTABLE *)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm UMULL), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm UMLAL), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SMULL), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SMLAL), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SMLALBB), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SMLALBT), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SMLALTB), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SMLALTT), _, _) ->
+                begin match i with
+                | FifInstr (_, _, _, e3, e4, _, _, _) ->
+                    begin match (e3, e4) with
+                    | Reg (Arm_Reg r1), Reg (Arm_Reg r2) -> r1 = r2
+                    | _ -> false
+                    end
+                | _ -> false
+                end
+            (* LDM with both LR+PC, SP in the load list, or empty list, is UNPREDICTABLE *)
+            | Arm_OP (Arm_StackOP LDMIA, _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Assign LDMIA), _, _) ->
+                begin match i with
+                | TripleInstr (_, e1, _, _, _, _) -> (
+                    (reg_list_has "lr" e1 && reg_list_has "pc" e1)
+                    || reg_list_has "sp" e1
+                    || match e1 with Label s -> s = "{}" | _ -> false)
+                | _ -> false
+                end
+            (* STM with PC in the register list, empty list, or base reg in list with writeback, is UNPREDICTABLE *)
+            | Arm_OP (Arm_CommonOP (Arm_Assign STMIA), _, _) ->
+                begin match i with
+                | TripleInstr (_, e1, e2, _, _, _) -> (
+                    reg_list_has "pc" e1
+                    || (match e1 with Label s -> s = "{}" | _ -> false)
+                    ||
+                    match e2 with
+                    | Ptr (WB (Arm_CommonReg r)) ->
+                        reg_list_has (show_arm_reg (Arm_CommonReg r)) e1
+                    | _ -> false)
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Assign STMDB), _, _) ->
+                begin match i with
+                | TripleInstr (_, e1, e2, _, _, _) -> (
+                    reg_list_has "pc" e1
+                    ||
+                    match e2 with
+                    | Ptr (WB (Arm_CommonReg r)) ->
+                        reg_list_has (show_arm_reg (Arm_CommonReg r)) e1
+                    | _ -> false)
+                | _ -> false
+                end
             | _ -> false
           in
           let rec help acc = function
             | [] -> acc
-            | h :: t -> begin
-                if check_illegal h then help acc t else help (h :: acc) t
-              end
+            | h :: t ->
+                begin if check_illegal h then help acc t else help (h :: acc) t
+                end
           in
           help [] ordered_il
         end
@@ -847,9 +1026,9 @@ class ailParser =
       (* instrs <- self#remove_inline_paddings instrs; *)
       instrs <- self#tag_inline_paddings instrs;
       instrs <- self#tag_branch_islands instrs;
-      instrs <- self#remove_literal_pools_v1 instrs;
-      instrs <- self#remove_literal_pools_with_movs instrs;
-      instrs <- self#remove_literal_pools_after_blx_exit instrs;
+      (* instrs <- self#remove_literal_pools_v1 instrs; *)
+      (* instrs <- self#remove_literal_pools_with_movs instrs; *)
+      (* instrs <- self#remove_literal_pools_after_blx_exit instrs; *)
       (* instrs <- self#remove_literal_pools_after_branch instrs; *)
       instrs <- self#remove_literal_pools_by_pc_relative_load instrs;
       instrs <- self#remove_illegal_instructions instrs arch;
@@ -860,8 +1039,8 @@ class ailParser =
       let ordered_il = List.rev instr_list in
       let rec aux acc idx = function
         | [] -> acc
-        | instr :: t -> begin
-            match instr with
+        | instr :: t ->
+            begin match instr with
             | DoubleInstr (Arm_OP (Arm_StackOP PUSH, Some _, width), _, _, _, _)
               ->
                 let new_instr =
@@ -930,7 +1109,7 @@ class ailParser =
                     in
                     aux (new_instr :: acc) (idx + 1) t
                 | _ -> aux (instr :: acc) (idx + 1) t)
-          end
+            end
       in
       aux [] 0 ordered_il
 
@@ -939,8 +1118,8 @@ class ailParser =
       let ordered_il = List.rev instr_list in
       let rec aux acc skip_count idx = function
         | [] -> acc
-        | instr :: t -> begin
-            match IU.get_op instr with
+        | instr :: t ->
+            begin match IU.get_op instr with
             | Arm_OP (Arm_Condition it_op, _, _) ->
                 let it_cond_length =
                   match it_op with
@@ -983,25 +1162,98 @@ class ailParser =
                 in
                 let cond_count = count_condsuff 0 it_cond_length in
                 if cond_count < it_cond_length then
-                  aux acc cond_count (idx + 1) t
+                  (* Remove only IT instructions, and keep the sequences *)
+                  aux acc 0 (idx + 1) t
                 else aux (instr :: acc) 0 (idx + 1) t
             | _ ->
+                (* For now, since the skip count is always 0. *)
                 if skip_count > 0 then aux acc (skip_count - 1) (idx + 1) t
                 else aux (instr :: acc) 0 (idx + 1) t
-          end
+            end
       in
       aux [] 0 0 ordered_il
 
+    method remove_orphan_condsuff (instr_list : instr list) : instr list =
+      let module IU = Instr_utils in
+      let ordered_il = List.rev instr_list in
+      (* Load ARM32 address ranges from arm32_replaced.info so that ARM32
+         conditional instructions (which don't need IT blocks) are not
+         incorrectly commented out. *)
+      let arm32_ranges : (int * int) list =
+        if arch <> "thumb" then []
+        else
+          try
+            let lines = Utils.read_file "arm32_replaced.info" in
+            List.filter_map
+              (fun line ->
+                match Str.split (Str.regexp ":") line with
+                | [ s; e ] -> (
+                    match (int_of_string_opt s, int_of_string_opt e) with
+                    | Some start_addr, Some end_addr ->
+                        Some (start_addr, end_addr)
+                    | _ -> None)
+                | _ -> None)
+              lines
+          with Sys_error _ -> []
+      in
+      let is_in_arm32_range (instr : instr) : bool =
+        let addr = (get_loc instr).loc_addr in
+        List.exists (fun (s, e) -> addr >= s && addr < e) arm32_ranges
+      in
+      let it_cond_length it_op =
+        match it_op with
+        | IT -> 1
+        | ITE | ITT -> 2
+        | ITTT | ITTE | ITEE | ITET -> 3
+        | ITTTT | ITTTE | ITTET | ITTEE | ITETT | ITETE | ITEET | ITEEE -> 4
+        | _ -> failwith "unsupported IT opcode"
+      in
+      let rec aux acc it_remaining = function
+        | [] -> acc
+        | instr :: t ->
+            begin match IU.get_op instr with
+            | Arm_OP (Arm_Condition it_op, _, _) ->
+                let length = it_cond_length it_op in
+                aux (instr :: acc) length t
+            | Arm_OP (_, Some _, _) when it_remaining > 0 ->
+                aux (instr :: acc) (it_remaining - 1) t
+            | Arm_OP (Arm_ControlOP _, Some _, _) ->
+                (* Branch with condition suffix but no IT block: keep as-is. *)
+                aux (instr :: acc) 0 t
+            | Arm_OP (_, Some _, _) when is_in_arm32_range instr ->
+                (* ARM32 conditional instruction: all instructions can be
+                   conditional without an IT block in ARM32 mode. *)
+                aux (instr :: acc) 0 t
+            | Arm_OP
+                ( (Arm_SystemOP (MRC | MRC2 | MCR | MCR2) as cop_op),
+                  Some _,
+                  width ) ->
+                (* Coprocessor instruction with orphan condition suffix: the
+                   condition is spurious, coming from literal-pool data decoded
+                   as IT blocks. Strip it and keep the instruction. *)
+                aux
+                  (IU.change_op instr (Arm_OP (cop_op, None, width)) :: acc)
+                  0 t
+            | Arm_OP (_, Some _, _) ->
+                (* Non-branch with condition suffix but no IT block: comment out. *)
+                aux (mark_commented_out instr :: acc) 0 t
+            | _ -> aux (instr :: acc) (max 0 (it_remaining - 1)) t
+            end
+      in
+      aux [] 0 ordered_il
+
     method convert_it_condsuff (instr_list : instr list) : instr list =
+      (* Currently, disabled. Check IT condition suffixes and correct them if
+         necessary. *)
       let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
       let rec aux acc replacement_instrs idx = function
         | [] -> acc
-        | instr :: t -> begin
-            match replacement_instrs with
+        | instr :: t ->
+            begin match replacement_instrs with
             | r_instr :: r_t -> aux (r_instr :: acc) r_t (idx + 1) t
-            | [] -> begin
-                match IU.get_op instr with
+            | [] ->
+                begin match IU.get_op instr with
                 | Arm_OP (Arm_Condition it_op, Some cond, width) as op
                   when idx + 4 < List.length ordered_il ->
                     let get_it_cond_arr (it_instr : instr) : bool list =
@@ -1089,12 +1341,10 @@ class ailParser =
                       cond_arr;
                     aux (instr :: acc) (List.rev !new_instrs) (idx + 1) t
                 | _ -> aux (instr :: acc) [] (idx + 1) t
-              end
-          end
+                end
+            end
       in
       aux [] [] 0 ordered_il
-    (** Currently, disabled. Check IT condition suffixes and correct them if
-        necessary. *)
 
     method build_address_hex_map () =
       let lines = read_file "hexcode.info" in
@@ -1127,8 +1377,6 @@ class ailParser =
             "??";
             "cdp";
             "cdp2";
-            "mrc";
-            "mrc2";
             "ldc2l";
             "stc";
             "stc2l";
@@ -1137,9 +1385,7 @@ class ailParser =
             "ldc";
             "ldcl";
             "mrrc";
-            "mcr2";
             "mcrr";
-            "mcr";
             "vld4";
             "vld1.8";
             "bfcsel";
@@ -1193,7 +1439,14 @@ class ailParser =
           (fun i ->
             let items = split i in
             let len = List.length items in
-            if len > 1 then i
+            if len > 1 then
+              begin if String.trim (cat_tail items) = "" then begin
+                (* 102fc: b6c2             ; <UNDEFINED> instruction: 0xb6c2 *)
+                let loc = List.nth items 0 in
+                loc ^ ":\tundefined"
+              end
+              else i
+              end
             else
               let loc = List.nth items 0 in
               loc ^ ":\tundefined")
@@ -1214,8 +1467,9 @@ class ailParser =
         instrs <- self#adjust_width_specifier instrs
       end;
       if arch = "thumb" then begin
+        instrs <- self#convert_instructions instrs;
         instrs <- self#remove_it_sequence instrs;
-        instrs <- self#convert_instructions instrs
+        instrs <- self#remove_orphan_condsuff instrs
       end;
       funcs <- p#get_funclist
 

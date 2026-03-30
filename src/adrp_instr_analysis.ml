@@ -81,6 +81,16 @@ module AdrpAbs : DfaAbs = struct
 
   let is_read_last_reg p = is_store_op p || is_compare_op p
 
+  let widen (old_abs : abs_state) (new_abs : abs_state) : abs_state =
+    if AdrpMap.is_empty old_abs then new_abs
+    else
+      AdrpMap.filter
+        (fun reg new_val ->
+          match AdrpMap.find_opt reg old_abs with
+          | None -> false
+          | Some old_val -> old_val = new_val)
+        new_abs
+
   let flow_through (i : instr) (ins : abs_state) : abs_state =
     let module TU = Tags_utils in
     let module EU = Elf_utils in

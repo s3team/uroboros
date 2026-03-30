@@ -82,7 +82,6 @@ module Disam = struct
       timed "disassemble:instr_addrs_collect" (fun () ->
           re#instr_addrs_collect ail_parser#get_instrs);
 
-      (* func_slicing *)
       print_endline "2: disassembly validates";
 
       let il_init =
@@ -92,7 +91,9 @@ module Disam = struct
       in
 
       let fl =
-        timed "disassemble:get_funcs" (fun () -> ail_parser#get_funcs)
+        timed "disassemble:get_funcs" (fun () ->
+            (* func_slicing *)
+            ail_parser#get_funcs)
         |>
         if EU.elf_64 () && EU.elf_arm () then
           timed "disassemble:refine_func_boundary_by_cf" (fun () ->
@@ -179,7 +180,7 @@ module Disam = struct
         |> process_tags (* should be located after visit_heuristic_analysis *)
         |> re#adjust_loclabel |> re#adjust_jmpref
         |> re#add_func_label @@ get_userfuncs fl
-        |> dis_valid#visit |> arm_postprocess;
+        |> re#add_ltorg_after_terminators |> dis_valid#visit |> arm_postprocess;
 
       let adjust_list = dis_valid#trim_results in
       if List.length adjust_list != 0 then (

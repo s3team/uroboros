@@ -1162,6 +1162,13 @@ class arm_parse =
           FourInstr (p, exp1, exp2, exp3, l, pre, Hashtbl.create 0)
       | [ Loc l; Exp exp1; Exp exp2; Exp exp3; Exp exp4; Op p ] ->
           FifInstr (p, exp1, exp2, exp3, exp4, l, pre, Hashtbl.create 0)
+      | [ Loc l; Exp exp1; Exp exp2; Exp exp3; Exp exp4; Exp exp5; Op p ] ->
+          SixInstr (p, exp1, exp2, exp3, exp4, exp5, l, pre, Hashtbl.create 0)
+      | [
+       Loc l; Exp exp1; Exp exp2; Exp exp3; Exp exp4; Exp exp5; Exp exp6; Op p;
+      ] ->
+          SevenInstr
+            (p, exp1, exp2, exp3, exp4, exp5, exp6, l, pre, Hashtbl.create 0)
       | _ -> raise ParseError
 
     method print_f (fl : func list) =

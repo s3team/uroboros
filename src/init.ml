@@ -3,6 +3,7 @@
 
 open Ail
 open Ail_utils
+open Elf_utils
 open Utils
 
 let is_32 = ref false
@@ -14,6 +15,7 @@ class ailInit =
     val mutable objdump_command : string = ""
 
     method init (arch_ : string) (bit_mode_ : string) : unit =
+      Elf_utils.init_config arch_ bit_mode_;
       self#set_arch arch_;
       self#set_bit_mode bit_mode_;
       self#set_objdump_command

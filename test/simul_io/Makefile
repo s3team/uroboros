@@ -10,6 +10,7 @@ intel:
 
 arm.thumb:
 	arm-linux-gnueabihf-gcc -no-pie simul_io.c -o simul_io.arm.thumb.nopie.dynamic.sym 
+	arm-linux-gnueabihf-gcc -no-pie simul_io.c -o simul_io.arm.thumb.nopie.static.sym -static
 
 arm.64:
 	aarch64-linux-gnu-gcc -no-pie simul_io.c -o simul_io.arm.64.nopie.dynamic.sym 

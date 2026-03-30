@@ -130,7 +130,28 @@ and instr =
       * loc
       * prefix option
       * (string, tags_val) Hashtbl.t
-(* as far as I know, imul $0xe10,%ebp,%eax *)
+  (* as far as I know, imul $0xe10,%ebp,%eax *)
+  | SixInstr of
+      op
+      * exp
+      * exp
+      * exp
+      * exp
+      * exp
+      * loc
+      * prefix option
+      * (string, tags_val) Hashtbl.t
+  | SevenInstr of
+      op
+      * exp
+      * exp
+      * exp
+      * exp
+      * exp
+      * exp
+      * loc
+      * prefix option
+      * (string, tags_val) Hashtbl.t
 
 and bblock = {
   bf_name : string; (* which function belongs to*)
@@ -1589,10 +1610,10 @@ and arm_pcreg = R15 | PC [@@deriving show { with_path = false }]
 
 (* customize deriving show_* *)
 let show_intel_op = function
-  | Intel_CommonOP icommon -> begin
-      match icommon with
-      | Intel_Arithm icommon_iar -> begin
-          match icommon_iar with
+  | Intel_CommonOP icommon ->
+      begin match icommon with
+      | Intel_Arithm icommon_iar ->
+          begin match icommon_iar with
           | ADC -> "adc"
           | ADD -> "add"
           | XADD -> "xadd"
@@ -1724,9 +1745,9 @@ let show_intel_op = function
           | VPCLMULHQHQDQ -> "vpclmulhqhqdq"
           | BZHI -> "bzhi"
           | VPADDB -> "VPADDB"
-        end
-      | Intel_Logic icommon_il -> begin
-          match icommon_il with
+          end
+      | Intel_Logic icommon_il ->
+          begin match icommon_il with
           | AND -> "and"
           | ANDB -> "andb"
           | OR -> "or"
@@ -1772,9 +1793,9 @@ let show_intel_op = function
           | BLSR -> "blsr"
           | VPTESTNMD -> "vptestnmd"
           | KXNORQ -> "kxnorq"
-        end
-      | Intel_Rol icommon_ir -> begin
-          match icommon_ir with
+          end
+      | Intel_Rol icommon_ir ->
+          begin match icommon_ir with
           | ROL -> "rol"
           | SHL -> "shl"
           | SHR -> "shr"
@@ -1821,9 +1842,9 @@ let show_intel_op = function
           | VPSLLDQ -> "vpslldq"
           | SARQ -> "sarq"
           | SARX -> "sarx"
-        end
-      | Intel_Assign icommon_ias -> begin
-          match icommon_ias with
+          end
+      | Intel_Assign icommon_ias ->
+          begin match icommon_ias with
           | MOV -> "mov"
           | XCHG -> "xchg"
           | LEA -> "lea"
@@ -2042,9 +2063,9 @@ let show_intel_op = function
           | BLSMSK -> "blsmsk"
           | RSTORSSP -> "rstorssp"
           | SAVEPREVSSP -> "saveprevssp"
-        end
-      | Intel_Compare icommon_ic -> begin
-          match icommon_ic with
+          end
+      | Intel_Compare icommon_ic ->
+          begin match icommon_ic with
           | CMP -> "cmp"
           | CMPQ -> "cmpq"
           | TEST -> "test"
@@ -2081,9 +2102,9 @@ let show_intel_op = function
           | VPCMPNEQUB -> "vpcmpnequb"
           | VPCMPNEQB -> "vpcmpneqb"
           | VPCMPNEQD -> "vpcmpneqd"
-        end
-      | Intel_Set icommon_is -> begin
-          match icommon_is with
+          end
+      | Intel_Set icommon_is ->
+          begin match icommon_is with
           | SETA -> "seta"
           | SETAE -> "setae"
           | SETB -> "setb"
@@ -2103,9 +2124,9 @@ let show_intel_op = function
           | SETP -> "setp"
           | SETNS -> "setns"
           | SETS -> "sets"
-        end
-      | Intel_Other icommon_io -> begin
-          match icommon_io with
+          end
+      | Intel_Other icommon_io ->
+          begin match icommon_io with
           | NOP -> "nop"
           | HLT -> "hlt"
           | NOPW -> "nopw"
@@ -2117,10 +2138,10 @@ let show_intel_op = function
           | PAUSE -> "pause"
           | XEND -> "xend"
           | VZEROALL -> "vzeroall"
-        end
-    end
-  | Assist a -> begin
-      match a with
+          end
+      end
+  | Assist a ->
+      begin match a with
       | SCAS -> "scas"
       | MOVSL -> "movsl"
       | MOVSB -> "movsb"
@@ -2128,9 +2149,9 @@ let show_intel_op = function
       | CMPSB -> "cmpsb"
       | MOVSQ -> "movsq"
       | POP -> "pop"
-    end
-  | Intel_StackOP is -> begin
-      match is with
+      end
+  | Intel_StackOP is ->
+      begin match is with
       | PUSH -> "push"
       | POP -> "pop"
       | PUSHL -> "pushl"
@@ -2139,9 +2160,9 @@ let show_intel_op = function
       | POPF -> "popf"
       | PUSHQ -> "pushq"
       | POPQ -> "popq"
-    end
-  | Intel_ControlOP icontrol -> begin
-      match icontrol with
+      end
+  | Intel_ControlOP icontrol ->
+      begin match icontrol with
       | CALL -> "call"
       | CALLQ -> "callq"
       | LEAVE -> "leave"
@@ -2150,8 +2171,8 @@ let show_intel_op = function
       | RETQ -> "retq"
       | FXAM -> "fxam"
       | FCHS -> "fchs"
-      | Intel_Jump icontrol_ij -> begin
-          match icontrol_ij with
+      | Intel_Jump icontrol_ij ->
+          begin match icontrol_ij with
           | JMP -> "jmp"
           | JNE -> "jne"
           | JE -> "je"
@@ -2186,22 +2207,22 @@ let show_intel_op = function
           | JRCXZ -> "jrcxz"
           | JECXZ -> "jecxz"
           | XBEGIN -> "xbegin"
-        end
-      | Intel_Loop icontrol_il -> begin
-          match icontrol_il with
+          end
+      | Intel_Loop icontrol_il ->
+          begin match icontrol_il with
           | LOOP -> "loop"
           | LOOPE -> "loope"
           | LOOPNE -> "loopne"
-        end
-      | Intel_Flag icontrol_if -> begin
-          match icontrol_if with
+          end
+      | Intel_Flag icontrol_if ->
+          begin match icontrol_if with
           | CLD -> "cld"
           | CLTD -> "cltd"
           | CLTQ -> "cltq"
-        end
-    end
-  | Intel_SystemOP isystem -> begin
-      match isystem with
+          end
+      end
+  | Intel_SystemOP isystem ->
+      begin match isystem with
       | INT -> "int"
       | IN -> "in"
       | OUT -> "out"
@@ -2213,12 +2234,14 @@ let show_intel_op = function
       | SFENCE -> "sfence"
       | LFENCE -> "lfence"
       | FWAIT -> "fwait"
-    end
-  | Intel_ErrorOP ierror -> begin match ierror with BAD -> "BAD" end
+      end
+  | Intel_ErrorOP ierror ->
+      begin match ierror with BAD -> "BAD"
+      end
 
 let show_intel_reg = function
-  | Intel_CommonReg i_cr -> begin
-      match i_cr with
+  | Intel_CommonReg i_cr ->
+      begin match i_cr with
       | RAX -> "rax"
       | RBX -> "rbx"
       | RCX -> "rcx"
@@ -2243,9 +2266,9 @@ let show_intel_reg = function
       | BH -> "bh"
       | CH -> "ch"
       | DH -> "dh"
-    end
-  | Intel_SpecialReg i_spr -> begin
-      match i_spr with
+      end
+  | Intel_SpecialReg i_spr ->
+      begin match i_spr with
       | R8 -> "r8"
       | R9 -> "r9"
       | R10 -> "r10"
@@ -2294,16 +2317,20 @@ let show_intel_reg = function
       | YMM5 -> "ymm5"
       | YMM6 -> "ymm6"
       | YMM7 -> "ymm7"
-    end
-  | Intel_StackReg i_str -> begin
-      match i_str with
+      end
+  | Intel_StackReg i_str ->
+      begin match i_str with
       | RBP -> "rbp"
       | RSP -> "rsp"
       | ESP -> "esp"
       | EBP -> "ebp"
-    end
-  | Intel_PCReg i_pr -> begin match i_pr with EIP -> "eip" | RIP -> "rip" end
-  | Intel_OtherReg i_or -> begin match i_or with EIZ -> "eiz" end
+      end
+  | Intel_PCReg i_pr ->
+      begin match i_pr with EIP -> "eip" | RIP -> "rip"
+      end
+  | Intel_OtherReg i_or ->
+      begin match i_or with EIZ -> "eiz"
+      end
 
 let show_intel_seg = function
   | FS -> "fs"
@@ -2332,10 +2359,10 @@ let show_assistop = function
 let show_intel_mathop = function MATHADD -> "mathadd" | MATHSUB -> "mathsub"
 
 let show_arm_op = function
-  | Arm_CommonOP acommon -> begin
-      match acommon with
-      | Arm_Arithm acommon_arith -> begin
-          match acommon_arith with
+  | Arm_CommonOP acommon ->
+      begin match acommon with
+      | Arm_Arithm acommon_arith ->
+          begin match acommon_arith with
           | ADC -> "adc"
           | ADCS -> "adcs"
           | ADD -> "add"
@@ -2510,9 +2537,9 @@ let show_arm_op = function
           | UMADDL -> "umaddl"
           | ADDV -> "addv"
           | UMSUBL -> "umsubl"
-        end
-      | Arm_Logic acommon_logic -> begin
-          match acommon_logic with
+          end
+      | Arm_Logic acommon_logic ->
+          begin match acommon_logic with
           | BIC -> "bic"
           | BICS -> "bics"
           | EOR -> "eor"
@@ -2540,9 +2567,9 @@ let show_arm_op = function
           | BIT -> "bit"
           | CINV -> "cinv"
           | FABS -> "fabs"
-        end
-      | Arm_Rol acommon_rol -> begin
-          match acommon_rol with
+          end
+      | Arm_Rol acommon_rol ->
+          begin match acommon_rol with
           | ASR -> "asr"
           | ASRS -> "asrs"
           | LSL -> "lsl"
@@ -2556,9 +2583,9 @@ let show_arm_op = function
           | VQRSHL -> "vqrshl"
           | VSHL -> "vshl"
           | VSHR -> "vshr"
-        end
-      | Arm_Assign acommon_assign -> begin
-          match acommon_assign with
+          end
+      | Arm_Assign acommon_assign ->
+          begin match acommon_assign with
           | BFC -> "bfc"
           | BFI -> "bfi"
           | CPY -> "cpy"
@@ -2690,9 +2717,9 @@ let show_arm_op = function
           | RETABSPPCR -> "retabsppcr"
           | BLR -> "blr"
           | BTI -> "bti"
-        end
-      | Arm_Compare acommon_compare -> begin
-          match acommon_compare with
+          end
+      | Arm_Compare acommon_compare ->
+          begin match acommon_compare with
           | CMN -> "cmn"
           | CMP -> "cmp"
           | TEQ -> "teq"
@@ -2706,9 +2733,9 @@ let show_arm_op = function
           | CMHS -> "cmhs"
           | FCMP -> "fcmp"
           | CMGE -> "cmge"
-        end
-      | Arm_Other acommon_other -> begin
-          match acommon_other with
+          end
+      | Arm_Other acommon_other ->
+          begin match acommon_other with
           | NOP -> "nop"
           | HLT -> "hlt"
           | NOPW -> "nopw"
@@ -2717,19 +2744,19 @@ let show_arm_op = function
           | SETEND -> "setend"
           | VSLI -> "vsli"
           | CNTB -> "cntb"
-        end
-    end
-  | Arm_StackOP astack -> begin
-      match astack with
+          end
+      end
+  | Arm_StackOP astack ->
+      begin match astack with
       | PUSH -> "push"
       | POP -> "pop"
       | VPUSH -> "vpush"
       | VPOP -> "vpop"
       | LDMIA -> "ldmia"
       | STMDB -> "stmdb"
-    end
-  | Arm_ControlOP acontrol -> begin
-      match acontrol with
+      end
+  | Arm_ControlOP acontrol ->
+      begin match acontrol with
       | B -> "b"
       | BL -> "bl"
       | BX -> "bx"
@@ -2743,9 +2770,9 @@ let show_arm_op = function
       | BXNS -> "bxns"
       | BLXNS -> "blxns"
       | RET -> "ret"
-    end
-  | Arm_Condition acondition -> begin
-      match acondition with
+      end
+  | Arm_Condition acondition ->
+      begin match acondition with
       | IT -> "it"
       | ITE -> "ite"
       | ITT -> "itt"
@@ -2762,9 +2789,9 @@ let show_arm_op = function
       | ITEET -> "iteet"
       | ITEEE -> "iteee"
       | TBZ -> "tbz"
-    end
-  | Arm_SystemOP asystem -> begin
-      match asystem with
+      end
+  | Arm_SystemOP asystem ->
+      begin match asystem with
       | BKPT -> "bkpt"
       | CLREX -> "clrex"
       | CPS -> "cps"
@@ -2799,8 +2826,10 @@ let show_arm_op = function
       | XPACLRI -> "xpaclri"
       | AUTIA1716 -> "autia1716"
       | AUTIB1716 -> "autib1716"
-    end
-  | Arm_ErrorOP aerror -> begin match aerror with BAD -> "BAD" end
+      end
+  | Arm_ErrorOP aerror ->
+      begin match aerror with BAD -> "BAD"
+      end
 
 let show_arm_opqualifier = function
   | W -> "w"
@@ -2841,8 +2870,8 @@ let show_arm_condsuff = function
   | _ -> failwith "Unknown ARM condsuff"
 
 let show_arm_reg = function
-  | Arm_CommonReg acommonr -> begin
-      match acommonr with
+  | Arm_CommonReg acommonr ->
+      begin match acommonr with
       | R0 -> "r0"
       | R1 -> "r1"
       | R2 -> "r2"
@@ -2918,9 +2947,9 @@ let show_arm_reg = function
       | X28 -> "x28"
       | XZR -> "xzr"
       | _ -> failwith "Unknown ARM common reg"
-    end
-  | Arm_SpecialReg aspecialr -> begin
-      match aspecialr with
+      end
+  | Arm_SpecialReg aspecialr ->
+      begin match aspecialr with
       | D0 -> "d0"
       | D1 -> "d1"
       | D2 -> "d2"
@@ -3017,9 +3046,9 @@ let show_arm_reg = function
       | C13 -> "c13"
       | C14 -> "c14"
       | C15 -> "c15"
-    end
-  | Arm_StackReg astackr -> begin
-      match astackr with
+      end
+  | Arm_StackReg astackr ->
+      begin match astackr with
       | R13 -> "r13"
       | SP -> "sp"
       | FP -> "fp"
@@ -3028,8 +3057,14 @@ let show_arm_reg = function
       | X29 -> "x29"
       | X31 -> "x31"
       | _ -> failwith "Unknown ARM stack reg"
-    end
-  | Arm_PCReg apcr -> begin match apcr with R15 -> "r15" | PC -> "pc" end
-  | Arm_LinkReg alinkr -> begin
-      match alinkr with R14 -> "r14" | LR -> "lr" | IP -> "ip" | X30 -> "x30"
-    end
+      end
+  | Arm_PCReg apcr ->
+      begin match apcr with R15 -> "r15" | PC -> "pc"
+      end
+  | Arm_LinkReg alinkr ->
+      begin match alinkr with
+      | R14 -> "r14"
+      | LR -> "lr"
+      | IP -> "ip"
+      | X30 -> "x30"
+      end

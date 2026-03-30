@@ -143,13 +143,13 @@ class virtual common_func_slicer instrs funcs =
       let help fn f fl = f :: fl in
       Hashtbl.fold help func_set []
 
-    method funcaddr_from_file =
+    method funcaddr_from_file (arch : string) =
       let module EU = Elf_utils in
       let t = read_file "faddr.txt" in
       let t1 = read_file "faddr_call.txt" in
       let func_begins2 = List.map int_of_string t in
       let func_begins3 = List.map int_of_string t1 in
-      if EU.elf_arm () && EU.elf_static () then
+      if EU.elf_arm () && EU.elf_static () && arch <> "thumb" then
         let t2 = read_file "plt_funcs.info" in
         let func_begins4 = List.map int_of_string t2 in
         func_begins <- func_begins @ func_begins2 @ func_begins3 @ func_begins4
@@ -161,9 +161,9 @@ class virtual common_func_slicer instrs funcs =
       List.iter (fun l -> Printf.fprintf oc "%s\n" (dec_hex l)) bs;
       close_out oc
 
-    method get_funcs =
+    method get_funcs (arch : string) =
       self#process2;
-      self#funcaddr_from_file;
+      self#funcaddr_from_file arch;
       self#build_func_info;
       let fl = self#get_func_list in
       print_string "\tfunc number: ";

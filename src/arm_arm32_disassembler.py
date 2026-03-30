@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import os
 import re
 from dataclasses import dataclass
@@ -212,6 +213,7 @@ def build_mixed_disassembly(
     frame_dummy_end_addr: int | None = None,
     extra_thumb_addrs: list[int] | None = None,
     initial_mode: str = "arm32",
+    init_fn_addrs: list[str] | None = None,
 ) -> list[str]:
     """
     ARM32 binaries may contain both ARM and Thumb functions
@@ -242,11 +244,6 @@ def build_mixed_disassembly(
     arm32_path = f"{program_name}.temp.arm32"
     thumb_path = f"{program_name}.temp.thumb"
 
-    arm32_start_addrs = set()
-    thumb_start_addrs = set()
-    # For pc-relative instructions, we need to know the mode.
-    instruction_addr_mode_map: dict[int, str] = {}
-
     if not os.path.exists(arm32_path):
         raise FileNotFoundError(f"missing arm32 disassembly file: {arm32_path}")
     if not os.path.exists(thumb_path):
@@ -255,27 +252,86 @@ def build_mixed_disassembly(
     _, arm32_map = _load_disassembly(arm32_path)
     _, thumb_map = _load_disassembly(thumb_path)
 
-    # Before CFG traversal, read raw arm32 and thumb disassemble
-    # and find bl and blx instructions to get potential function entry points.
-    for addr, instruction in arm32_map.items():
-        if _is_bl(instruction.opcode):
-            target_addr = _extract_target_addr(instruction.operands)
-            if target_addr is not None:
-                arm32_start_addrs.add(target_addr)
-        elif _is_blx(instruction.opcode):
-            target_addr = _extract_target_addr(instruction.operands)
-            if target_addr is not None:
-                thumb_start_addrs.add(target_addr)
+    # Pre-compute init function address set and sorted list for range checks.
+    init_fn_addr_ints: set[int] = set()
+    sorted_init_ints: list[int] = []
+    if init_fn_addrs:
+        init_fn_addr_ints = {int(a, 16) for a in init_fn_addrs}
+        sorted_init_ints = sorted(init_fn_addr_ints)
 
-    for addr, instruction in thumb_map.items():
-        if _is_bl(instruction.opcode):
-            target_addr = _extract_target_addr(instruction.operands)
-            if target_addr is not None:
-                thumb_start_addrs.add(target_addr)
-        elif _is_blx(instruction.opcode):
-            target_addr = _extract_target_addr(instruction.operands)
-            if target_addr is not None:
-                arm32_start_addrs.add(target_addr)
+    def _is_init_addr(addr: int) -> bool:
+        """Return True if addr is an init function instruction address."""
+        if addr in init_fn_addr_ints:
+            return True
+        if not sorted_init_ints:
+            return False
+        idx = bisect.bisect_left(sorted_init_ints, addr)
+        if idx == 0 or idx >= len(sorted_init_ints):
+            return False
+        prev = sorted_init_ints[idx - 1]
+        next_ = sorted_init_ints[idx]
+        if next_ - prev >= 6:
+            return False
+        return prev < addr < next_
+
+    def _seed_start_addrs(
+        a32: set[int], th: set[int], from_mode_map: dict[int, str] | None
+    ) -> None:
+        """Seed arm32/thumb start address sets from bl/blx targets.
+
+        When from_mode_map is None, scan the raw arm32_map and thumb_map.
+        Otherwise, scan only the addresses present in from_mode_map using
+        their correct (previously determined) modes.
+        """
+        if from_mode_map is None:
+            for addr, instruction in arm32_map.items():
+                if _is_init_addr(addr):
+                    continue
+                if _is_bl(instruction.opcode):
+                    t = _extract_target_addr(instruction.operands)
+                    if t is not None:
+                        a32.add(t)
+                elif _is_blx(instruction.opcode):
+                    t = _extract_target_addr(instruction.operands)
+                    if t is not None:
+                        th.add(t)
+            for addr, instruction in thumb_map.items():
+                if _is_init_addr(addr):
+                    continue
+                if _is_bl(instruction.opcode):
+                    t = _extract_target_addr(instruction.operands)
+                    if t is not None:
+                        th.add(t)
+                elif _is_blx(instruction.opcode):
+                    t = _extract_target_addr(instruction.operands)
+                    if t is not None:
+                        a32.add(t)
+        else:
+            for addr, mode in from_mode_map.items():
+                if _is_init_addr(addr):
+                    continue
+                current_map = arm32_map if mode == "arm32" else thumb_map
+                instruction = current_map.get(addr)
+                if instruction is None:
+                    continue
+                if mode == "arm32":
+                    if _is_bl(instruction.opcode):
+                        t = _extract_target_addr(instruction.operands)
+                        if t is not None:
+                            a32.add(t)
+                    elif _is_blx(instruction.opcode):
+                        t = _extract_target_addr(instruction.operands)
+                        if t is not None:
+                            th.add(t)
+                else:
+                    if _is_bl(instruction.opcode):
+                        t = _extract_target_addr(instruction.operands)
+                        if t is not None:
+                            th.add(t)
+                    elif _is_blx(instruction.opcode):
+                        t = _extract_target_addr(instruction.operands)
+                        if t is not None:
+                            a32.add(t)
 
     # Get the main symbol address.
     arch = "thumb" if initial_mode == "thumb" else "arm"
@@ -284,96 +340,6 @@ def build_mixed_disassembly(
         if not arm32_map:
             raise RuntimeError("failed to locate main symbol and arm32 map is empty")
         main_addr = min(arm32_map.keys())
-    if initial_mode == "thumb":
-        thumb_start_addrs.add(main_addr)
-    else:
-        arm32_start_addrs.add(main_addr)
-
-    # Seed thumb start addresses that are known a priori (e.g. init functions
-    # identified in arm_preprocess.py that may be located before main and are
-    # therefore unreachable via normal CFG fallthrough from main).
-    if extra_thumb_addrs:
-        for addr in extra_thumb_addrs:
-            thumb_start_addrs.add(addr)
-
-    # Register the first instruction after frame_dummy with the appropriate mode so
-    # that pp_print emits the correct .arm/.thumb directive at that address.
-    if frame_dummy_end_addr is not None:
-        if initial_mode == "thumb":
-            thumb_start_addrs.add(frame_dummy_end_addr)
-        else:
-            arm32_start_addrs.add(frame_dummy_end_addr)
-
-    # Start CFG traversal from the main symbol address.
-    stack: list[tuple[int, str]] = []
-    stack.append((main_addr & ~1, initial_mode))
-
-    # Push extra thumb functions so they are visited even if unreachable from main.
-    if extra_thumb_addrs:
-        for addr in extra_thumb_addrs:
-            stack.insert(0, (addr & ~1, "thumb"))
-
-    visited: dict[int, tuple[str, int]] = {}
-    selected_lines: dict[int, str] = {}
-
-    while stack:
-        start_addr, mode = stack.pop()
-        current_addr = start_addr & ~1
-
-        # Change mode if the current address is in the start addresses of the other mode.
-        if current_addr in thumb_start_addrs:
-            mode = "thumb"
-        elif current_addr in arm32_start_addrs:
-            mode = "arm32"
-        elif frame_dummy_end_addr is not None and current_addr >= frame_dummy_end_addr:
-            # After frame_dummy, fall back to initial_mode unless explicitly identified
-            # as thumb or arm32 via bl/blx targets above.
-            mode = initial_mode
-
-        # Get an instruction corresponding to the current address and mode.
-        current_map = arm32_map if mode == "arm32" else thumb_map
-        instruction = current_map.get(current_addr)
-        if instruction is None:
-            continue
-
-        if current_addr in visited:
-            continue
-
-        visited[current_addr] = (mode, instruction.size)
-        selected_lines[current_addr] = instruction.line
-        instruction_addr_mode_map[current_addr] = mode
-
-        if _is_function_call(instruction.opcode):
-            # Push both the call target and the next instruction.
-            target_addr = _extract_target_addr(instruction.operands)
-            next_addr = (current_addr + instruction.size) & ~1
-            stack.append((next_addr, mode))
-            if target_addr is not None:
-                target_mode = _next_mode(mode, _is_blx(instruction.opcode))
-                if target_mode == "thumb":
-                    thumb_start_addrs.add(target_addr)
-                else:
-                    arm32_start_addrs.add(target_addr)
-                stack.append((target_addr & ~1, target_mode))
-        elif _is_return_instruction(instruction):
-            # Push to back to prioritize covering the control-flow first
-            stack.insert(0, ((current_addr + instruction.size) & ~1, mode))
-            continue
-        elif _is_conditional_jump(instruction.opcode):
-            # Push both the jump target and the next instruction.
-            target_addr = _extract_target_addr(instruction.operands)
-            next_addr = (current_addr + instruction.size) & ~1
-            stack.append((next_addr, mode))
-            if target_addr is not None:
-                stack.append((target_addr & ~1, mode))
-        elif _is_unconditional_jump(instruction.opcode):
-            # Push only next instruction
-            # since the jump target will eventually be handled.
-            next_addr = (current_addr + instruction.size) & ~1
-            stack.append((next_addr, mode))
-        else:
-            next_addr = (current_addr + instruction.size) & ~1
-            stack.append((next_addr, mode))
 
     output_path = (
         f"{program_name}.temp"
@@ -381,84 +347,237 @@ def build_mixed_disassembly(
         else f"{output_dir}/{os.path.basename(program_name)}.temp"
     )
 
+    arm32_start_addrs: set[int] = set()
+    thumb_start_addrs: set[int] = set()
+    instruction_addr_mode_map: dict[int, str] = {}
     merged_lines: list[str] = []
 
-    selected_covered_addrs: set[int] = set()
-    for addr, (_, size) in visited.items():
-        for byte_addr in range(addr, addr + size):
-            selected_covered_addrs.add(byte_addr)
+    # Sorted address lists used to skip over zero-padding gaps (shown as `...`
+    # in objdump output) when instruction lookup returns None.
+    arm32_sorted_addrs = sorted(arm32_map.keys())
+    thumb_sorted_addrs = sorted(thumb_map.keys())
 
-    selected_addrs_sorted = sorted(selected_lines.keys())
-    selected_idx = 0
-    emitted_selected_addrs: set[int] = set()
+    # First iteration uses raw maps; subsequent iterations use instruction_addr_mode_map
+    # from the previous pass so that misparse-induced bl/blx targets are corrected.
+    mode_map_for_rescan: dict[int, str] | None = None
 
-    with open(arm32_path, "r") as file_obj:
-        for line in file_obj:
-            parsed = _parse_instruction_line(line)
-            if parsed is None:
-                # Not an instruction line, just copy it
-                merged_lines.append(line)
+    while True:
+        # Build start address sets from bl/blx targets.
+        arm32_start_addrs = set()
+        thumb_start_addrs = set()
+        _seed_start_addrs(arm32_start_addrs, thumb_start_addrs, mode_map_for_rescan)
+
+        # Seed fixed entry points.
+        if initial_mode == "thumb":
+            thumb_start_addrs.add(main_addr)
+        else:
+            arm32_start_addrs.add(main_addr)
+
+        # Seed thumb start addresses that are known a priori (e.g. init functions
+        # identified in arm_preprocess.py that may be located before main and are
+        # therefore unreachable via normal CFG fallthrough from main).
+        if extra_thumb_addrs:
+            for addr in extra_thumb_addrs:
+                thumb_start_addrs.add(addr)
+
+        # Register the first instruction after frame_dummy with the appropriate mode so
+        # that pp_print emits the correct .arm/.thumb directive at that address.
+        if frame_dummy_end_addr is not None:
+            if initial_mode == "thumb":
+                thumb_start_addrs.add(frame_dummy_end_addr)
+            else:
+                arm32_start_addrs.add(frame_dummy_end_addr)
+
+        # Start CFG traversal from the main symbol address.
+        stack: list[tuple[int, str]] = []
+        stack.append((main_addr & ~1, initial_mode))
+
+        # Push extra thumb functions so they are visited even if unreachable from main.
+        if extra_thumb_addrs:
+            for addr in extra_thumb_addrs:
+                stack.insert(0, (addr & ~1, "thumb"))
+
+        # Push the address immediately after frame_dummy so that functions that
+        # follow it in the text section but are never called via a direct bl/blx
+        # (e.g. newfile, freefilelist) are discovered through fall-through in
+        # the correct mode.
+        if frame_dummy_end_addr is not None:
+            fd_mode = "thumb" if initial_mode == "thumb" else "arm32"
+            stack.insert(0, (frame_dummy_end_addr & ~1, fd_mode))
+
+        visited: dict[int, tuple[str, int]] = {}
+        selected_lines: dict[int, str] = {}
+        instruction_addr_mode_map = {}
+
+        while stack:
+            start_addr, mode = stack.pop()
+            current_addr = start_addr & ~1
+
+            # Change mode if the current address is in the start addresses of the other mode.
+            if current_addr in thumb_start_addrs:
+                mode = "thumb"
+            elif current_addr in arm32_start_addrs:
+                mode = "arm32"
+            elif (
+                frame_dummy_end_addr is not None
+                and current_addr >= frame_dummy_end_addr
+            ):
+                # After frame_dummy, fall back to initial_mode unless explicitly identified
+                # as thumb or arm32 via bl/blx targets above.
+                mode = initial_mode
+
+            # Get an instruction corresponding to the current address and mode.
+            current_map = arm32_map if mode == "arm32" else thumb_map
+            instruction = current_map.get(current_addr)
+            if instruction is None:
+                # current_addr falls inside a zero-padding gap (`...` in objdump).
+                # Skip forward to the next valid address in the current map.
+                sorted_addrs = (
+                    arm32_sorted_addrs if mode == "arm32" else thumb_sorted_addrs
+                )
+                idx = bisect.bisect_left(sorted_addrs, current_addr)
+                if idx < len(sorted_addrs):
+                    stack.append((sorted_addrs[idx], mode))
                 continue
 
-            while (
-                selected_idx < len(selected_addrs_sorted)
-                and selected_addrs_sorted[selected_idx] < parsed.addr
-            ):
-                selected_addr = selected_addrs_sorted[selected_idx]
-                if selected_addr not in emitted_selected_addrs:
-                    merged_lines.append(selected_lines[selected_addr])
-                    emitted_selected_addrs.add(selected_addr)
-                selected_idx += 1
+            if current_addr in visited:
+                continue
 
-            if (
-                parsed.addr in selected_lines
-                and parsed.addr not in emitted_selected_addrs
-            ):
-                merged_lines.append(selected_lines[parsed.addr])
-                emitted_selected_addrs.add(parsed.addr)
-                if (
+            visited[current_addr] = (mode, instruction.size)
+            selected_lines[current_addr] = instruction.line
+            instruction_addr_mode_map[current_addr] = mode
+
+            if _is_function_call(instruction.opcode):
+                # Push both the call target and the next instruction.
+                target_addr = _extract_target_addr(instruction.operands)
+                next_addr = (current_addr + instruction.size) & ~1
+                stack.append((next_addr, mode))
+                if target_addr is not None:
+                    target_mode = _next_mode(mode, _is_blx(instruction.opcode))
+                    if target_mode == "thumb":
+                        thumb_start_addrs.add(target_addr)
+                    else:
+                        arm32_start_addrs.add(target_addr)
+                    stack.append((target_addr & ~1, target_mode))
+            elif _is_return_instruction(instruction):
+                # Push to back to prioritize covering the control-flow first
+                stack.insert(0, ((current_addr + instruction.size) & ~1, mode))
+                continue
+            elif _is_conditional_jump(instruction.opcode):
+                # Push both the jump target and the next instruction.
+                target_addr = _extract_target_addr(instruction.operands)
+                next_addr = (current_addr + instruction.size) & ~1
+                stack.append((next_addr, mode))
+                if target_addr is not None:
+                    stack.append((target_addr & ~1, mode))
+            elif _is_unconditional_jump(instruction.opcode):
+                # Push only next instruction
+                # since the jump target will eventually be handled.
+                next_addr = (current_addr + instruction.size) & ~1
+                stack.append((next_addr, mode))
+            else:
+                next_addr = (current_addr + instruction.size) & ~1
+                stack.append((next_addr, mode))
+
+        new_merged_lines: list[str] = []
+
+        selected_covered_addrs: set[int] = set()
+        for addr, (_, size) in visited.items():
+            for byte_addr in range(addr, addr + size):
+                selected_covered_addrs.add(byte_addr)
+
+        selected_addrs_sorted = sorted(selected_lines.keys())
+        selected_idx = 0
+        emitted_selected_addrs: set[int] = set()
+
+        with open(arm32_path, "r") as file_obj:
+            for line in file_obj:
+                parsed = _parse_instruction_line(line)
+                if parsed is None:
+                    # Not an instruction line, just copy it
+                    new_merged_lines.append(line)
+                    continue
+
+                while (
                     selected_idx < len(selected_addrs_sorted)
-                    and selected_addrs_sorted[selected_idx] == parsed.addr
+                    and selected_addrs_sorted[selected_idx] < parsed.addr
                 ):
+                    selected_addr = selected_addrs_sorted[selected_idx]
+                    if selected_addr not in emitted_selected_addrs:
+                        new_merged_lines.append(selected_lines[selected_addr])
+                        emitted_selected_addrs.add(selected_addr)
                     selected_idx += 1
-                continue
 
-            overlaps_selected = any(
-                (parsed.addr + offset) in selected_covered_addrs
-                for offset in range(parsed.size)
-            )
-            if overlaps_selected:
-                continue
+                if (
+                    parsed.addr in selected_lines
+                    and parsed.addr not in emitted_selected_addrs
+                ):
+                    new_merged_lines.append(selected_lines[parsed.addr])
+                    emitted_selected_addrs.add(parsed.addr)
+                    if (
+                        selected_idx < len(selected_addrs_sorted)
+                        and selected_addrs_sorted[selected_idx] == parsed.addr
+                    ):
+                        selected_idx += 1
+                    continue
 
-            merged_lines.append(line)
+                overlaps_selected = any(
+                    (parsed.addr + offset) in selected_covered_addrs
+                    for offset in range(parsed.size)
+                )
+                if overlaps_selected:
+                    continue
 
-    while selected_idx < len(selected_addrs_sorted):
-        selected_addr = selected_addrs_sorted[selected_idx]
-        if selected_addr not in emitted_selected_addrs:
-            merged_lines.append(selected_lines[selected_addr])
-            emitted_selected_addrs.add(selected_addr)
-        selected_idx += 1
+                new_merged_lines.append(line)
+
+        while selected_idx < len(selected_addrs_sorted):
+            selected_addr = selected_addrs_sorted[selected_idx]
+            if selected_addr not in emitted_selected_addrs:
+                new_merged_lines.append(selected_lines[selected_addr])
+                emitted_selected_addrs.add(selected_addr)
+            selected_idx += 1
+
+        # Filter init function instructions from the merged output.
+        if init_fn_addr_ints:
+            filtered_merged: list[str] = []
+            for line in new_merged_lines:
+                addr_str = line.split(":")[0].strip()
+                try:
+                    addr_int = int(addr_str, 16)
+                except ValueError:
+                    filtered_merged.append(line)
+                    continue
+                if _is_init_addr(addr_int):
+                    continue
+                filtered_merged.append(line)
+            new_merged_lines = filtered_merged
+
+        # Check for convergence.
+        if new_merged_lines == merged_lines:
+            break
+
+        merged_lines = new_merged_lines
+        # Next iteration re-scans using the correct modes determined in this pass.
+        mode_map_for_rescan = instruction_addr_mode_map
 
     with open(output_path, "w") as out_file:
         out_file.writelines(merged_lines)
 
     # Write the start addresses of ARM and Thumb functions for later use
     # Filter target_addr >= text_start and target_addr < text_end:
-    arm32_start_addrs = [
+    arm32_start_addrs_list = sorted(
         addr for addr in arm32_start_addrs if text_start <= addr < text_end
-    ]
-    arm32_start_addrs = sorted(set(arm32_start_addrs))
+    )
     with open("arm32_start_addrs.txt", "w") as f:
-        for addr in arm32_start_addrs:
+        for addr in arm32_start_addrs_list:
             f.write(f"{addr:#x}\n")
 
     # Filter out addresses outside of the .text section.
-    thumb_start_addrs = [
+    thumb_start_addrs_list = sorted(
         addr for addr in thumb_start_addrs if text_start <= addr < text_end
-    ]
-    thumb_start_addrs = sorted(set(thumb_start_addrs))
+    )
     with open("thumb_start_addrs.txt", "w") as f:
-        for addr in thumb_start_addrs:
+        for addr in thumb_start_addrs_list:
             f.write(f"{addr:#x}\n")
 
     # Write the final address-mode map for later use

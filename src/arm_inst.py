@@ -59,7 +59,12 @@ class Inst(object):
             self.width_specifier = opcode_parts[1]
         else:
             self.opcode = parts[2]
-        self.operands = parts[3]
+
+        if len(parts) > 3:
+            self.operands = parts[3]
+        else:
+            # e.g., nop
+            self.operands = ""
 
         # Extract the registers from the instruction
         operands_arr = self.operands.split(",")

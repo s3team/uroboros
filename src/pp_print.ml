@@ -95,40 +95,40 @@ and p_hex s = Printf.sprintf "%d" s
 
 let p_ptraddr = function
   | WB r -> p_arm_reg r ^ "!"
-  | UnOP r -> begin
-      match r with
+  | UnOP r ->
+      begin match r with
       | Intel_Reg r -> "(" ^ p_intel_reg r ^ ")"
       | Arm_Reg r -> "[" ^ p_arm_reg r ^ "]"
-    end
+      end
   | UnOP_WB r -> "[" ^ p_arm_reg r ^ "]!"
-  | BinOP_PLUS (r, i) -> begin
-      match r with
+  | BinOP_PLUS (r, i) ->
+      begin match r with
       | Intel_Reg r -> p_loc i ^ "(" ^ p_intel_reg r ^ ")"
       | Arm_Reg r -> "[" ^ p_arm_reg r ^ ", #" ^ p_hex i ^ "]"
-    end
+      end
   | BinOP_PLUS_R (r1, r2) -> begin
       "[" ^ p_arm_reg r1 ^ ", " ^ p_arm_reg r2 ^ "]"
     end
-  | BinOP_PLUS_S (r, s) -> begin
-      match r with
+  | BinOP_PLUS_S (r, s) ->
+      begin match r with
       | Intel_Reg r -> s ^ "(" ^ p_intel_reg r ^ ")"
       | Arm_Reg r -> "[" ^ p_arm_reg r ^ ", " ^ s ^ "]"
-    end
+      end
   | BinOP_PLUS_WB (r, i) -> "[" ^ p_arm_reg r ^ ", #" ^ p_hex i ^ "]!"
-  | BinOP_MINUS (r, i) -> begin
-      match r with
+  | BinOP_MINUS (r, i) ->
+      begin match r with
       | Intel_Reg r -> "-" ^ p_loc i ^ "(" ^ p_intel_reg r ^ ")"
       | Arm_Reg r -> "[" ^ p_arm_reg r ^ ", #-" ^ p_hex i ^ "]"
-    end
+      end
   | BinOP_MINUS_S (r, s) -> "-" ^ s ^ "(" ^ p_reg r ^ ")"
   | BinOP_MINUS_WB (r, i) -> "[" ^ p_arm_reg r ^ ", #-" ^ p_hex i ^ "]!"
   | ThreeOP (r1, r2, i) -> "(" ^ p_reg r1 ^ "," ^ p_reg r2 ^ "," ^ p_loc i ^ ")"
-  | ThreeOP_S (r1, r2, s) -> begin
-      match (r1, r2) with
+  | ThreeOP_S (r1, r2, s) ->
+      begin match (r1, r2) with
       | Arm_Reg r1, Arm_Reg r2 ->
           "[" ^ p_arm_reg r1 ^ "," ^ p_arm_reg r2 ^ "," ^ s ^ "]"
       | _ -> failwith "ThreeOP_S: unhandled register type"
-    end
+      end
   | FourOP_PLUS (r1, r2, i1, i2) ->
       p_loc i2 ^ "(" ^ p_reg r1 ^ "," ^ p_reg r2 ^ "," ^ p_loc i1 ^ ")"
   | FourOP_MINUS (r1, r2, i1, i2) ->
@@ -157,6 +157,15 @@ let p_const l =
   | Point s -> d2h_p s
   | Immediate s -> d2h_lower s
 
+(* Like p_const but outputs Immediate as plain decimal (for mrc/mcr/mrc2/mcr2) *)
+let p_const_plain l =
+  let d2h s = "$0x" ^ Printf.sprintf "%X" s
+  and d2h_p s = "0x" ^ Printf.sprintf "%X" s in
+  match l with
+  | Normal s -> d2h s
+  | Point s -> d2h_p s
+  | Immediate s -> string_of_int s
+
 let rec p_exp' e =
   let p_symbol = function
     | CallDes f -> "calldes: " ^ p_fun f
@@ -184,6 +193,27 @@ let rec p_exp e =
   | Assist s -> p_assist s
   | Ptr addr -> p_ptraddr addr
   | Label s -> s
+
+(* Like p_exp but outputs Immediate as plain decimal and strips braces from
+   labels (for mrc/mcr/mrc2/mcr2) *)
+let rec p_exp_plain e =
+  let p_symbol = function
+    | CallDes f -> p_fun f
+    | JumpDes des -> p_loc des
+    | StarDes e -> "*" ^ p_exp_plain e
+  in
+  let strip_braces s =
+    let len = String.length s in
+    if len >= 2 && s.[0] = '{' && s.[len - 1] = '}' then String.sub s 1 (len - 2)
+    else s
+  in
+  match e with
+  | Const s -> p_const_plain s
+  | Symbol s -> p_symbol s
+  | Reg s -> p_reg s
+  | Assist s -> p_assist s
+  | Ptr addr -> p_ptraddr addr
+  | Label s -> strip_braces s
 
 let p_single p =
   let p_str = p_op p in
@@ -227,6 +257,27 @@ and p_five p e1 e2 e3 e4 =
   and e4_str = p_exp e4 in
   p_str ^ " " ^ e4_str ^ "," ^ e3_str ^ "," ^ e2_str ^ "," ^ e1_str
 
+and p_six p e1 e2 e3 e4 e5 =
+  let p_str = p_op p
+  and e1_str = p_exp e1
+  and e2_str = p_exp e2
+  and e3_str = p_exp e3
+  and e4_str = p_exp e4
+  and e5_str = p_exp e5 in
+  p_str ^ " " ^ e5_str ^ "," ^ e4_str ^ "," ^ e3_str ^ "," ^ e2_str ^ ","
+  ^ e1_str
+
+and p_seven p e1 e2 e3 e4 e5 e6 =
+  let p_str = p_op p
+  and e1_str = p_exp e1
+  and e2_str = p_exp e2
+  and e3_str = p_exp e3
+  and e4_str = p_exp e4
+  and e5_str = p_exp e5
+  and e6_str = p_exp e6 in
+  p_str ^ " " ^ e6_str ^ "," ^ e5_str ^ "," ^ e4_str ^ "," ^ e3_str ^ ","
+  ^ e2_str ^ "," ^ e1_str
+
 and p_location l = l.loc_label
 and p_addr l = "0x" ^ Printf.sprintf "%X: " l.loc_addr
 
@@ -236,12 +287,28 @@ and p_prefix = function
   | Some BND -> " bnd "
   | None -> ""
 
+let is_mrc_mcr = function
+  | Arm_OP (Arm_SystemOP (MRC | MRC2 | MCR | MCR2), _, _) -> true
+  | _ -> false
+
+let p_six_plain p e1 e2 e3 e4 e5 =
+  let p_str = p_op p in
+  p_str ^ " " ^ p_exp_plain e5 ^ "," ^ p_exp_plain e4 ^ "," ^ p_exp_plain e3
+  ^ "," ^ p_exp_plain e2 ^ "," ^ p_exp_plain e1
+
+let p_seven_plain p e1 e2 e3 e4 e5 e6 =
+  let p_str = p_op p in
+  p_str ^ " " ^ p_exp_plain e6 ^ "," ^ p_exp_plain e5 ^ "," ^ p_exp_plain e4
+  ^ "," ^ p_exp_plain e3 ^ "," ^ p_exp_plain e2 ^ "," ^ p_exp_plain e1
+
 let get_loc = function
   | SingleInstr (_, l, _, _) -> l
   | DoubleInstr (_, _, l, _, _) -> l
   | TripleInstr (_, _, _, l, _, _) -> l
   | FourInstr (_, _, _, _, l, _, _) -> l
   | FifInstr (_, _, _, _, _, l, _, _) -> l
+  | SixInstr (_, _, _, _, _, _, l, _, _) -> l
+  | SevenInstr (_, _, _, _, _, _, _, l, _, _) -> l
 
 let p_tag = function
   | Some Del -> "del"
@@ -253,88 +320,216 @@ let pp_print_instr i =
   | { loc_visible = false; _ } -> get_loc i |> p_location
   | _ -> (
       match i with
-      | SingleInstr (p, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_location l ^ p_prefix pre ^ p_single p ^ "    " ^ !comment_sym
-              ^ value
-          | None -> p_location l ^ p_prefix pre ^ p_single p
-        end
-      | DoubleInstr (p, exp1, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_location l ^ p_prefix pre ^ p_double p exp1 ^ "    "
-              ^ !comment_sym ^ value
-          | None -> p_location l ^ p_prefix pre ^ p_double p exp1
-        end
-      | TripleInstr (p, exp1, exp2, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_location l ^ p_prefix pre ^ p_triple p exp1 exp2 ^ "    "
-              ^ !comment_sym ^ value
-          | None -> p_location l ^ p_prefix pre ^ p_triple p exp1 exp2
-        end
-      | FourInstr (p, exp1, exp2, exp3, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_location l ^ p_prefix pre ^ p_four p exp1 exp2 exp3 ^ "    "
-              ^ !comment_sym ^ value
-          | None -> p_location l ^ p_prefix pre ^ p_four p exp1 exp2 exp3
-        end
-      | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_location l ^ p_prefix pre
+      | SingleInstr (p, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_location l ^ !comment_sym ^ " " ^ p_prefix pre ^ p_single p
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_location l ^ p_prefix pre ^ p_single p ^ "    "
+                  ^ !comment_sym ^ value
+              | None -> p_location l ^ p_prefix pre ^ p_single p
+              end
+          end
+      | DoubleInstr (p, exp1, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_location l ^ !comment_sym ^ " " ^ p_prefix pre ^ p_double p exp1
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_location l ^ p_prefix pre ^ p_double p exp1 ^ "    "
+                  ^ !comment_sym ^ value
+              | None -> p_location l ^ p_prefix pre ^ p_double p exp1
+              end
+          end
+      | TripleInstr (p, exp1, exp2, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_triple p exp1 exp2
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_location l ^ p_prefix pre ^ p_triple p exp1 exp2 ^ "    "
+                  ^ !comment_sym ^ value
+              | None -> p_location l ^ p_prefix pre ^ p_triple p exp1 exp2
+              end
+          end
+      | FourInstr (p, exp1, exp2, exp3, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_four p exp1 exp2 exp3
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_location l ^ p_prefix pre ^ p_four p exp1 exp2 exp3 ^ "    "
+                  ^ !comment_sym ^ value
+              | None -> p_location l ^ p_prefix pre ^ p_four p exp1 exp2 exp3
+              end
+          end
+      | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_location l ^ !comment_sym ^ " " ^ p_prefix pre
               ^ p_five p exp1 exp2 exp3 exp4
-              ^ "    " ^ !comment_sym ^ value
-          | None -> p_location l ^ p_prefix pre ^ p_five p exp1 exp2 exp3 exp4
-        end)
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_location l ^ p_prefix pre
+                  ^ p_five p exp1 exp2 exp3 exp4
+                  ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_location l ^ p_prefix pre ^ p_five p exp1 exp2 exp3 exp4
+              end
+          end
+      | SixInstr (p, exp1, exp2, exp3, exp4, exp5, l, pre, tags) ->
+          let p_six_fn = if is_mrc_mcr p then p_six_plain else p_six in
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_six_fn p exp1 exp2 exp3 exp4 exp5
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_location l ^ p_prefix pre
+                  ^ p_six_fn p exp1 exp2 exp3 exp4 exp5
+                  ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_location l ^ p_prefix pre
+                  ^ p_six_fn p exp1 exp2 exp3 exp4 exp5
+              end
+          end
+      | SevenInstr (p, exp1, exp2, exp3, exp4, exp5, exp6, l, pre, tags) ->
+          let p_seven_fn = if is_mrc_mcr p then p_seven_plain else p_seven in
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_seven_fn p exp1 exp2 exp3 exp4 exp5 exp6
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_location l ^ p_prefix pre
+                  ^ p_seven_fn p exp1 exp2 exp3 exp4 exp5 exp6
+                  ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_location l ^ p_prefix pre
+                  ^ p_seven_fn p exp1 exp2 exp3 exp4 exp5 exp6
+              end
+          end)
 
 let pp_print_instr' i =
   match get_loc i with
   | { loc_visible = false; _ } -> get_loc i |> p_location
   | _ -> (
       match i with
-      | SingleInstr (p, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_addr l ^ p_location l ^ p_prefix pre ^ p_single p ^ "    "
-              ^ !comment_sym ^ value
-          | None -> p_addr l ^ p_location l ^ p_prefix pre ^ p_single p
-        end
-      | DoubleInstr (p, exp1, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_addr l ^ p_location l ^ p_prefix pre ^ p_double p exp1 ^ "    "
-              ^ !comment_sym ^ value
-          | None -> p_addr l ^ p_location l ^ p_prefix pre ^ p_double p exp1
-        end
-      | TripleInstr (p, exp1, exp2, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_addr l ^ p_location l ^ p_prefix pre ^ p_triple p exp1 exp2
-              ^ "    " ^ !comment_sym ^ value
+      | SingleInstr (p, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_addr l ^ p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_single p
           | None ->
-              p_addr l ^ p_location l ^ p_prefix pre ^ p_triple p exp1 exp2
-        end
-      | FourInstr (p, exp1, exp2, exp3, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_addr l ^ p_location l ^ p_prefix pre ^ p_four p exp1 exp2 exp3
-              ^ "    " ^ !comment_sym ^ value
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_addr l ^ p_location l ^ p_prefix pre ^ p_single p ^ "    "
+                  ^ !comment_sym ^ value
+              | None -> p_addr l ^ p_location l ^ p_prefix pre ^ p_single p
+              end
+          end
+      | DoubleInstr (p, exp1, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_addr l ^ p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_double p exp1
           | None ->
-              p_addr l ^ p_location l ^ p_prefix pre ^ p_four p exp1 exp2 exp3
-        end
-      | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, tags) -> begin
-          match Hashtbl.find_opt tags "comment" with
-          | Some (Str value) ->
-              p_addr l ^ p_location l ^ p_prefix pre
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_addr l ^ p_location l ^ p_prefix pre ^ p_double p exp1
+                  ^ "    " ^ !comment_sym ^ value
+              | None -> p_addr l ^ p_location l ^ p_prefix pre ^ p_double p exp1
+              end
+          end
+      | TripleInstr (p, exp1, exp2, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_addr l ^ p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_triple p exp1 exp2
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_addr l ^ p_location l ^ p_prefix pre ^ p_triple p exp1 exp2
+                  ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_addr l ^ p_location l ^ p_prefix pre ^ p_triple p exp1 exp2
+              end
+          end
+      | FourInstr (p, exp1, exp2, exp3, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_addr l ^ p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_four p exp1 exp2 exp3
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_four p exp1 exp2 exp3 ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_four p exp1 exp2 exp3
+              end
+          end
+      | FifInstr (p, exp1, exp2, exp3, exp4, l, pre, tags) ->
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_addr l ^ p_location l ^ !comment_sym ^ " " ^ p_prefix pre
               ^ p_five p exp1 exp2 exp3 exp4
-              ^ "    " ^ !comment_sym ^ value
           | None ->
-              p_addr l ^ p_location l ^ p_prefix pre
-              ^ p_five p exp1 exp2 exp3 exp4
-        end)
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_five p exp1 exp2 exp3 exp4
+                  ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_five p exp1 exp2 exp3 exp4
+              end
+          end
+      | SixInstr (p, exp1, exp2, exp3, exp4, exp5, l, pre, tags) ->
+          let p_six_fn = if is_mrc_mcr p then p_six_plain else p_six in
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_addr l ^ p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_six_fn p exp1 exp2 exp3 exp4 exp5
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_six_fn p exp1 exp2 exp3 exp4 exp5
+                  ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_six_fn p exp1 exp2 exp3 exp4 exp5
+              end
+          end
+      | SevenInstr (p, exp1, exp2, exp3, exp4, exp5, exp6, l, pre, tags) ->
+          let p_seven_fn = if is_mrc_mcr p then p_seven_plain else p_seven in
+          begin match Hashtbl.find_opt tags "commented_out" with
+          | Some _ ->
+              p_addr l ^ p_location l ^ !comment_sym ^ " " ^ p_prefix pre
+              ^ p_seven_fn p exp1 exp2 exp3 exp4 exp5 exp6
+          | None ->
+              begin match Hashtbl.find_opt tags "comment" with
+              | Some (Str value) ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_seven_fn p exp1 exp2 exp3 exp4 exp5 exp6
+                  ^ "    " ^ !comment_sym ^ value
+              | None ->
+                  p_addr l ^ p_location l ^ p_prefix pre
+                  ^ p_seven_fn p exp1 exp2 exp3 exp4 exp5 exp6
+              end
+          end)
 
 let pp_print_list (arch : string) (is_static : bool) (instr_list : instr list) :
     string list =

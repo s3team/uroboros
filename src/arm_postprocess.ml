@@ -37,16 +37,16 @@ module ArmPostprocess = struct
     in
     let rec aux acc = function
       | [] -> List.rev acc
-      | i :: t -> begin
-          match i with
+      | i :: t ->
+          begin match i with
           | TripleInstr
               ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
                 Const (Point addr),
                 Reg (Arm_Reg (Arm_CommonReg reg)),
                 loc,
                 _,
-                _ ) -> begin
-              if is_in_text_sec addr then
+                _ ) ->
+              begin if is_in_text_sec addr then
                 let add_instr =
                   TripleInstr
                     ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), None, None),
@@ -58,14 +58,15 @@ module ArmPostprocess = struct
                 in
                 aux (add_instr :: i :: acc) t
               else aux (i :: acc) t
-            end
+              end
           | TripleInstr
               ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
                 Label s_label,
                 Reg (Arm_Reg (Arm_CommonReg reg)),
                 loc,
                 _,
-                _ ) -> begin
+                tags )
+            when Hashtbl.find_opt tags "literal_pool" = None -> begin
               (* ldr r3,=S_0x11346 *)
               let addr =
                 int_of_string (String.sub s_label 3 (String.length s_label - 3))
@@ -84,7 +85,7 @@ module ArmPostprocess = struct
               else aux (i :: acc) t
             end
           | _ -> aux (i :: acc) t
-        end
+          end
     in
     aux [] il
 end

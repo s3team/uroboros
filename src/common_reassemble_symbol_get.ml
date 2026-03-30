@@ -27,4 +27,5 @@ class virtual common_reassemble =
     method virtual instr_addrs_collect : instr list -> unit
     method virtual jmp_table_rewrite : instr list -> instr list
     method virtual jmp_table_rewrite64 : instr list -> instr list
+    method virtual add_ltorg_after_terminators : instr list -> instr list
   end

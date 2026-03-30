@@ -112,6 +112,21 @@ class arm_func_slicer instrs funcs =
       let is_pop (op : arm_stackop) : bool =
         match op with POP | VPOP | LDMIA -> true | _ -> false
       in
+      let is_unconditional_terminator (i : instr) : bool =
+        match i with
+        | DoubleInstr (Arm_OP (Arm_StackOP op, _, _), Label lab, _, _, _)
+          when is_pop op && has_pc_reg lab ->
+            true
+        | DoubleInstr
+            ( Arm_OP (Arm_ControlOP BX, _, _),
+              Reg (Arm_Reg (Arm_LinkReg LR)),
+              _,
+              _,
+              _ ) ->
+            true
+        | DoubleInstr (Arm_OP (Arm_ControlOP B, None, _), _, _, _, _) -> true
+        | _ -> false
+      in
       let ordered_il = List.rev instrs in
       let rec help (idx : int) (inst : instr) =
         match inst with
@@ -167,7 +182,12 @@ class arm_func_slicer instrs funcs =
             last_special <- false;
             last_pop <- false;
             if not push_lr_added then begin
-              func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
+              let prev_terminates =
+                idx = 0
+                || is_unconditional_terminator (List.nth ordered_il (idx - 1))
+              in
+              if prev_terminates then
+                func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
             end
             else begin
               push_lr_added <- false
@@ -178,41 +198,49 @@ class arm_func_slicer instrs funcs =
          *)
         | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
           when not (has_lr_reg lab) -> begin
-            let next_instr = List.nth ordered_il (idx + 1) in
-            match next_instr with
-            | TripleInstr
-                ( op,
-                  Const (Immediate _),
-                  Reg (Arm_Reg (Arm_StackReg SP)),
-                  l,
-                  _,
-                  _ ) ->
-                last_nop <- false;
-                last_ret <- false;
-                last_special <- false;
-                last_pop <- false;
-                func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
-            | _ -> begin
-                (* When there is a `push {..., lr}` within the next two instructions,
-                 * add the current instruction as a function beginning
-                 *)
-                let check_push_lr (instr_list : instr list) : bool =
-                  List.exists (fun i -> is_func_prologue i) instr_list
-                in
-                let next_next_instr = List.nth ordered_il (idx + 2) in
-                let instrs_to_check = [ next_instr; next_next_instr ] in
-                if check_push_lr instrs_to_check then begin
+            let prev_terminates =
+              idx = 0
+              || is_unconditional_terminator (List.nth ordered_il (idx - 1))
+            in
+            if not prev_terminates then ()
+            else begin
+              let next_instr = List.nth ordered_il (idx + 1) in
+              match next_instr with
+              | TripleInstr
+                  ( op,
+                    Const (Immediate _),
+                    Reg (Arm_Reg (Arm_StackReg SP)),
+                    l,
+                    _,
+                    _ ) ->
                   last_nop <- false;
                   last_ret <- false;
                   last_special <- false;
                   last_pop <- false;
-                  push_lr_added <- true;
-                  detected_func_by_addr <- false;
                   func_begins <-
                     (IU.get_loc inst |> get_loc_addr) :: func_begins
+              | _ -> begin
+                  (* When there is a `push {..., lr}` within the next two instructions,
+                   * add the current instruction as a function beginning
+                   *)
+                  let check_push_lr (instr_list : instr list) : bool =
+                    List.exists (fun i -> is_func_prologue i) instr_list
+                  in
+                  let next_next_instr = List.nth ordered_il (idx + 2) in
+                  let instrs_to_check = [ next_instr; next_next_instr ] in
+                  if check_push_lr instrs_to_check then begin
+                    last_nop <- false;
+                    last_ret <- false;
+                    last_special <- false;
+                    last_pop <- false;
+                    push_lr_added <- true;
+                    detected_func_by_addr <- false;
+                    func_begins <-
+                      (IU.get_loc inst |> get_loc_addr) :: func_begins
+                  end
+                  else ()
                 end
-                else ()
-              end
+            end
           end
         (* S_0x14FB4:
          * ldr r3,[pc, #0x8]

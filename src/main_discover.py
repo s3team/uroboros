@@ -126,8 +126,10 @@ def find_arm_start_section(lines, entry_point_str, is_32bit_binary, is_thumb_mod
                 while (ln < ll) and "Cannot identify main function using entry point":
                     # There could be other forms of nop for ARM such as "nop", "movs r8, r8", etc.
                     # So far, did not handle those cases.
-                    if ("movs" in lines[ln] and "movs" in lines[ln + 1]) or (
-                        "blx" in lines[ln] and "blx" in lines[ln + 1]
+                    if (
+                        ("movs" in lines[ln] and "movs" in lines[ln + 1])
+                        or ("blx" in lines[ln] and "blx" in lines[ln + 1])
+                        or ("bl" in lines[ln] and "bl" in lines[ln + 1])
                     ):
                         return lines[i : ln + 2]
                     ln += 1
@@ -193,6 +195,8 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
         # So, we need to subtract 1 from the symbolic execution result.
         instrs = []
         for line in objdump_lines:
+            if "..." in line:
+                continue
             inst = Inst()
             inst.init_parse(line)
             instrs.append(inst)

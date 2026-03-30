@@ -142,26 +142,29 @@ let parse_nm () : (int, string * string) Hashtbl.t =
         && not (contains ~str:l ~sub:" V ")
       then
         let items = Str.split (Str.regexp " +") l in
-        let addr = List.nth items 0 in
-        let symbol_type = List.nth items 1 in
-        let symbol_name = List.nth items 2 in
-        let symbol_name' =
-          symbol_name |> String.to_seq |> Seq.map replace_at |> String.of_seq
-        in
-        let addr' =
-          if EU.elf_arm () then
-            (* for ARM Thumb *)
-            (* there is an extra byte to denote Thumb mode from Arm mode in code *)
-            if contains ~str:l ~sub:" D " then int_of_string ("0x" ^ addr)
-            else if int_of_string ("0x" ^ addr) mod 2 == 0 then
-              int_of_string ("0x" ^ addr)
-            else int_of_string ("0x" ^ addr) - 1
-          else int_of_string ("0x" ^ addr)
-        in
-        if symbol_name' <> "main" then
-          if not (Hashtbl.mem seen symbol_name') then (
-            Hashtbl.add sym_addr2label addr' (symbol_name', symbol_type);
-            Hashtbl.add seen symbol_name' ""))
+        (* nm.info sometimes contains lines with no symbol name (e.g. "0006689c r ")
+           for anonymous symbols in ARM Thumb binaries; skip those lines *)
+        if List.length items >= 3 then
+          let addr = List.nth items 0 in
+          let symbol_type = List.nth items 1 in
+          let symbol_name = List.nth items 2 in
+          let symbol_name' =
+            symbol_name |> String.to_seq |> Seq.map replace_at |> String.of_seq
+          in
+          let addr' =
+            if EU.elf_arm () then
+              (* for ARM Thumb *)
+              (* there is an extra byte to denote Thumb mode from Arm mode in code *)
+              if contains ~str:l ~sub:" D " then int_of_string ("0x" ^ addr)
+              else if int_of_string ("0x" ^ addr) mod 2 == 0 then
+                int_of_string ("0x" ^ addr)
+              else int_of_string ("0x" ^ addr) - 1
+            else int_of_string ("0x" ^ addr)
+          in
+          if symbol_name' <> "main" then
+            if not (Hashtbl.mem seen symbol_name') then (
+              Hashtbl.add sym_addr2label addr' (symbol_name', symbol_type);
+              Hashtbl.add seen symbol_name' ""))
     filelines;
   sym_addr2label
 
@@ -169,16 +172,16 @@ let is_call (i : instr) : bool =
   let module IU = Instr_utils in
   let op = IU.get_op i in
   match op with
-  | Intel_OP io -> begin
-      match io with
-      | Intel_ControlOP ico -> begin
-          match ico with CALL -> true | _ -> false
-        end
+  | Intel_OP io ->
+      begin match io with
+      | Intel_ControlOP ico ->
+          begin match ico with CALL -> true | _ -> false
+          end
       | _ -> false
-    end
-  | Arm_OP (ao, _, _) -> begin
-      match ao with Arm_ControlOP _ -> true | _ -> false
-    end
+      end
+  | Arm_OP (ao, _, _) ->
+      begin match ao with Arm_ControlOP _ -> true | _ -> false
+      end
   | _ -> false
 
 let update_loc (i : instr) (new_loc : loc) : instr =
@@ -193,6 +196,10 @@ let update_loc (i : instr) (new_loc : loc) : instr =
       FourInstr (op, exp1, exp2, exp3, new_loc, prefix_op, tags)
   | FifInstr (op, exp1, exp2, exp3, exp4, loc, prefix_op, tags) ->
       FifInstr (op, exp1, exp2, exp3, exp4, new_loc, prefix_op, tags)
+  | SixInstr (op, exp1, exp2, exp3, exp4, exp5, loc, prefix_op, tags) ->
+      SixInstr (op, exp1, exp2, exp3, exp4, exp5, new_loc, prefix_op, tags)
+  | SevenInstr (op, exp1, exp2, exp3, exp4, exp5, exp6, loc, prefix_op, tags) ->
+      SevenInstr (op, exp1, exp2, exp3, exp4, exp5, exp6, new_loc, prefix_op, tags)
 
 let update_fname2css (fname2css : (string, int list) Hashtbl.t) (fname : string)
     (addr : int) : unit =
