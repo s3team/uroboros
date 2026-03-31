@@ -59,246 +59,211 @@ read -r -d '' expected_genecdh_64 <<'EOF'
 passed int: 24
 EOF
 has_failed="false"
+src_dir=$(pwd)/src
+rware_dir=$(pwd)/test/rware
+QEMU="qemu-aarch64 -L /usr/aarch64-linux-gnu"
+
+#####################
+# helper functions  #
+#####################
+
+run_test() {
+  local label="$1" point_file="$2" binary="$3" expected="$4"
+  shift 4
+  echo ">>> $label"
+  pushd "$src_dir"
+  cp "$point_file" points/
+  tmpfile=$(mktemp)
+  echo "run: python3 uroboros.py $binary --arch arm"
+  python3 uroboros.py "$binary" --arch arm &> /dev/null
+  echo "run: script -qec $QEMU $(pwd)/a.out $* /dev/null"
+  script -qec "$QEMU $(pwd)/a.out $*" /dev/null 2>&1 | tr -d '\r' > "$tmpfile"
+  local actual
+  if [[ -n "$TEST_GREP" ]]; then
+    actual=$(grep "$TEST_GREP" "$tmpfile")
+  else
+    actual=$(cat "$tmpfile")
+  fi
+  if [[ "$expected" != "$actual" ]]; then
+    echo "##### expected output for $label not matching #####"
+    echo "~ actual:"
+    cat "$tmpfile"
+    has_failed="true"
+  fi
+  rm "$tmpfile"
+  cleanup_points
+  popd
+}
+
+check_all_encrypted() {
+  local label="$1"
+  pushd ${rware_dir}/hello
+  if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
+    echo "##### expected encrypted output for $label not matching #####"
+    has_failed="true"
+  fi
+  popd
+}
+
+check_all_decrypted() {
+  local label="$1"
+  pushd ${rware_dir}/hello
+  if find . -type f -name '*.CRYPT' -print -quit | read; then
+    echo "##### expected decrypted output for $label not matching #####"
+    has_failed="true"
+  fi
+  popd
+}
+
+check_genecdh_files() {
+  local label="$1"
+  pushd "$src_dir"
+  if [ ! -f public_key.h ]; then
+    echo "##### expected resulting file public_key.h for $label not matching #####"
+    has_failed="true"
+  fi
+  if [ ! -f private.key ]; then
+    echo "##### expected resulting file private.key for $label not matching #####"
+    has_failed="true"
+  fi
+  rm -f public_key.h private.key
+  popd
+}
+
+cleanup_points() {
+  find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
+}
+
+in_dir() {
+  local dir="$1"; shift
+  pushd "$dir"
+  echo "run: $@"
+  "$@"
+  popd
+}
 
 ##########
 # test00 #
 ##########
-echo ">>> arm64 test00"
-
-pushd $(pwd)/src
-cp point_examples/points.test00.arm.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test00/test00.arm.64.nopie.dynamic.sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu  $(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test00.arm.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "arm64 test00" point_examples/points.test00.arm.64.ins \
+  "$(pwd)/test/test00/test00.arm.64.nopie.dynamic.sym" "$expected_test00"
 
 ##########
 # test05 #
 ##########
-echo ">>> arm64 test05"
-
-pushd $(pwd)/src
-cp point_examples/points.test05.arm.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test05/test05.arm.64.nopie.dynamic.sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test05.arm.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "arm64 test05" point_examples/points.test05.arm.64.ins \
+  "$(pwd)/test/test05/test05.arm.64.nopie.dynamic.sym" "$expected_test05"
 
 ##########
 # test07 #
 ##########
-echo ">>> arm64 test07"
-
-pushd $(pwd)/src
-cp point_examples/points.test07.arm.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test07/test07.arm.64.nopie.dynamic.sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test07.arm.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "arm64 test07" point_examples/points.test07.arm.64.ins \
+  "$(pwd)/test/test07/test07.arm.64.nopie.dynamic.sym" "$expected_test07"
 
 ############
 # simul_io #
 ############
-pushd $(pwd)/test/simul_io
-# compile simul_io binaries
-make arm.64
-popd
 
-echo ">>> arm64 simul_io"
+# dynamically-linked tests
 
-pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.arm.64.ins points/
-cp ../test/simul_io/capture.c capture.c
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/simul_io/simul_io.arm.64.nopie.dynamic.sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out &> "$tmpfile"
+simul_io_dir=$(pwd)/test/simul_io
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make arm.64
 
-if [[ "$expected_simul_io" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for simul_io.arm.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-rm capture.c
-popd
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "arm64 simul_io" \
+  ../test/simul_io/points.float_capture.arm.64.ins \
+  "$simul_io_dir/simul_io.arm.64.nopie.dynamic.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-pushd $(pwd)/test/simul_io
-# delete simul_io binaries
-make clean
-popd
+# statically-linked tests
 
-##########
-## rware #
-##########
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile.arm.64
-popd
+simul_io_dir=$(pwd)/test/simul_io
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make arm.64
 
-echo ">>> arm64 rware"
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "arm64 simul_io (statically-linked)" \
+  ../test/simul_io/points.float_capture.arm.64.ins \
+  "$simul_io_dir/simul_io.arm.64.nopie.static.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-pushd $(pwd)/src
-cp ${rware_dir}/points.rware.arm.64.ins $(pwd)/points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/rware_sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+in_dir "$simul_io_dir" make clean
 
-if [[ "$expected_rware_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.arm.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+##########################################
+## rware tests (genecdh, rware, unrware) #
+##########################################
 
-pushd ${rware_dir}/hello
-if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
-  # Not all files end with .CRYPT, so error
-  echo "##### expected encrypted output for rware.arm.64 not matching #####"
-  has_failed="true"
-fi
-popd
-#pushd ${rware_dir}
-#make clean -f Makefile.arm.64
-#popd
+#############################
+## dynamically-linked tests #
+#############################
 
-############
-## unrware #
-############
-echo ">>> arm64 unrware"
+## rware
+in_dir "$rware_dir" make -f Makefile.arm.64
 
-pushd $(pwd)/src
-cp ${rware_dir}/points.unrware.arm.64.ins $(pwd)/points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/unrware_sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out info.enc ${rware_dir}/keys &> "$tmpfile"
+run_test "arm64 rware" \
+  ${rware_dir}/points.rware.arm.64.ins \
+  "${rware_dir}/build/rware_sym" "$expected_rware_64" \
+  ${rware_dir}/hello
+check_all_encrypted "rware.arm.64"
 
-if [[ "$expected_unrware_64" != $(cat "$tmpfile" | grep "called") ]]; then
-  echo "##### expected output for unrware.arm.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+## unrware
+TEST_GREP="called" run_test "arm64 unrware" \
+  ${rware_dir}/points.unrware.arm.64.ins \
+  "${rware_dir}/build/unrware_sym" "$expected_unrware_64" \
+  info.enc ${rware_dir}/keys
+pushd "$src_dir"; rm -f info.enc; popd
+check_all_decrypted "unrware.arm.64"
 
-pushd ${rware_dir}/hello
-if find . -type f -name '*.CRYPT' -print -quit | read; then
-  # At least one file ends with .CRYPT, so error
-  echo "##### expected decrypted output for unrware.arm.64 not matching #####"
-  has_failed="true"
-fi
-popd
-pushd ${rware_dir}
-make clean -f Makefile.arm.64
-popd
+in_dir "$rware_dir" make clean
 
-############
-## genecdh #
-############
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile.arm.64
-popd
+## genecdh
+in_dir "$rware_dir" make -f Makefile.arm.64
 
-echo ">>> arm64 genecdh"
+run_test "arm64 genecdh" \
+  ${rware_dir}/points.genecdh.arm.64.ins \
+  "${rware_dir}/build/genecdh_sym" "$expected_genecdh_64" \
+  genkey
+check_genecdh_files "genecdh.arm.64"
 
-pushd $(pwd)/src
-cp ${rware_dir}/points.genecdh.arm.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/genecdh_sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out genkey &> "$tmpfile"
-
-if [[ "$expected_genecdh_64" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-
-if [ ! -f public_key.h ]; then
-  echo "##### expected resulting file public_key.h for genecdh.arm.64 not matching #####"
-  has_failed="true"
-fi
-if [ ! -f private.key ]; then
-  echo "##### expected resulting file private.key for genecdh.arm.64 not matching #####"
-  has_failed="true"
-fi
-rm public_key.h
-rm private.key
-popd
-
-pushd ${rware_dir}
-make clean -f Makefile.arm.64
-popd
+in_dir "$rware_dir" make clean
 
 ############################
 ## statically-linked tests #
 ############################
 
-############
-## genecdh #
-############
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile.arm.static.64
+## rware (static)
+in_dir "$rware_dir" make -f Makefile.arm.static.64
+
+echo ">>> arm64 rware (statically-linked)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/rware_sym" --arch arm &> /dev/null
+$QEMU $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
+check_all_encrypted "rware.arm.static.64"
+
+## unrware (static)
+echo ">>> arm64 unrware (statically-linked)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/unrware_sym" --arch arm &> /dev/null
+$QEMU $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
+rm info.enc
+popd
+check_all_decrypted "unrware.arm.static.64"
+
+in_dir "$rware_dir" make clean
+
+## genecdh (static)
+in_dir "$rware_dir" make -f Makefile.arm.static.64
 
 echo ">>> arm64 genecdh (statically-linked)"
-
-pushd $(pwd)/src
-python3 uroboros.py ${rware_dir}/build/genecdh_sym --arch arm &> /dev/null
-qemu-aarch64 -L /usr/aarch64-linux-gnu $(pwd)/a.out genkey &> /dev/null
-
-if [ ! -f public_key.h ]; then
-	echo "##### expected resulting file public_key.h for genecdh.arm.64 (static) not matching #####"
-  has_failed="true"
-fi
-if [ ! -f private.key ]; then
-	echo "##### expected resulting file private.key for genecdh.arm.64 (static) not matching #####"
-  has_failed="true"
-fi
-rm public_key.h
-rm private.key
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/genecdh_sym" --arch arm &> /dev/null
+$QEMU $(pwd)/a.out genkey &> /dev/null
 popd
+check_genecdh_files "genecdh.arm.static.64"
 
-pushd ${rware_dir}
-make clean -f Makefile.arm.static.64
-popd
+in_dir "$rware_dir" make clean
 
 ###########
 # closing #

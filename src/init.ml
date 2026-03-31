@@ -133,10 +133,10 @@ class ailInit =
       self#user_func_process f
 
     method __libc_freeres_ptrs_handler () : unit =
-      ignore (Sys.command "python3 sec_empty_creator.py __libc_freeres_ptrs")
+      Sec_empty_creator.create "__libc_freeres_ptrs"
 
     method bss_handler (f : string) : unit =
-      ignore (Sys.command "python3 sec_empty_creator.py .bss");
+      Sec_empty_creator.create ".bss";
       ignore
         (Sys.command
            (objdump_command ^ " -R " ^ f

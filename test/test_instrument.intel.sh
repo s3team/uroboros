@@ -65,583 +65,388 @@ passed int: 24
 EOF
 
 has_failed="false"
+src_dir=$(pwd)/src
+rware_dir=$(pwd)/test/rware
+
+#####################
+# helper functions  #
+#####################
+
+run_test() {
+  local label="$1" point_file="$2" binary="$3" expected="$4"
+  shift 4
+  echo ">>> $label"
+  pushd "$src_dir"
+  cp "$point_file" points/
+  tmpfile=$(mktemp)
+  echo "run: python3 uroboros.py $binary"
+  python3 uroboros.py "$binary" &> /dev/null
+  echo "run: script -qec $(pwd)/a.out $* /dev/null"
+  script -qec "$(pwd)/a.out $*" /dev/null 2>&1 | tr -d '\r' > "$tmpfile"
+  local actual
+  if [[ -n "$TEST_GREP" ]]; then
+    actual=$(grep "$TEST_GREP" "$tmpfile")
+  else
+    actual=$(cat "$tmpfile")
+  fi
+  if [[ "$expected" != "$actual" ]]; then
+    echo "##### expected output for $label not matching #####"
+    echo "~ actual:"
+    cat "$tmpfile"
+    has_failed="true"
+  fi
+  rm "$tmpfile"
+  cleanup_points
+  popd
+}
+
+check_all_encrypted() {
+  local label="$1"
+  pushd ${rware_dir}/hello
+  if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
+    echo "##### expected encrypted output for $label not matching #####"
+    has_failed="true"
+  fi
+  popd
+}
+
+check_all_decrypted() {
+  local label="$1"
+  pushd ${rware_dir}/hello
+  if find . -type f -name '*.CRYPT' -print -quit | read; then
+    echo "##### expected decrypted output for $label not matching #####"
+    has_failed="true"
+  fi
+  popd
+}
+
+check_genecdh_files() {
+  local label="$1"
+  pushd "$src_dir"
+  if [ ! -f public_key.h ]; then
+    echo "##### expected resulting file public_key.h for $label not matching #####"
+    has_failed="true"
+  fi
+  if [ ! -f private.key ]; then
+    echo "##### expected resulting file private.key for $label not matching #####"
+    has_failed="true"
+  fi
+  rm -f public_key.h private.key
+  popd
+}
+
+cleanup_points() {
+  find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
+}
+
+in_dir() {
+  local dir="$1"; shift
+  pushd "$dir"
+  echo "run: $@"
+  "$@"
+  popd
+}
 
 ##########
 # test00 #
 ##########
-echo ">>> 32-bit test00"
-
-pushd $(pwd)/src
-cp point_examples/points.test00.intel.32.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test00/test00.intel.32.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test00.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
-
-echo ">>> 64-bit test00"
-
-pushd $(pwd)/src
-cp point_examples/points.test00.intel.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test00/test00.intel.64.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test00.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "32-bit test00" point_examples/points.test00.intel.32.ins \
+  "$(pwd)/test/test00/test00.intel.32.nopie.dynamic.sym" "$expected_test00"
+run_test "64-bit test00" point_examples/points.test00.intel.64.ins \
+  "$(pwd)/test/test00/test00.intel.64.nopie.dynamic.sym" "$expected_test00"
 
 ##########
 # test01 #
 ##########
-# test old instrumentation approach
-#echo ">>> test01"
-#
-#pushd $(pwd)/src
-#cp point_examples/points.test01.intel.32.ins points/
-#echo "0x804919d" > instrument_locs.ins
-#tmpfile=$(mktemp)
-#python3 uroboros.py $(pwd)/../test/test01/test01.intel.32.nopie.dynamic.sym &> /dev/null
-#$(pwd)/a.out &> "$tmpfile"
-#
-#if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
-#  echo "##### expected output for test01.32 not matching #####"
-#  echo "~ actual:"
-#  cat "$tmpfile"
-#  has_failed="true"
-#fi
-#rm "$tmpfile"
-#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-#popd
-#
-#pushd $(pwd)/src
-#cp point_examples/points.test01.intel.64.ins points/
-#echo "0x401162" > instrument_locs.ins
-#tmpfile=$(mktemp)
-#python3 uroboros.py $(pwd)/../test/test01/test01.intel.64.nopie.dynamic.sym &> /dev/null
-#$(pwd)/a.out &> "$tmpfile"
-#
-#if [[ "$expected_test01" != $(cat "$tmpfile") ]]; then
-#  echo "##### expected output for test01.64 not matching #####"
-#  echo "~ actual:"
-#  cat "$tmpfile"
-#  has_failed="true"
-#fi
-#rm "$tmpfile"
-#find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-#popd
+# test old instrumentation approach (disabled)
+#run_test "32-bit test01" point_examples/points.test01.intel.32.ins \
+#  "$(pwd)/test/test01/test01.intel.32.nopie.dynamic.sym" "$expected_test01"
+#run_test "64-bit test01" point_examples/points.test01.intel.64.ins \
+#  "$(pwd)/test/test01/test01.intel.64.nopie.dynamic.sym" "$expected_test01"
 
 ##########
 # test05 #
 ##########
-echo ">>> 32-bit test05"
-
-pushd $(pwd)/src
-cp point_examples/points.test05.intel.32.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test05/test05.intel.32.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test05.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
-
-echo ">>> 64-bit test05"
-
-pushd $(pwd)/src
-cp point_examples/points.test05.intel.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test05/test05.intel.64.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test05.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "32-bit test05" point_examples/points.test05.intel.32.ins \
+  "$(pwd)/test/test05/test05.intel.32.nopie.dynamic.sym" "$expected_test05"
+run_test "64-bit test05" point_examples/points.test05.intel.64.ins \
+  "$(pwd)/test/test05/test05.intel.64.nopie.dynamic.sym" "$expected_test05"
 
 ##########
 # test07 #
 ##########
-echo ">>> 32-bit test07"
-
-pushd $(pwd)/src
-cp point_examples/points.test07.intel.32.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test07/test07.intel.32.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test07.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
-
-echo ">>> 64-bit test07"
-
-pushd $(pwd)/src
-cp point_examples/points.test07.intel.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test07/test07.intel.64.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test07.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "32-bit test07" point_examples/points.test07.intel.32.ins \
+  "$(pwd)/test/test07/test07.intel.32.nopie.dynamic.sym" "$expected_test07"
+run_test "64-bit test07" point_examples/points.test07.intel.64.ins \
+  "$(pwd)/test/test07/test07.intel.64.nopie.dynamic.sym" "$expected_test07"
 
 ############
 # simul_io #
 ############
-pushd $(pwd)/test/simul_io
-# compile simul_io binaries
-make clean
-make intel
-popd
 
-echo ">>> 32-bit simul_io"
+# dynamically-linked tests
 
-pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.intel.32.ins points/
-cp ../test/simul_io/capture.c capture.c
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/simul_io/simul_io.intel.32.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
+simul_io_dir=$(pwd)/test/simul_io
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make intel
 
-if [[ "$expected_simul_io" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for simul_io.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-rm capture.c
-popd
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "32-bit simul_io" \
+  ../test/simul_io/points.float_capture.intel.32.ins \
+  "$simul_io_dir/simul_io.intel.32.nopie.dynamic.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-pushd $(pwd)/test/simul_io
-make clean
-make intel
-popd
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make intel
 
-echo ">>> 64-bit simul_io"
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "64-bit simul_io" \
+  ../test/simul_io/points.float_capture.intel.64.ins \
+  "$simul_io_dir/simul_io.intel.64.nopie.dynamic.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.intel.64.ins points/
-cp ../test/simul_io/capture.c capture.c
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/simul_io/simul_io.intel.64.nopie.dynamic.sym &> /dev/null
-$(pwd)/a.out &> "$tmpfile"
+# statically-linked tests
 
-if [[ "$expected_simul_io" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for simul_io.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-rm capture.c
-popd
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make intel
 
-pushd $(pwd)/test/simul_io
-make clean
-popd
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "32-bit simul_io (statically-linked)" \
+  ../test/simul_io/points.float_capture.intel.32.ins \
+  "$simul_io_dir/simul_io.intel.32.nopie.static.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-##########################################
-## rware tests (genecdh, rware, unrware) #
-##########################################
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make intel
 
-#############################
-## dynamically-linked tests #
-#############################
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "64-bit simul_io (statically-linked)" \
+  ../test/simul_io/points.float_capture.intel.64.ins \
+  "$simul_io_dir/simul_io.intel.64.nopie.static.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-#################
-## rware 32-bit #
-#################
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make clean -f Makefile.intel.32
-make -f Makefile.intel.32
-popd
+# statically-linked tests (PIE)
 
-echo ">>> 32-bit rware (dynamically-linked)"
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make intel
 
-pushd $(pwd)/src
-cp ${rware_dir}/points.rware.intel.32.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
-$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "32-bit simul_io (statically-linked, PIE)" \
+  ../test/simul_io/points.float_capture.intel.32.ins \
+  "$simul_io_dir/simul_io.intel.32.pie.static.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-if [[ "$expected_rware" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.intel.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+in_dir "$simul_io_dir" make clean
+in_dir "$simul_io_dir" make intel
 
-pushd ${rware_dir}/hello
-if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
-  # Not all files end with .CRYPT, so error
-  echo "##### expected encrypted output for rware.intel.64 not matching #####"
-  has_failed="true"
-fi
-popd
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "64-bit simul_io (statically-linked, PIE)" \
+  ../test/simul_io/points.float_capture.intel.64.ins \
+  "$simul_io_dir/simul_io.intel.64.pie.static.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-###################
-## unrware 32-bit #
-###################
-echo ">>> 32-bit unrware (dynamically-linked)"
+in_dir "$simul_io_dir" make clean
 
-pushd $(pwd)/src
-cp ${rware_dir}/points.unrware.intel.32.ins $(pwd)/points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
-$(pwd)/a.out info.enc ${rware_dir}/keys &> "$tmpfile"
-
-if [[ "$expected_unrware" != $(cat "$tmpfile" | grep "called") ]]; then
-  echo "##### expected output for unrware.intel.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
-
-pushd ${rware_dir}/hello
-if find . -type f -name '*.CRYPT' -print -quit | read; then
-  # At least one file ends with .CRYPT, so error
-  echo "##### expected decrypted output for unrware.intel.32 not matching #####"
-  has_failed="true"
-fi
-popd
-pushd ${rware_dir}
-make clean -f Makefile.intel.32
-popd
-
-#################
-## rware 64-bit #
-#################
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile.intel.64
-popd
-
-echo ">>> 64-bit rware (dynamically-linked)"
-
-pushd $(pwd)/src
-cp ${rware_dir}/points.rware.intel.64.ins $(pwd)/points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
-$(pwd)/a.out ${rware_dir}/hello &> "$tmpfile"
-
-if [[ "$expected_rware" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for rware.intel.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
-
-pushd ${rware_dir}/hello
-if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
-  # Not all files end with .CRYPT, so error
-  echo "##### expected encrypted output for rware.intel.64 not matching #####"
-  has_failed="true"
-fi
-popd
-
-###################
-## unrware 64-bit #
-###################
-echo ">>> 64-bit unrware (dynamically-linked)"
-
-pushd $(pwd)/src
-cp ${rware_dir}/points.unrware.intel.64.ins $(pwd)/points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
-$(pwd)/a.out info.enc ${rware_dir}/keys &> "$tmpfile"
-
-if [[ "$expected_unrware" != $(cat "$tmpfile" | grep "called") ]]; then
-  echo "##### expected output for unrware.intel.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
-
-pushd ${rware_dir}/hello
-if find . -type f -name '*.CRYPT' -print -quit | read; then
-  # At least one file ends with .CRYPT, so error
-  echo "##### expected decrypted output for unrware.intel.64 not matching #####"
-  has_failed="true"
-fi
-popd
-pushd ${rware_dir}
-make clean -f Makefile.intel.64
-popd
-
-############
-## genecdh #
-############
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile.intel.32
-popd
-
-echo ">>> 32-bit genecdh (dynamically-linked)"
-
-pushd $(pwd)/src
-cp ${rware_dir}/points.genecdh.intel.32.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
-$(pwd)/a.out genkey &> "$tmpfile"
-
-if [[ "$expected_genecdh" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.intel.32 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-
-if [ ! -f public_key.h ]; then
-  echo "##### expected resulting file public_key.h for genecdh.intel.32 not matching #####"
-  has_failed="true"
-fi
-if [ ! -f private.key ]; then
-  echo "##### expected resulting file private.key for genecdh.intel.32 not matching #####"
-  has_failed="true"
-fi
-rm public_key.h
-rm private.key
-popd
-
-pushd ${rware_dir}
-make clean -f Makefile.intel.32
-make -f Makefile.intel.64
-popd
-
-echo ">>> 64-bit genecdh (dynamically-linked)"
-
-pushd $(pwd)/src
-cp ${rware_dir}/points.genecdh.intel.64.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
-$(pwd)/a.out genkey &> "$tmpfile"
-
-if [[ "$expected_genecdh" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for genecdh.intel.64 not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-
-if [ ! -f public_key.h ]; then
-  echo "##### expected resulting file public_key.h for genecdh.intel.64 not matching #####"
-  has_failed="true"
-fi
-if [ ! -f private.key ]; then
-  echo "##### expected resulting file private.key for genecdh.intel.64 not matching #####"
-  has_failed="true"
-fi
-rm public_key.h
-rm private.key
-popd
-
-pushd ${rware_dir}
-make clean -f Makefile.intel.64
-popd
+#########################################
+# rware tests (genecdh, rware, unrware) #
+#########################################
 
 ############################
-## statically-linked tests #
+# dynamically-linked tests #
 ############################
 
-#################
-## rware 32-bit #
-#################
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make clean -f Makefile.intel.static.32
-make -f Makefile.intel.static.32
-popd
+# rware/unrware 32-bit
+in_dir "$rware_dir" make clean
+in_dir "$rware_dir" make -f Makefile.intel.32
+
+run_test "32-bit rware (dynamically-linked)" \
+  ${rware_dir}/points.rware.intel.32.ins \
+  "${rware_dir}/build/rware_sym" "$expected_rware" \
+  ${rware_dir}/hello
+check_all_encrypted "rware.intel.32"
+
+TEST_GREP="called" run_test "32-bit unrware (dynamically-linked)" \
+  ${rware_dir}/points.unrware.intel.32.ins \
+  "${rware_dir}/build/unrware_sym" "$expected_unrware" \
+  info.enc ${rware_dir}/keys
+pushd "$src_dir"; rm -f info.enc; popd
+check_all_decrypted "unrware.intel.32"
+
+in_dir "$rware_dir" make clean
+
+# rware/unrware 64-bit
+in_dir "$rware_dir" make -f Makefile.intel.64
+
+run_test "64-bit rware (dynamically-linked)" \
+  ${rware_dir}/points.rware.intel.64.ins \
+  "${rware_dir}/build/rware_sym" "$expected_rware" \
+  ${rware_dir}/hello
+check_all_encrypted "rware.intel.64"
+
+TEST_GREP="called" run_test "64-bit unrware (dynamically-linked)" \
+  ${rware_dir}/points.unrware.intel.64.ins \
+  "${rware_dir}/build/unrware_sym" "$expected_unrware" \
+  info.enc ${rware_dir}/keys
+pushd "$src_dir"; rm -f info.enc; popd
+check_all_decrypted "unrware.intel.64"
+
+in_dir "$rware_dir" make clean
+
+# genecdh 32-bit (dynamically-linked)
+in_dir "$rware_dir" make -f Makefile.intel.32
+
+run_test "32-bit genecdh (dynamically-linked)" \
+  ${rware_dir}/points.genecdh.intel.32.ins \
+  "${rware_dir}/build/genecdh_sym" "$expected_genecdh" \
+  genkey
+check_genecdh_files "genecdh.intel.32"
+
+in_dir "$rware_dir" make clean
+
+# genecdh 64-bit (dynamically-linked)
+in_dir "$rware_dir" make -f Makefile.intel.64
+
+run_test "64-bit genecdh (dynamically-linked)" \
+  ${rware_dir}/points.genecdh.intel.64.ins \
+  "${rware_dir}/build/genecdh_sym" "$expected_genecdh" \
+  genkey
+check_genecdh_files "genecdh.intel.64"
+
+in_dir "$rware_dir" make clean
+
+###########################
+# statically-linked tests #
+###########################
+
+# rware/unrware 32-bit (static)
+in_dir "$rware_dir" make clean
+in_dir "$rware_dir" make -f Makefile.intel.static.32
 
 echo ">>> 32-bit rware (statically-linked)"
-
-pushd $(pwd)/src
-python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
+check_all_encrypted "rware.intel.static.32"
 
-pushd ${rware_dir}/hello
-if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
-  # Not all files end with .CRYPT, so error
-  echo "##### expected encrypted output for rware.intel.static.64 not matching #####"
-  has_failed="true"
-fi
-popd
-
-###################
-## unrware 32-bit #
-###################
 echo ">>> 32-bit unrware (statically-linked)"
-
-pushd $(pwd)/src
-python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/unrware_sym" &> /dev/null
 $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
+rm info.enc
 popd
+check_all_decrypted "unrware.intel.static.32"
 
-pushd ${rware_dir}/hello
-if find . -type f -name '*.CRYPT' -print -quit | read; then
-  # At least one file ends with .CRYPT, so error
-  echo "##### expected decrypted output for unrware.intel.static.32 not matching #####"
-  has_failed="true"
-fi
-popd
-pushd ${rware_dir}
-make clean -f Makefile.intel.static.32
-popd
+in_dir "$rware_dir" make clean
 
-#################
-## rware 64-bit #
-#################
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile.intel.static.64
-popd
+# rware/unrware 64-bit (static)
+in_dir "$rware_dir" make -f Makefile.intel.static.64
 
 echo ">>> 64-bit rware (statically-linked)"
-
-pushd $(pwd)/src
-python3 uroboros.py ${rware_dir}/build/rware_sym &> /dev/null
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
+check_all_encrypted "rware.intel.static.64"
 
-pushd ${rware_dir}/hello
-if find . -maxdepth 1 -type f ! -name '*.CRYPT' -print -quit | grep -q .; then
-  # Not all files end with .CRYPT, so error
-  echo "##### expected encrypted output for rware.intel.static.64 not matching #####"
-  has_failed="true"
-fi
-popd
-
-###################
-## unrware 64-bit #
-###################
 echo ">>> 64-bit unrware (statically-linked)"
-
-pushd $(pwd)/src
-python3 uroboros.py ${rware_dir}/build/unrware_sym &> /dev/null
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/unrware_sym" &> /dev/null
 $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
+rm info.enc
 popd
+check_all_decrypted "unrware.intel.static.64"
 
-pushd ${rware_dir}/hello
-if find . -type f -name '*.CRYPT' -print -quit | read; then
-  # At least one file ends with .CRYPT, so error
-  echo "##### expected decrypted output for unrware.intel.static.64 not matching #####"
-  has_failed="true"
-fi
-popd
-pushd ${rware_dir}
-make clean -f Makefile.intel.static.64
-popd
+in_dir "$rware_dir" make clean
 
-############
-## genecdh #
-############
-rware_dir=$(pwd)/test/rware
-pushd ${rware_dir}
-make -f Makefile.intel.static.32
+# rware/unrware 32-bit (static, PIE)
+in_dir "$rware_dir" make clean
+in_dir "$rware_dir" make -f Makefile.intel.static.pie.32
+
+echo ">>> 32-bit rware (statically-linked, PIE)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
+$(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
+check_all_encrypted "rware.intel.static.pie.32"
+
+echo ">>> 32-bit unrware (statically-linked, PIE)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/unrware_sym" &> /dev/null
+$(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
+rm info.enc
+popd
+check_all_decrypted "unrware.intel.static.pie.32"
+
+in_dir "$rware_dir" make clean
+
+# rware/unrware 64-bit (static, PIE)
+in_dir "$rware_dir" make -f Makefile.intel.static.pie.64
+
+echo ">>> 64-bit rware (statically-linked, PIE)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
+$(pwd)/a.out ${rware_dir}/hello &> /dev/null
+popd
+check_all_encrypted "rware.intel.static.pie.64"
+
+echo ">>> 64-bit unrware (statically-linked, PIE)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/unrware_sym" &> /dev/null
+$(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
+rm info.enc
+popd
+check_all_decrypted "unrware.intel.static.pie.64"
+
+in_dir "$rware_dir" make clean
+
+# genecdh 32-bit (static)
+in_dir "$rware_dir" make -f Makefile.intel.static.32
 
 echo ">>> 32-bit genecdh (statically-linked)"
-
-pushd $(pwd)/src
-python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
 $(pwd)/a.out genkey &> /dev/null
-
-if [ ! -f public_key.h ]; then
-  echo "##### expected resulting file public_key.h for genecdh.intel.static.32 not matching #####"
-  has_failed="true"
-fi
-if [ ! -f private.key ]; then
-  echo "##### expected resulting file private.key for genecdh.intel.static.32 not matching #####"
-  has_failed="true"
-fi
-rm public_key.h
-rm private.key
 popd
+check_genecdh_files "genecdh.intel.static.32"
 
-pushd ${rware_dir}
-make clean -f Makefile.intel.static.32
-make -f Makefile.intel.static.64
-popd
+in_dir "$rware_dir" make clean
+
+# genecdh 64-bit (static)
+in_dir "$rware_dir" make -f Makefile.intel.static.64
 
 echo ">>> 64-bit genecdh (statically-linked)"
-
-pushd $(pwd)/src
-python3 uroboros.py ${rware_dir}/build/genecdh_sym &> /dev/null
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
 $(pwd)/a.out genkey &> /dev/null
-
-if [ ! -f public_key.h ]; then
-  echo "##### expected resulting file public_key.h for genecdh.intel.static.64 not matching #####"
-  has_failed="true"
-fi
-if [ ! -f private.key ]; then
-  echo "##### expected resulting file private.key for genecdh.intel.static.64 not matching #####"
-  has_failed="true"
-fi
-rm public_key.h
-rm private.key
 popd
+check_genecdh_files "genecdh.intel.static.64"
 
-pushd ${rware_dir}
-make clean -f Makefile.intel.static.64
+in_dir "$rware_dir" make clean
+
+# genecdh 32-bit (static, PIE)
+in_dir "$rware_dir" make -f Makefile.intel.static.pie.32
+
+echo ">>> 32-bit genecdh (statically-linked, PIE)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
+$(pwd)/a.out genkey &> /dev/null
 popd
+check_genecdh_files "genecdh.intel.static.pie.32"
+
+in_dir "$rware_dir" make clean
+
+# genecdh 64-bit (static, PIE)
+in_dir "$rware_dir" make -f Makefile.intel.static.pie.64
+
+echo ">>> 64-bit genecdh (statically-linked, PIE)"
+pushd "$src_dir"
+python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
+$(pwd)/a.out genkey &> /dev/null
+popd
+check_genecdh_files "genecdh.intel.static.pie.64"
+
+in_dir "$rware_dir" make clean
 
 ###########
 # closing #

@@ -5,6 +5,28 @@ on:
     branches:
       - dev
 jobs:
+  execute-tests-ubuntu22-arm:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref_name }}
+
+    - name: Setup OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 5.3.0
+        opam-disable-sandboxing: true
+    - run: opam install -y ppx_deriving ocamlfind batteries
+
+    - name: Install apt requirements
+      run: install/install_apt.arm.sh
+
+    - name: Test
+      run: |
+        find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
+        $(pwd)/test/test_action.sh arm
+
   execute-tests-ubuntu22:
     runs-on: ubuntu-22.04
     steps:
@@ -25,7 +47,7 @@ jobs:
     - name: Test
       run: |
         find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-        $(pwd)/test/test_action.sh
+        $(pwd)/test/test_action.sh intel
 
   execute-coreutils-ubuntu22:
     runs-on: ubuntu-22.04
@@ -73,7 +95,7 @@ jobs:
     - name: Test
       run: |
         find $(pwd)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-        $(pwd)/test/test_action.sh
+        $(pwd)/test/test_action.sh intel
 
   execute-coreutils-ubuntu24:
     runs-on: ubuntu-24.04
@@ -119,7 +141,7 @@ jobs:
 
     - name: Instrument Test
       run: |
-        $(pwd)/test/test_all.py -a -c
+        $(pwd)/test/test_all.py -a -c --arch intel
         $(pwd)/test/test_instrument.intel.sh
 
   execute-instrument-tests-arm-thumb:

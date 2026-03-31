@@ -96,17 +96,18 @@ def compile_bin(
         logger.error(f"Compilation failed for {source}")
 
 
-def run_uroboros(binary: Path, isa: str):
+def run_uroboros(binary: Path, isa: str, arch: int):
     if binary.exists() is False:
         logger.error(f"Target file not found at {binary}")
         return
-    if "test00" in str(binary):
-        return
 
     uroboros_args = [uroboros, binary]
-    if isa == "arm":
+    if isa == "arm" and arch == "thumb":
         uroboros_args.append("--arch")
         uroboros_args.append("thumb")
+    elif isa == "arm" and (arch == "32" or arch=="64"):
+        uroboros_args.append("--arch")
+        uroboros_args.append("arm")
 
     logger.debug(f"Running Uroboros with args: {uroboros_args}")
     res = subprocess.run(uroboros_args, capture_output=True, cwd=uroboros_dir)
@@ -114,7 +115,7 @@ def run_uroboros(binary: Path, isa: str):
     output_bin = uroboros_dir / "a.out"
     if "processing succeeded" in output and output_bin.exists():
         output_bin = output_bin.replace(binary.with_name(binary.name + ".out"))
-        if test_recompiled_binary(binary, output_bin, isa):
+        if test_recompiled_binary(binary, output_bin, isa, arch):
             logger.info(f"Uroboros succeeded on {binary.name}")
             compare_size(binary, output_bin)
     else:
@@ -135,7 +136,7 @@ def run_uroboros(binary: Path, isa: str):
             tmp.unlink()
 
 
-def test_recompiled_binary(raw: Path, recompiled: Path, isa: str):
+def test_recompiled_binary(raw: Path, recompiled: Path, isa: str, arch: int):
     args = []
 
     if raw.name.startswith("test04"):
@@ -150,13 +151,31 @@ def test_recompiled_binary(raw: Path, recompiled: Path, isa: str):
     if isa == "intel":
         raw_cmd = ["script", "-q", "-c", str(raw)]
         recompiled_cmd = ["script", "-q", "-c", str(recompiled)]
-    elif isa == "arm":
+    elif isa == "arm" and arch == "thumb":
         qemu_raw_cmd = f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(raw)}"
         qemu_recompiled_command = (
             f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(recompiled)}"
         )
         raw_cmd = ["script", "-q", "-c", qemu_raw_cmd]
         recompiled_cmd = ["script", "-q", "-c", qemu_recompiled_command]
+    elif isa == "arm" and arch == "32":
+        qemu_raw_cmd = f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(raw)}"
+        qemu_recompiled_command = (
+            f"qemu-arm -L /usr/arm-linux-gnueabihf/ {str(recompiled)}"
+        )
+        raw_cmd = ["script", "-q", "-c", qemu_raw_cmd]
+        recompiled_cmd = ["script", "-q", "-c", qemu_recompiled_command]
+    elif isa == "arm" and arch == "64":
+        qemu_raw_cmd = f"qemu-aarch64 -L /usr/aarch64-linux-gnu {str(raw)}"
+        qemu_recompiled_command = (
+            f"qemu-aarch64 -L /usr/aarch64-linux-gnu {str(recompiled)}"
+        )
+        raw_cmd = ["script", "-q", "-c", qemu_raw_cmd]
+        recompiled_cmd = ["script", "-q", "-c", qemu_recompiled_command]
+ 
+    else:
+        logger.error(f"Unsupported ISA {isa} ({arch}) for test_recompiled_binary")
+        return False
 
     raw_output = subprocess.run(raw_cmd + args, capture_output=True)
     recompiled_output = subprocess.run(recompiled_cmd + args, capture_output=True)
@@ -203,21 +222,29 @@ def compare_size(raw: Path, recompiled: Path):
 
 def uroboros_all(targets: list, args):
     arches = [args.m] if args.m is not None else ["thumb", "32", "64"]
-    isas = ["arm"] if args.arch is not None else ["intel"]
-    pies = [not args.no_pie] if args.no_pie is True else [False]  # TODO: pie support
+    isas = [args.arch] if args.arch is not None else ["intel", "arm"]
+    pies = [not args.no_pie] if args.no_pie is True else [True, False]
     statics = [args.static] if args.static is True else [True, False]
     for isa in isas:
         for arch in arches:
             for pie in pies:
                 for static in statics:
-                    if isa == "arm" and static is True:
+                    if isa == "arm" and arch != "64" and static is True:
                         logger.warning(
-                            f"Static linking is not supported for ARM architecture"
+                            f"Static linking is not supported for ARM thumb or ARM 32 architecture"
                         )
                         continue
                     if isa == "intel" and arch == "thumb":
                         # this combination cannot happen
                         continue
+                    if isa == "arm" and arch == "32":
+                        # not merged yet
+                        continue
+                    if pie:
+                        if isa != "intel":
+                            continue
+                        if not static:
+                            continue
 
                     for source in targets:
                         binary_dir = source.parent / source.stem
@@ -230,9 +257,10 @@ def uroboros_all(targets: list, args):
 
                         # always compile
                         # if binary.exists() is False or args.force:
+                        print(binary)
                         compile_bin(source, binary, arch, pie, static, isa)
-                        if not args.compile and isa == "intel":
-                            run_uroboros(binary, isa)
+                        if not args.compile:
+                            run_uroboros(binary, isa, arch)
 
 
 if __name__ == "__main__":

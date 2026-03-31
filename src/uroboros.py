@@ -109,48 +109,6 @@ def reassemble(assembly_file, arch):
     os.system(f"{compiler} {assembly_file} {compile_option}")
 
 
-def plt_changed():
-    with open("plt_sec.info") as plt_sec, open("plt_sec_re.info") as plt_sec_re:
-        plt_sec_line = plt_sec.readlines()[0]
-        plt_sec_re_line = plt_sec_re.readlines()[0]
-        plt_sec_size = plt_sec_line.split()[3]
-        plt_sec_re_size = plt_sec_re_line.split()[3]
-        return plt_sec_size != plt_sec_re_size
-
-
-def update_final(plt_addr2entry, plt_new_entry2addr):
-    lines = list()
-    with open("final.s", "r") as f:
-        lines = f.readlines()
-    with open("final2.s", "w") as f:
-        for line in lines:
-            if not line.startswith("call "):
-                f.write(line)
-                continue
-            op, addr = line.split()
-            if addr not in plt_addr2entry:
-                f.write(line)
-                continue
-            entry = plt_addr2entry[addr]
-            new_addr = plt_new_entry2addr[entry]
-            f.write(f"{op} {new_addr}\n")
-
-
-def check_thumb_mode(arch: str, entry_point: int) -> bool:
-    return arch == "thumb"
-
-
-def get_entry_point_address(fn) -> str:
-    output = subprocess.getoutput("readelf -h " + fn)
-    entry_point = ""
-
-    for line in output.split("\n"):
-        if "Entry point address" in line:
-            entry_point = line.split()[-1][2:]
-            break
-
-    return entry_point
-
 def process(f, i, arch):
     is_32bit_binary = is_32()
     strip_command = ""

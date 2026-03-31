@@ -43,11 +43,5 @@ $(DECRYPTOR): $(DECRYPTOR_SRC)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $^
 
-# Clean up generated files
-clean:
-	#rm -f $(GENECDH) $(ENCRYPTOR) $(DECRYPTOR)
-	rm -rf build/*
-	rm -rf hello
-	cp -R hello-bk hello
+.PHONY: all genkey
 
-.PHONY: all clean genkey

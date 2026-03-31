@@ -1,11 +1,11 @@
 # Local CI or Regression Testing + Cleaning
 
 intel:
-	test/test_all.py -a -c || true
+	test/test_all.py -a -c --arch intel || true
 	test/test_instrument.intel.sh 2>&1 | tee test.intel.instrument || true
 	rm $(CURDIR)/src/fun.o || true
 	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} + || true
-	test/test_action.sh 2>&1 | tee test.intel.handmade
+	test/test_action.sh intel 2>&1 | tee test.intel.handmade
 
 intel.coreutils:
 	test/test_coreutils.sh 2>&1 | tee test.intel.coreutils
@@ -21,6 +21,9 @@ arm.64:
 	test/test_instrument.arm.64.sh 2>&1 | tee test.arm.64.instrument || true
 	rm $(CURDIR)/src/fun.o || true
 	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
+
+arm.handmade:
+	test/test_action.sh arm 2>&1 | tee test.arm.handmade
 
 clean:
 	rm src/fl_calls || true

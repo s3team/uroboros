@@ -2,7 +2,7 @@
  (name init)
  (modules init)
  (public_name init)
- (libraries batteries ail_utils ail)
+ (libraries batteries ail_utils ail sec_empty_creator)
  (preprocess
   (pps ppx_deriving.show))
  (ocamlopt_flags
@@ -292,6 +292,22 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
+ (name export_data)
+ (modules export_data)
+ (libraries utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name sec_empty_creator)
+ (modules sec_empty_creator)
+ (libraries utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
  (name common_reassemble_symbol_get)
  (modules common_reassemble_symbol_get)
  (libraries visit type)
@@ -304,6 +320,7 @@
  (modules reassemble_symbol_get)
  (libraries
   batteries
+  export_data
   common_reassemble_symbol_get
   pp_print
   ail_utils
@@ -318,6 +335,7 @@
  (modules arm_reassemble_symbol_get)
  (libraries
   batteries
+  export_data
   visit
   common_reassemble_symbol_get
   symbol_table_get

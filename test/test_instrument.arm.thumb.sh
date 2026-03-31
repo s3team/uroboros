@@ -40,103 +40,84 @@ analogWrite called.
 EOF
 
 has_failed="false"
+src_dir=$(pwd)/src
+QEMU="qemu-arm -L /usr/arm-linux-gnueabihf"
+
+#####################
+# helper functions  #
+#####################
+
+run_test() {
+  local label="$1" point_file="$2" binary="$3" expected="$4"
+  shift 4
+  echo ">>> $label"
+  pushd "$src_dir"
+  cp "$point_file" points/
+  tmpfile=$(mktemp)
+  echo "run: python3 uroboros.py $binary --arch thumb"
+  python3 uroboros.py "$binary" --arch thumb &> /dev/null
+  echo "run: script -qec $QEMU $(pwd)/a.out $* /dev/null"
+  script -qec "$QEMU $(pwd)/a.out $*" /dev/null 2>&1 | tr -d '\r' > "$tmpfile"
+  local actual
+  if [[ -n "$TEST_GREP" ]]; then
+    actual=$(grep "$TEST_GREP" "$tmpfile")
+  else
+    actual=$(cat "$tmpfile")
+  fi
+  if [[ "$expected" != "$actual" ]]; then
+    echo "##### expected output for $label not matching #####"
+    echo "~ actual:"
+    cat "$tmpfile"
+    has_failed="true"
+  fi
+  rm "$tmpfile"
+  cleanup_points
+  popd
+}
+
+cleanup_points() {
+  find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
+}
+
+in_dir() {
+  local dir="$1"; shift
+  pushd "$dir"
+  echo "run: $@"
+  "$@"
+  popd
+}
 
 ##########
 # test00 #
 ##########
-echo ">>> arm thumb test00"
-
-pushd $(pwd)/src
-cp point_examples/points.test00.arm.thumb.ins points/
-tmpfile=$(mktemp)
-# tmp fix for arm file ordering reading issue
-python3 uroboros.py $(pwd)/../test/test00/test00.arm.thumb.nopie.dynamic.sym --arch thumb &> /dev/null
-qemu-arm -L /usr/arm-linux-gnueabihf $(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test00" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test00.thumb not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "arm thumb test00" point_examples/points.test00.arm.thumb.ins \
+  "$(pwd)/test/test00/test00.arm.thumb.nopie.dynamic.sym" "$expected_test00"
 
 ##########
 # test05 #
 ##########
-echo ">>> arm thumb test05"
-
-pushd $(pwd)/src
-cp point_examples/points.test05.arm.thumb.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test05/test05.arm.thumb.nopie.dynamic.sym --arch thumb &> /dev/null
-qemu-arm -L /usr/arm-linux-gnueabihf $(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test05" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test05.thumb not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "arm thumb test05" point_examples/points.test05.arm.thumb.ins \
+  "$(pwd)/test/test05/test05.arm.thumb.nopie.dynamic.sym" "$expected_test05"
 
 ##########
 # test07 #
 ##########
-echo ">>> arm thumb test07"
-
-pushd $(pwd)/src
-cp point_examples/points.test07.arm.thumb.ins points/
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/test07/test07.arm.thumb.nopie.dynamic.sym --arch thumb &> /dev/null
-qemu-arm -L /usr/arm-linux-gnueabihf $(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_test07" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for test07.thumb not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-popd
+run_test "arm thumb test07" point_examples/points.test07.arm.thumb.ins \
+  "$(pwd)/test/test07/test07.arm.thumb.nopie.dynamic.sym" "$expected_test07"
 
 ############
 # simul_io #
 ############
-pushd $(pwd)/test/simul_io
-# compile simul_io binaries
-make arm.thumb
-popd
+simul_io_dir=$(pwd)/test/simul_io
+in_dir "$simul_io_dir" make arm.thumb
 
-echo ">>> arm thumb simul_io"
+cp "$simul_io_dir"/capture.c "$src_dir"/capture.c
+run_test "arm thumb simul_io" \
+  ../test/simul_io/points.float_capture.arm.thumb.ins \
+  "$simul_io_dir/simul_io.arm.thumb.nopie.dynamic.sym" "$expected_simul_io"
+rm "$src_dir"/capture.c
 
-pushd $(pwd)/src
-cp ../test/simul_io/points.float_capture.arm.thumb.ins points/
-cp ../test/simul_io/capture.c capture.c
-tmpfile=$(mktemp)
-python3 uroboros.py $(pwd)/../test/simul_io/simul_io.arm.thumb.nopie.dynamic.sym --arch thumb &> /dev/null
-qemu-arm -L /usr/arm-linux-gnueabihf $(pwd)/a.out &> "$tmpfile"
-
-if [[ "$expected_simul_io" != $(cat "$tmpfile") ]]; then
-  echo "##### expected output for simul_io.thumb not matching #####"
-  echo "~ actual:"
-  cat "$tmpfile"
-  has_failed="true"
-fi
-rm "$tmpfile"
-find points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
-rm capture.c
-popd
-
-pushd $(pwd)/test/simul_io
-# delete simul_io binaries
-make clean
-popd
+in_dir "$simul_io_dir" make clean
 
 ###########
 # closing #

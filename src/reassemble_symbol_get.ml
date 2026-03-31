@@ -2395,7 +2395,7 @@ class reassemble =
       else ()
 
     method export_data_dump =
-      ignore (Sys.command "python3 export_data.py");
+      Export_data.export ();
       let addrs = List.map String.trim (read_file "export_datas.info") in
       let aux l =
         match self#check_sec l with
