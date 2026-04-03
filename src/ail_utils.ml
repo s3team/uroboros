@@ -1427,17 +1427,3 @@ module Cg_utils = struct
   let map_cfi_des_cond cfi_cg fn visit judge =
     Hashtbl.find cfi_cg fn |> List.filter judge |> List.map visit
 end
-
-module Time_Record = struct
-  (* this module wrapper the UNIX time expansion facilities of OCaml *)
-  let stamp () =
-    Printf.printf "stamp : %f sec\n" (Unix.gettimeofday ());
-    ()
-
-  let get_utime () = Unix.gettimeofday ()
-
-  let elapsed t =
-    let t1 = Unix.gettimeofday () in
-    Printf.printf "execution elapsed time: %f sec\n" (t1 -. t);
-    t1
-end

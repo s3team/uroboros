@@ -100,25 +100,27 @@ class ail =
       let module I = Instrumentation in
       let module EU = Elf_utils in
       let module FnU = Func_utils in
-      let _ = self#pre_process f arch in
+      let module TR = Time_Record in
+
+      let _ = timed "preprocess" (fun () -> self#pre_process f arch) in
       (* .text section is in instrs.info *)
-      let il, fl, re = D.disassemble f funcs secs arch in
+      let il, fl, re = timed "disassemble" (fun () -> D.disassemble f funcs secs arch) in
 
       print_endline "3: analysis";
 
-      let fbl, bbl, cfg_t, cg, il', re, ufl = A.analyze_one il fl re arch in
+      let fbl, bbl, cfg_t, cg, il', re, ufl = timed "analyze_one" (fun () -> A.analyze_one il fl re arch) in
 
-      let il', ufl', fch = S.apply il' ufl f in
+      let il', ufl', fch = timed "symbolize" (fun () -> S.apply il' ufl f) in
 
       let ufl' = if EU.elf_32 () then FnU.merge_func ufl' il' else ufl' in
       let ufl' = FnU.update_func_end ufl' il' in
 
       let instrumented_il : instr list =
-        I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch
+        timed "instrument" (fun () -> I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch)
       in
 
       print_endline "4: post processing";
-      A.post_analyze instrumented_il re arch;
+      timed "postanalyze" (fun () -> A.post_analyze instrumented_il re arch);
 
-      self#post_process f arch
+      timed "postprocess" (fun () -> self#post_process f arch);
   end

@@ -6,6 +6,27 @@ end)
 
 module StringSet = Set.Make (String)
 
+module Time_Record = struct
+  (* this module wrapper the UNIX time expansion facilities of OCaml *)
+  let stamp () =
+    Printf.printf "stamp : %f sec\n" (Unix.gettimeofday ());
+    ()
+
+  let get_utime () = Unix.gettimeofday ()
+
+  let elapsed' ?(l = "") t =
+    let end_time = get_utime () in
+    let elapsed_time = end_time -. t in
+    let minutes = int_of_float (elapsed_time /. 60.0) in
+    let seconds = elapsed_time -. (float_of_int minutes *. 60.0) in
+    Printf.printf ("elapsed time (%s): %dm %.2fs\n") l minutes seconds
+
+  let elapsed t =
+    let t1 = Unix.gettimeofday () in
+    Printf.printf "execution elapsed time: %f sec\n" (t1 -. t);
+    t1
+end
+
 let read_file (filename : string) : string list =
   let lines = ref [] in
   let chan = open_in filename in
@@ -133,3 +154,10 @@ let b_search (e : 'a) (ls : 'a array) (cmp : 'a -> 'a -> int) : bool =
       else bs (mid + 1) max
   in
   bs 0 (Array.length ls - 1)
+
+let timed l f =
+  let module TR = Time_Record in
+  let t = TR.get_utime () in
+  let r = f () in
+  TR.elapsed' ~l t;
+  r

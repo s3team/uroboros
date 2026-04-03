@@ -1594,7 +1594,8 @@ class arm_reassemble =
     val mutable instr_list : instr list = []
     val mutable text_sec : int * int = (0, 0) (* begin addr, size*)
     val mutable plt_sec : int * int = (0, 0) (* begin addr, size*)
-    val mutable text_mem_addrs : string list = []
+    val mutable text_mem_addrs : (string, unit) Hashtbl.t = Hashtbl.create 200
+
 
     (* collect all the symbols from code section or from data sections *)
     val mutable symbol_list : int list = []
@@ -1612,7 +1613,9 @@ class arm_reassemble =
       in
       List.iter help filelines;
 
-      text_mem_addrs <- List.map String.trim (read_file "text_mem.info")
+      let text_mem_lines = List.map String.trim (read_file "text_mem.info") in
+      text_mem_addrs <- Hashtbl.create (List.length text_mem_lines);
+      List.iter (fun s -> Hashtbl.replace text_mem_addrs s ()) text_mem_lines
 
     method plt_collect =
       let filelines = read_file "plts.info"
@@ -1718,7 +1721,7 @@ class arm_reassemble =
     method check_text addr =
       let judge_mem_list addr =
         let addrs = dec_hex_col addr in
-        List.mem addrs text_mem_addrs
+        Hashtbl.mem text_mem_addrs addrs
       in
       let tb, tsize = text_sec in
       let te = tb + tsize in

@@ -350,11 +350,13 @@ class ailInit =
            ("readelf -r " ^ f
           ^ " | awk \'/GLOB_DAT/ {print $5} \' > externdatas.info"))
 
-    method ail_process (f : string) : unit =
+    method ail_process (f : string) init_begin_time : unit =
+      let module TR = Time_Record in
       let processor = new ail in
       processor#sections;
       processor#userfuncs;
       ignore (Sys.command "python3 spliter.py");
+      TR.elapsed' ~l:"init" init_begin_time;
       processor#instr_process f arch
   end
 
@@ -394,6 +396,8 @@ let check_bit_mode (bit_mode : string) : bool =
   else false
 
 let main () =
+  let module TR = Time_Record in
+  let total_begin_time = TR.get_utime () in
   if Array.length Sys.argv <> 4 then
     print_string
       "ail init: you must specify an ELF binary, arch, and bit mode\n"
@@ -413,6 +417,7 @@ let main () =
     if Sys.file_exists elf then (
       let _ = clear_code in
       (* Initialize Random so it won't use the default seed *)
+      let init_begin_time = TR.get_utime () in
       let _ = Random.self_init () in
       let init = new ailInit in
       init#init arch bit_mode;
@@ -421,7 +426,9 @@ let main () =
       init#disassemble_metadata elf arch;
       init#arm_disassemble elf arch;
       init#process elf arch bit_mode;
-      init#ail_process elf)
+      init#ail_process elf init_begin_time;
+      TR.elapsed' ~l:"total" total_begin_time;
+    )
     else print_string ("binary file " ^ elf ^ " doesn't exist\n")
 
 let () = main ()

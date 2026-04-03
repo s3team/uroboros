@@ -80,12 +80,12 @@ module Disam = struct
 
       let instr_list = read_file "instrs.info" in
       (* remove_literal_pools is here *)
-      ail_parser#process_instrs instr_list arch;
-      re#instr_addrs_collect ail_parser#get_instrs;
+      timed "disassemble:process_instrs" (fun () -> ail_parser#process_instrs instr_list arch);
+      timed "disassemble:instr_addrs_collect" (fun () -> re#instr_addrs_collect ail_parser#get_instrs);
 
       (* func_slicing *)
-      let fl = ail_parser#get_funcs in
-      print_endline "2: disassembly validates -->";
+      let fl = timed "disassemble:get_funcs" (fun () -> ail_parser#get_funcs) in
+      print_endline "2: disassembly validates";
 
       let il_init =
         if EU.elf_32 () && arch = "intel" then
@@ -156,7 +156,7 @@ module Disam = struct
         if arch = "thumb" then AP.adjust_thumb_function_pointer ilist else ilist
       in
 
-      let rewriting_result = rewrite il_init in
+      let rewriting_result = timed "disassemble:dfa" (fun () -> rewrite il_init) in
 
       il :=
         (if EU.elf_32 () && arch = "intel" then
