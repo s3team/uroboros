@@ -58,6 +58,20 @@ EOF
 read -r -d '' expected_genecdh_64 <<'EOF'
 passed int: 24
 EOF
+
+read -r -d '' expected_genecdh_base <<'EOF'
+Pass command: genkey|shared
+EOF
+
+read -r -d '' expected_rware_base <<'EOF'
+Provide path!
+Usage: ./rware <path>
+EOF
+
+read -r -d '' expected_unrware_base <<'EOF'
+Provide info file and unlock key!
+Usage: ./unrware <info-file> <unlock-key>
+EOF
 has_failed="false"
 src_dir=$(pwd)/src
 rware_dir=$(pwd)/test/rware
@@ -127,6 +141,23 @@ check_genecdh_files() {
     has_failed="true"
   fi
   rm -f public_key.h private.key
+  popd
+}
+
+check_base_usage() {
+  label="$1"
+  expected="$2"
+  pushd "$src_dir"
+  tmpfile=$(mktemp)
+  script -qec "$QEMU $(pwd)/a.out" /dev/null 2>&1 | tr -d '\r' > "$tmpfile"
+  actual=$(cat "$tmpfile")
+  if [[ "$expected" != "$actual" ]]; then
+    echo "##### expected usage output for $label not matching #####"
+    echo "~ actual:"
+    cat "$tmpfile"
+    has_failed="true"
+  fi
+  rm "$tmpfile"
   popd
 }
 
@@ -206,6 +237,7 @@ run_test "arm64 rware" \
   "${rware_dir}/build/rware_sym" "$expected_rware_64" \
   ${rware_dir}/hello
 check_all_encrypted "rware.arm.64"
+check_base_usage "rware.arm.64" "$expected_rware_base"
 
 ## unrware
 TEST_GREP="called" run_test "arm64 unrware" \
@@ -214,6 +246,7 @@ TEST_GREP="called" run_test "arm64 unrware" \
   info.enc ${rware_dir}/keys
 pushd "$src_dir"; rm -f info.enc; popd
 check_all_decrypted "unrware.arm.64"
+check_base_usage "unrware.arm.64" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -225,6 +258,7 @@ run_test "arm64 genecdh" \
   "${rware_dir}/build/genecdh_sym" "$expected_genecdh_64" \
   genkey
 check_genecdh_files "genecdh.arm.64"
+check_base_usage "genecdh.arm.64" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 
@@ -241,6 +275,7 @@ python3 uroboros.py "${rware_dir}/build/rware_sym" --arch arm &> /dev/null
 $QEMU $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
 check_all_encrypted "rware.arm.static.64"
+check_base_usage "rware.arm.static.64" "$expected_rware_base"
 
 ## unrware (static)
 echo ">>> arm64 unrware (statically-linked)"
@@ -250,6 +285,7 @@ $QEMU $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
 rm info.enc
 popd
 check_all_decrypted "unrware.arm.static.64"
+check_base_usage "unrware.arm.static.64" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -262,6 +298,7 @@ python3 uroboros.py "${rware_dir}/build/genecdh_sym" --arch arm &> /dev/null
 $QEMU $(pwd)/a.out genkey &> /dev/null
 popd
 check_genecdh_files "genecdh.arm.static.64"
+check_base_usage "genecdh.arm.static.64" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 

@@ -64,6 +64,20 @@ read -r -d '' expected_genecdh <<'EOF'
 passed int: 24
 EOF
 
+read -r -d '' expected_genecdh_base <<'EOF'
+Pass command: genkey|shared
+EOF
+
+read -r -d '' expected_rware_base <<'EOF'
+Provide path!
+Usage: ./rware <path>
+EOF
+
+read -r -d '' expected_unrware_base <<'EOF'
+Provide info file and unlock key!
+Usage: ./unrware <info-file> <unlock-key>
+EOF
+
 has_failed="false"
 src_dir=$(pwd)/src
 rware_dir=$(pwd)/test/rware
@@ -132,6 +146,23 @@ check_genecdh_files() {
     has_failed="true"
   fi
   rm -f public_key.h private.key
+  popd
+}
+
+check_base_usage() {
+  label="$1"
+  expected="$2"
+  pushd "$src_dir"
+  tmpfile=$(mktemp)
+  script -qec "$(pwd)/a.out" /dev/null 2>&1 | tr -d '\r' > "$tmpfile"
+  actual=$(cat "$tmpfile")
+  if [[ "$expected" != "$actual" ]]; then
+    echo "##### expected usage output for $label not matching #####"
+    echo "~ actual:"
+    cat "$tmpfile"
+    has_failed="true"
+  fi
+  rm "$tmpfile"
   popd
 }
 
@@ -264,6 +295,7 @@ run_test "32-bit rware (dynamically-linked)" \
   "${rware_dir}/build/rware_sym" "$expected_rware" \
   ${rware_dir}/hello
 check_all_encrypted "rware.intel.32"
+check_base_usage "rware.intel.32" "$expected_rware_base"
 
 TEST_GREP="called" run_test "32-bit unrware (dynamically-linked)" \
   ${rware_dir}/points.unrware.intel.32.ins \
@@ -271,6 +303,7 @@ TEST_GREP="called" run_test "32-bit unrware (dynamically-linked)" \
   info.enc ${rware_dir}/keys
 pushd "$src_dir"; rm -f info.enc; popd
 check_all_decrypted "unrware.intel.32"
+check_base_usage "unrware.intel.32" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -282,6 +315,7 @@ run_test "64-bit rware (dynamically-linked)" \
   "${rware_dir}/build/rware_sym" "$expected_rware" \
   ${rware_dir}/hello
 check_all_encrypted "rware.intel.64"
+check_base_usage "rware.intel.64" "$expected_rware_base"
 
 TEST_GREP="called" run_test "64-bit unrware (dynamically-linked)" \
   ${rware_dir}/points.unrware.intel.64.ins \
@@ -289,6 +323,7 @@ TEST_GREP="called" run_test "64-bit unrware (dynamically-linked)" \
   info.enc ${rware_dir}/keys
 pushd "$src_dir"; rm -f info.enc; popd
 check_all_decrypted "unrware.intel.64"
+check_base_usage "unrware.intel.64" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -300,6 +335,7 @@ run_test "32-bit genecdh (dynamically-linked)" \
   "${rware_dir}/build/genecdh_sym" "$expected_genecdh" \
   genkey
 check_genecdh_files "genecdh.intel.32"
+check_base_usage "genecdh.intel.32" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 
@@ -311,6 +347,7 @@ run_test "64-bit genecdh (dynamically-linked)" \
   "${rware_dir}/build/genecdh_sym" "$expected_genecdh" \
   genkey
 check_genecdh_files "genecdh.intel.64"
+check_base_usage "genecdh.intel.64" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 
@@ -328,6 +365,7 @@ python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
 check_all_encrypted "rware.intel.static.32"
+check_base_usage "rware.intel.static.32" "$expected_rware_base"
 
 echo ">>> 32-bit unrware (statically-linked)"
 pushd "$src_dir"
@@ -336,6 +374,7 @@ $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
 rm info.enc
 popd
 check_all_decrypted "unrware.intel.static.32"
+check_base_usage "unrware.intel.static.32" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -348,6 +387,7 @@ python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
 check_all_encrypted "rware.intel.static.64"
+check_base_usage "rware.intel.static.64" "$expected_rware_base"
 
 echo ">>> 64-bit unrware (statically-linked)"
 pushd "$src_dir"
@@ -356,6 +396,7 @@ $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
 rm info.enc
 popd
 check_all_decrypted "unrware.intel.static.64"
+check_base_usage "unrware.intel.static.64" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -369,6 +410,7 @@ python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
 check_all_encrypted "rware.intel.static.pie.32"
+check_base_usage "rware.intel.static.pie.32" "$expected_rware_base"
 
 echo ">>> 32-bit unrware (statically-linked, PIE)"
 pushd "$src_dir"
@@ -377,6 +419,7 @@ $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
 rm info.enc
 popd
 check_all_decrypted "unrware.intel.static.pie.32"
+check_base_usage "unrware.intel.static.pie.32" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -389,6 +432,7 @@ python3 uroboros.py "${rware_dir}/build/rware_sym" &> /dev/null
 $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
 check_all_encrypted "rware.intel.static.pie.64"
+check_base_usage "rware.intel.static.pie.64" "$expected_rware_base"
 
 echo ">>> 64-bit unrware (statically-linked, PIE)"
 pushd "$src_dir"
@@ -397,6 +441,7 @@ $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
 rm info.enc
 popd
 check_all_decrypted "unrware.intel.static.pie.64"
+check_base_usage "unrware.intel.static.pie.64" "$expected_unrware_base"
 
 in_dir "$rware_dir" make clean
 
@@ -409,6 +454,7 @@ python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
 $(pwd)/a.out genkey &> /dev/null
 popd
 check_genecdh_files "genecdh.intel.static.32"
+check_base_usage "genecdh.intel.static.32" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 
@@ -421,6 +467,7 @@ python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
 $(pwd)/a.out genkey &> /dev/null
 popd
 check_genecdh_files "genecdh.intel.static.64"
+check_base_usage "genecdh.intel.static.64" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 
@@ -433,6 +480,7 @@ python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
 $(pwd)/a.out genkey &> /dev/null
 popd
 check_genecdh_files "genecdh.intel.static.pie.32"
+check_base_usage "genecdh.intel.static.pie.32" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 
@@ -445,6 +493,7 @@ python3 uroboros.py "${rware_dir}/build/genecdh_sym" &> /dev/null
 $(pwd)/a.out genkey &> /dev/null
 popd
 check_genecdh_files "genecdh.intel.static.pie.64"
+check_base_usage "genecdh.intel.static.pie.64" "$expected_genecdh_base"
 
 in_dir "$rware_dir" make clean
 
