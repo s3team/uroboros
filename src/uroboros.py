@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-import argparse
 import datetime
 import os
-import shutil
 import subprocess
-import sys
-import tempfile
 import time
 from argparse import ArgumentParser, RawTextHelpFormatter
 
@@ -106,7 +102,36 @@ def reassemble(assembly_file, arch):
         compile_option += f" {obj} "
 
     print(f"reassemble: {compiler} {assembly_file} {compile_option}")
-    os.system(f"{compiler} {assembly_file} {compile_option}")
+    os.system(f"{compiler} {assembly_file} {compile_option} 2> final.error")
+
+
+def parse_errors():
+    addrs = []
+    if not os.path.isfile("final.error"):
+        return set(addrs)
+    with open("final.error") as f:
+        for l in f.readlines():
+            if "undefined reference" in l and "S_0x" in l:
+                addrs.append(l.split()[-1][1:-1])
+    return set(addrs)
+
+
+def modify_error(errors):
+    if not errors:
+        return
+    with open("final.s") as f:
+        lines = f.readlines()
+
+    def help(l):
+        e = list(filter(lambda e: e in l, errors))
+        if e != []:
+            addr = e[0][2:]
+            l = l.replace(e[0], addr)
+        return l
+
+    lines = list(map(help, lines))
+    with open("final.s", "w") as f:
+        f.writelines(lines)
 
 
 def process(f, i, arch):
@@ -161,8 +186,6 @@ def process(f, i, arch):
             print("init failed")
             return False
 
-        os.system(f"python3 main_discover.py {f} {arch}")
-
         if not os.path.isfile("final.s"):
             return False
 
@@ -182,12 +205,11 @@ def process(f, i, arch):
             # FIXME!
             os.system("python3 gobmk_sub.py")
 
-        os.system("python3 label_adjust.py")
-
         if arch == "thumb" or arch == "arm":
             os.system(f"python3 arm_postprocess.py final.s {arch}")
 
-        os.system(f"python3 compile_process.py {arch}")
+        reassemble("final.s", arch)
+        modify_error(parse_errors())
         reassemble("final.s", arch)
 
         custom_objects = get_custom_objects(cleanup=True)
@@ -396,8 +418,6 @@ assumption two and three: -a 2 -a 3""",
                 print("exception, processing failed")
         else:
             if process(f, 0, arch):
-                if u:
-                    os.system("python3 symbolize.py " + b)
                 print("processing succeeded")
             else:
                 print("exception, processing failed")

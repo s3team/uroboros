@@ -70,8 +70,7 @@ class lib32_helper (instr_list : instr list) =
 
   let pic_addr = ref "" in
 
-  let reg_to_index reg =
-    match reg with
+  let reg_to_index : intel_arm_reg -> int = function
     | Intel_Reg ir -> begin
         match ir with
         | Intel_CommonReg r' -> begin
@@ -89,8 +88,7 @@ class lib32_helper (instr_list : instr list) =
     | Arm_Reg _ -> failwith "TODO: ARM support: reg_to_index"
   in
 
-  let index_of_reg exp =
-    match exp with
+  let index_of_reg : exp -> int = function
     | Reg r -> begin
         match r with
         | Intel_Reg ir -> begin
@@ -121,8 +119,7 @@ class lib32_helper (instr_list : instr list) =
     let v2 = l.loc_addr in
     v1 + v2
   in
-  let is_call_op op =
-    match op with
+  let is_call_op = function
     | Intel_OP io -> begin
         match io with Intel_ControlOP CALL -> true | _ -> false
       end
@@ -196,8 +193,7 @@ class lib32_helper (instr_list : instr list) =
   (*let match_global_tbl op e =
     let es = p_exp e in
     (match_add op) && (contains ~str:es ~sub:"_GLOBAL_OFFSET_TABLE_") in*)
-  let update_track i =
-    match i with
+  let update_track : instr -> instr = function
     | TripleInstr (p, e1, e2, l, pre, tags) -> begin
         r := index_of_reg e1;
         rv := value_of_reg e2 l;

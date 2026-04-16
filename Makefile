@@ -30,6 +30,9 @@ clean:
 	rm src/fl || true
 	rm src/faddr.txt.0 || true
 	rm src/faddr_old.txt.0 || true
+	rm src/info.enc || true
+	rm src/private.key || true
+	rm src/public_key.h || true
 	find . -type f -name "*.help" -delete || true
 	find . -type f -name "*.res" -delete || true
 	find . -type f -name "*.out" -delete || true

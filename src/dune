@@ -254,7 +254,15 @@
 (library
  (name common_func_slicer)
  (modules common_func_slicer)
- (libraries type pp_print ail_utils)
+ (libraries type pp_print ail_utils init_sec_adjust)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name init_sec_adjust)
+ (modules init_sec_adjust)
+ (libraries utils)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))

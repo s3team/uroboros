@@ -154,6 +154,7 @@ class ailInit =
     method text_process (f : string) (arch : string) (bit_mode : string) : unit
         =
       (* .disassemble file is created here *)
+      let module EU = Elf_utils in
       ignore (Sys.command ("python3 useless_func_del.py " ^ f));
       let fields =
         if arch = "intel" then "1,3"
@@ -165,11 +166,13 @@ class ailInit =
         (Sys.command
            ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f" ^ fields
           ^ " > instrs.info"));
-      (* print addresses and hex code *)
-      ignore
-        (Sys.command
-           ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f1,2 > hexcode.info"));
-      let module EU = Elf_utils in
+      if (arch = "arm" && EU.elf_32 ()) || arch = "thumb" then begin
+        (* print addresses and hex code *)
+        ignore
+          (Sys.command
+             ("cat " ^ f
+            ^ ".disassemble | grep \"^ \" | cut -f1,2 > hexcode.info"))
+      end;
       if EU.elf_static () then begin
         ignore
           (Sys.command
@@ -371,16 +374,9 @@ let check_strip (f : string) : bool =
     true)
   else false
 
-(*
- * some of the symbols have to cleared in this way as their
- * existence could affect the semantics of the framework
- *)
 let clear_code : unit =
   (* check if there is final.s *)
-  if Sys.file_exists "final.s" then ignore (Sys.command "rm final.s");
-  if Sys.file_exists "inline_symbols.txt" then
-    ignore (Sys.command "rm inline_symbols.txt");
-  ()
+  if Sys.file_exists "final.s" then ignore (Sys.command "rm final.s")
 
 let check_arch (arch : string) : bool =
   if
@@ -427,8 +423,7 @@ let main () =
       init#arm_disassemble elf arch;
       init#process elf arch bit_mode;
       init#ail_process elf init_begin_time;
-      TR.elapsed' ~l:"total" total_begin_time;
-    )
+      TR.elapsed' ~l:"total" total_begin_time)
     else print_string ("binary file " ^ elf ^ " doesn't exist\n")
 
 let () = main ()

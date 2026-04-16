@@ -205,7 +205,3 @@ with open("final.s", 'w') as f:
     for l in lines:
         f.write(l)
     # map(lambda l : f.write(l), lines)
-
-
-if os.path.isfile('inline_symbols.txt'):
-    os.system('python3 inline_update.py')

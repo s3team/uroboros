@@ -63,8 +63,7 @@ module AdrpAbs : DfaAbs = struct
             AdrpMap.union (fun k v1 v2 -> Some v1) acc p_abs_state)
       AdrpMap.empty preds
 
-  let is_store_op p =
-    match p with
+  let is_store_op : op -> bool = function
     | Arm_OP (Arm_CommonOP (Arm_Assign op), _, _) -> begin
         match op with
         | STR | STRB | STRBT | STRD | STREX | STREXB | STREXD | STREXH | STRH
@@ -76,8 +75,7 @@ module AdrpAbs : DfaAbs = struct
       end
     | _ -> false
 
-  let is_compare_op p =
-    match p with
+  let is_compare_op : op -> bool = function
     | Arm_OP (Arm_CommonOP (Arm_Compare _), _, _) -> true
     | _ -> false
 

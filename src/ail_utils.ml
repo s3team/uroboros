@@ -2,7 +2,8 @@ open Pp_print
 open Type
 open Utils
 
-let compare_loc (l1 : loc) (l2 : loc) : bool = l1.loc_addr = l2.loc_addr && l1.loc_label = l2.loc_label
+let compare_loc (l1 : loc) (l2 : loc) : bool =
+  l1.loc_addr = l2.loc_addr && l1.loc_label = l2.loc_label
 
 let print_loclist (ll : loc list) : unit =
   List.iter
@@ -176,18 +177,21 @@ module Opcode_utils = struct
       end
 
   (* this is a conservative judge *)
-  let is_assign (op : op) : bool = match op with
+  let is_assign (op : op) : bool =
+    match op with
     | Intel_OP io -> begin
         match io with Intel_CommonOP (Intel_Assign _) -> true | _ -> false
       end
     | Arm_OP _ -> failwith "unsupported arm opcode"
 
-  let is_push (op : op) : bool = match op with
+  let is_push (op : op) : bool =
+    match op with
     | Intel_OP (Intel_StackOP PUSH) -> true
     | Arm_OP (Arm_StackOP PUSH, _, _) -> true
     | _ -> false
 
-  let is_stack_op (op : op) : bool = match op with
+  let is_stack_op (op : op) : bool =
+    match op with
     | Intel_OP io -> begin
         match io with
         | Intel_StackOP PUSH
@@ -205,9 +209,10 @@ module Opcode_utils = struct
       end
     | _ -> false
 
-  let is_mov (op : intel_op) : bool = match op with
+  let is_mov (op : intel_op) : bool =
+    match op with
     | Intel_CommonOP (Intel_Assign MOV) | Intel_CommonOP (Intel_Assign MOVL) ->
-      true
+        true
     | _ -> false
 
   let is_call (op : op) : bool =
@@ -228,18 +233,20 @@ module Opcode_utils = struct
       end
     | _ -> false
 
-  let is_cmp_op (op : intel_op) : bool = match op with
-    | Intel_CommonOP (Intel_Compare _) -> true
-    | _ -> false
+  let is_cmp_op (op : intel_op) : bool =
+    match op with Intel_CommonOP (Intel_Compare _) -> true | _ -> false
 end
 
 module Exp_utils = struct
   let is_reg (e : exp) : bool = match e with Reg _ -> true | _ -> false
   let is_const (e : exp) : bool = match e with Const _ -> true | _ -> false
   let is_mem (e : exp) : bool = match e with Ptr _ -> true | _ -> false
-  let is_func (e : exp) : bool = match e with Symbol (CallDes _) -> true | _ -> false
 
-  let is_indirect (e : exp) : bool = match e with
+  let is_func (e : exp) : bool =
+    match e with Symbol (CallDes _) -> true | _ -> false
+
+  let is_indirect (e : exp) : bool =
+    match e with
     | Symbol s -> begin
         match s with StarDes _ -> true | _ -> false
         (* this is triky:  repz ret could be parsed into
@@ -254,23 +261,23 @@ module Exp_utils = struct
       end
     | _ -> false
 
-  let rec is_mem_exp (e : exp) : bool = match e with
+  let rec is_mem_exp (e : exp) : bool =
+    match e with
     | Ptr _ -> true
     | Symbol (StarDes e) -> is_mem_exp e
     | _ -> false
 
-let print_exp_type (e : exp) : unit =
-  match e with
-  | Const _ -> print_string "const"
-  | Symbol _ -> print_string "symbol"
-  | Reg _ -> print_string "reg"
-  | Assist _ -> print_string "assist"
-  | Ptr _ -> print_string "ptr"
-  | Label _ -> print_string "label"
+  let print_exp_type (e : exp) : unit =
+    match e with
+    | Const _ -> print_string "const"
+    | Symbol _ -> print_string "symbol"
+    | Reg _ -> print_string "reg"
+    | Assist _ -> print_string "assist"
+    | Ptr _ -> print_string "ptr"
+    | Label _ -> print_string "label"
 end
 
 module Instr_utils = struct
-
   let get_prefix (i : instr) : prefix option =
     match i with
     | SingleInstr (_, _, pre, _) -> pre
@@ -474,21 +481,24 @@ module Instr_utils = struct
         | _ -> false)
     | _ -> false
 
-let print_instr_type (i : instr) : unit =
-  match i with
-  | SingleInstr _ -> print_string "single instr"
-  | DoubleInstr _ -> print_string "double instr"
-  | TripleInstr _ -> print_string "triple instr"
-  | FourInstr _ -> print_string "four instr"
-  | FifInstr _ -> print_string "five instr"
+  let print_instr_type (i : instr) : unit =
+    match i with
+    | SingleInstr _ -> print_string "single instr"
+    | DoubleInstr _ -> print_string "double instr"
+    | TripleInstr _ -> print_string "triple instr"
+    | FourInstr _ -> print_string "four instr"
+    | FifInstr _ -> print_string "five instr"
 end
 
 module IL_utils = struct
   open Instr_utils
 
-  let adjust_esp (il : instr list) : instr list =
-    let rec traverse il =
-      match il with
+  let track_stack_var_fact (il : instr list) : instr list =
+    (* stack in 32-bit intel binaries can change over the course of
+       the function. This function find the adjusted stack variable
+       offset for accurate fact propagation in the data-flow analysis *)
+    (* this is specific to 32-bit intel binaries *)
+    let rec traverse = function
       | i1 :: i2 :: i3 :: rest -> begin
           match (i2, i3) with
           | ( TripleInstr
@@ -637,63 +647,75 @@ module Func_utils = struct
     in
     List.fold_left help [] instrs
 
-let merge_func (funcs : func list) (il : instr list) : func list =
-  let module OU = Opcode_utils in
-  let module IU = Instr_utils in
-  let rec update funcs il acc =
-    match (funcs, il) with
-    | [], il' -> List.rev acc
-    | funcs', [] -> List.rev acc
-    | hf :: tf, hi :: ti ->
-        let f_ea = hf.func_end_addr in
-        let f_ba = hf.func_begin_addr in
-        let i_loc = IU.get_loc hi in
-        let i_addr = i_loc.loc_addr in
-        begin if i_addr = f_ba then
-          match hi with
-          | TripleInstr (p, e1, e2, _, _, _) -> (
-              match (p, e1, e2) with
-              | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
-              | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l ->
-                  if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then
-                    let prev_func = List.hd acc in
-                    let acc' = List.tl acc in
-                    let prev_func' =
-                      { prev_func with func_end_addr = hf.func_end_addr }
-                    in
-                    update funcs ti (prev_func' :: acc')
-                  else update funcs ti acc
-              | _ -> update funcs ti acc)
-          | _ -> update funcs ti acc
-        else if i_addr >= f_ea then update tf il (hf :: acc)
-        else if i_addr < f_ba then update funcs ti acc
-        else update funcs ti acc
-        end
-  in
-  update funcs il []
+  let refine_func_begin (funcs : func list) (il : instr list) : func list =
+    (* in the earlier function slicing, we consider each initial got-assigning instruction
+     as the function start, to help with the DFA. That step messes up the function
+     starts and ends, which negatively affect the instrumentation. This function
+     restore the original function starts and ends *)
+    (* assigning initial got-assigning instruction as the function starts only
+     happen to 32-bit ELF intel binaries *)
+    (* this is specifically for instrumentation when the loc-modifier is funentry *)
+    let module OU = Opcode_utils in
+    let module IU = Instr_utils in
+    let rec update funcs il acc =
+      match (funcs, il) with
+      | [], il' -> List.rev acc
+      | funcs', [] -> List.rev acc
+      | hf :: tf, hi :: ti ->
+          let f_ea = hf.func_end_addr in
+          let f_ba = hf.func_begin_addr in
+          let i_loc = IU.get_loc hi in
+          let i_addr = i_loc.loc_addr in
+          begin if i_addr = f_ba then
+            match hi with
+            | TripleInstr (p, e1, e2, _, _, _) -> (
+                match (p, e1, e2) with
+                | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Label l, Reg r
+                | Intel_OP (Intel_CommonOP (Intel_Arithm ADD)), Reg r, Label l
+                  ->
+                    if contains ~str:l ~sub:"$_GLOBAL_OFFSET_TABLE_" then
+                      let prev_func = List.hd acc in
+                      let acc' = List.tl acc in
+                      let prev_func' =
+                        { prev_func with func_end_addr = hf.func_end_addr }
+                      in
+                      update funcs ti (prev_func' :: acc')
+                    else update funcs ti acc
+                | _ -> update funcs ti acc)
+            | _ -> update funcs ti acc
+          else if i_addr >= f_ea then update tf il (hf :: acc)
+          else if i_addr < f_ba then update funcs ti acc
+          else update funcs ti acc
+          end
+    in
+    update funcs il []
 
-let update_func_end (funcs : func list) (il : instr list) : func list =
-  let module IU = Instr_utils in
-  let rec update funcs il acc =
-    match (funcs, il) with
-    | [], il' -> acc
-    | funcs', [] -> acc
-    | hf :: tf, hi :: ti ->
-        let f_ea = hf.func_end_addr in
-        let f_ba = hf.func_begin_addr in
-        let i_loc = get_loc hi in
-        let i_addr = i_loc.loc_addr in
-        begin if i_addr >= f_ea then update tf il (hf :: acc)
-        else if i_addr < f_ba then update funcs ti acc
-        else if IU.is_ret hi then
-          update ({ hf with func_end_addr = i_addr } :: tf) ti acc
-        else update funcs ti acc
-        end
-  in
-  update funcs il []
+  let refine_func_end (funcs : func list) (il : instr list) : func list =
+    (* the earlier function slicing over-approximates function boundaries.
+     This function refine the function boundaries with the last final
+     function-ending instruction before the start of the next function *)
+    (* this is specifically for instrumentation when the loc-modifier is funexit *)
+    let module IU = Instr_utils in
+    let rec update funcs il acc =
+      match (funcs, il) with
+      | [], il' -> acc
+      | funcs', [] -> acc
+      | hf :: tf, hi :: ti ->
+          let f_ea = hf.func_end_addr in
+          let f_ba = hf.func_begin_addr in
+          let i_loc = get_loc hi in
+          let i_addr = i_loc.loc_addr in
+          begin if i_addr >= f_ea then update tf il (hf :: acc)
+          else if i_addr < f_ba then update funcs ti acc
+          else if IU.is_ret hi then
+            update ({ hf with func_end_addr = i_addr } :: tf) ti acc
+          else update funcs ti acc
+          end
+    in
+    update funcs il []
 
-  (* fix function boundary detection. The func slicer underapproximates *)
-  let fix_fl_underapprox il fl =
+  let refine_func_boundary_by_cf (il : instr list) (fl : func list) : func list
+      =
     let module IU = Instr_utils in
     let text_start, text_end =
       let line = List.hd (read_file "text_sec.info") in
@@ -701,11 +723,6 @@ let update_func_end (funcs : func list) (il : instr list) : func list =
       let start = int_of_string ("0x" ^ List.nth parts 1) in
       let size = int_of_string ("0x" ^ List.nth parts 3) in
       (start, start + size)
-    in
-    let func_begin_addrs =
-      let tbl = Hashtbl.create (List.length fl) in
-      List.iter (fun f -> Hashtbl.replace tbl f.func_begin_addr ()) fl;
-      tbl
     in
     let rec update fl il acc =
       match (fl, il) with
@@ -721,30 +738,25 @@ let update_func_end (funcs : func list) (il : instr list) : func list =
             match IU.get_ct_des hi with
             | Some des when des >= f_ea && des >= text_start && des < text_end
               -> begin
-                match tf with
-                | [] -> update fl ti acc
-                | next_f :: rest_f -> (
-                    if
-                      des >= next_f.func_begin_addr
-                      && des < next_f.func_end_addr
-                    then
-                      let merged =
-                        { hf with func_end_addr = next_f.func_end_addr }
-                      in
-                      update (merged :: rest_f) il acc
-                    else
-                      match rest_f with
-                      | next_next_f :: rest_rest_f
-                        when des >= next_next_f.func_begin_addr
-                             && des < next_next_f.func_end_addr ->
-                          let merged =
-                            {
-                              hf with
-                              func_end_addr = next_next_f.func_end_addr;
-                            }
-                          in
-                          update (merged :: rest_rest_f) il acc
-                      | _ -> update fl ti acc)
+                (* intra jump target is after function ends.
+                   Merge with the next (or next-next) function if target falls in it *)
+                (* each entry: (function to merge hf with, survivors after dropping up through it) *)
+                let merge_targets =
+                  match tf with
+                  | f1 :: (f2 :: rest2 as rest1) -> [ (f1, rest1); (f2, rest2) ]
+                  | [ f ] -> [ (f, []) ]
+                  | [] -> []
+                in
+                let in_range f =
+                  des >= f.func_begin_addr && des < f.func_end_addr
+                in
+                match
+                  List.find_opt (fun (f, _) -> in_range f) merge_targets
+                with
+                | Some (f, rest) ->
+                    let merged = { hf with func_end_addr = f.func_end_addr } in
+                    update (merged :: rest) il acc
+                | None -> update fl ti acc
               end
             | _ -> update fl ti acc
           end
@@ -1138,8 +1150,6 @@ module Instrumentation_utils = struct
     | DoubleInstr (p, e, _, _, _) when OU.is_cond_jmp p && is_func e = true ->
         Some COND_JMP_INTER
     | _ -> None
-
-
 end
 
 module Instrumentation_visitor = struct
@@ -1381,7 +1391,8 @@ module Cfg_utils = struct
           visitor i DIRECT_JMP_INTER
       | DoubleInstr (p, e, _, _, _) when is_jmp i && is_func e = false ->
           visitor i DIRECT_JMP_INTRA
-      | DoubleInstr (p, e, _, _, _) when OU.is_cond_jmp p && is_func e = false ->
+      | DoubleInstr (p, e, _, _, _) when OU.is_cond_jmp p && is_func e = false
+        ->
           visitor i COND_JMP_INTRA
       | DoubleInstr (p, e, _, _, _) when OU.is_cond_jmp p && is_func e = true ->
           visitor i COND_JMP_INTER
@@ -1397,7 +1408,8 @@ module Cfg_utils = struct
       match i with
       | DoubleInstr (p, _, _, _, _) when OU.is_push p -> visitor i DOUBLE_WRITE
       (* memory assignment operation *)
-      | TripleInstr (op, e1, _, _, _, _) when OU.is_assign op && is_mem_exp e1 ->
+      | TripleInstr (op, e1, _, _, _, _) when OU.is_assign op && is_mem_exp e1
+        ->
           visitor i TRIPLE_WRITE
       | _ -> i
     in

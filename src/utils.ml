@@ -19,7 +19,7 @@ module Time_Record = struct
     let elapsed_time = end_time -. t in
     let minutes = int_of_float (elapsed_time /. 60.0) in
     let seconds = elapsed_time -. (float_of_int minutes *. 60.0) in
-    Printf.printf ("elapsed time (%s): %dm %.2fs\n") l minutes seconds
+    Printf.printf "elapsed time (%s): %dm %.2fs\n" l minutes seconds
 
   let elapsed t =
     let t1 = Unix.gettimeofday () in
@@ -43,11 +43,15 @@ let dec_hex (s : int) : string = Printf.sprintf "0x%X" s
 let dec_hex_sym (s : int) : string = Printf.sprintf "S_0x%X" s
 let dec_hex_col (s : int) : string = Printf.sprintf "%x:" s
 let dec_hex_col_sym (s : int) : string = Printf.sprintf "S_0x%X:\n" s
-
 let ( let* ) = Option.bind
 let ( let+ ) x f = Option.map f x
-let ( and* ) a b = let* a = a in let* b = b in Some (a, b)
-let ( and+ ) a b = match a, b with Some a, Some b -> Some (a, b) | _ -> None
+
+let ( and* ) a b =
+  let* a = a in
+  let* b = b in
+  Some (a, b)
+
+let ( and+ ) a b = match (a, b) with Some a, Some b -> Some (a, b) | _ -> None
 let ( << ) f g x = f (g x)
 let ( >> ) f g x = g (f x)
 let flip (f : 'a -> 'b -> 'c) (x : 'b) (y : 'a) : 'c = f y x
@@ -89,7 +93,7 @@ let split_by_list (s : string) (pl : int list) =
   in
   help s (-1) pl []
 
-(* this function remove element from list if this element appears more than once*)
+(* this function remove element from list if this element appears more than once *)
 (*d = [x for x in d if d.count(x) == 1]*)
 let remove_over_once (l : 'a list) : 'a list =
   let len = List.length l in
@@ -114,7 +118,8 @@ let contains ~(str : string) ~(sub : string) : bool =
   with Not_found -> false
 
 (* on 32bit system, OCaml's maxinum integer is 0x3fffffff *)
-let string_to_int32 (s : string) : int option = try Some (int_of_string s) with _ -> None
+let string_to_int32 (s : string) : int option =
+  try Some (int_of_string s) with _ -> None
 
 let zip (lst1 : 'a list) (lst2 : 'b list) : ('a * 'b) list =
   let rec aux lst1 lst2 acc =
@@ -126,14 +131,13 @@ let zip (lst1 : 'a list) (lst2 : 'b list) : ('a * 'b) list =
   aux lst1 lst2 []
 
 let rec cat_from (l : string list) (f : int) (s : string) : string =
-  (* for the reason of high efficiency, we don't write it tail-recursively*)
+  (* for the reason of high efficiency, we don't write it tail-recursively *)
   match l with
   | h :: t -> if f == 0 then h ^ s ^ cat_from t 0 s else cat_from t (f - 1) s
   | [] -> ""
 
 let sort_uniq (cmp : 'a -> 'a -> int) (l : 'a list) : 'a list =
-  let rec aux acc l =
-    match l with
+  let rec aux acc = function
     | h1 :: h2 :: t ->
         if cmp h1 h2 = 0 then aux acc (h2 :: t) else aux (h1 :: acc) (h2 :: t)
     | h :: [] -> h :: acc

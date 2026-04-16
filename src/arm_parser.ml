@@ -948,8 +948,7 @@ class arm_parse =
     inherit common_parser
 
     method pp_print l =
-      let rec help l =
-        match l with
+      let rec help = function
         | h :: t ->
             (printf "item: %s") h;
             help t

@@ -10,10 +10,7 @@ let export () =
         let items =
           String.split_on_char ' ' l |> List.filter (fun s -> s <> "")
         in
-        if
-          List.mem "OBJECT" items
-          && not (List.mem "@" items)
-        then
+        if List.mem "OBJECT" items && not (List.mem "@" items) then
           match items with
           | _ :: hex_str :: _ ->
               let v = int_of_string ("0x" ^ hex_str) in

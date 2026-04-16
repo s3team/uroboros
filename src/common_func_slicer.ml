@@ -69,8 +69,8 @@ class virtual common_func_slicer instrs funcs =
           Hashtbl.replace func_set func f'
     (* end *)
 
-    method filter_addr_by_secs (bl : int list) : int list =
-      ignore (Sys.command "python3 init_sec_adjust.py");
+    method filter_init_funcs (bl : int list) : int list =
+      Init_sec_adjust.adjust ();
       let il = read_file "init_sec.info" in
       (* check if its empty *)
       if List.length il = 0 then begin
@@ -97,10 +97,10 @@ class virtual common_func_slicer instrs funcs =
     method build_func_info =
       let module IU = Instr_utils in
       func_begins <- unify_int_list func_begins;
-      func_begins <- self#filter_addr_by_secs func_begins;
+      (* ignore compiler-inserted functions as functions *)
+      func_begins <- self#filter_init_funcs func_begins;
       (*    func_begins <- text_b_addr::func_begins; *)
-      let rec help fbs =
-        match fbs with
+      let rec help = function
         | h1 :: h2 :: t ->
             baddr <- h1;
             eaddr <- h2;

@@ -659,8 +659,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       else aux addrs
 
     method pp_print l =
-      let rec help l =
-        match l with
+      let rec help = function
         | (h1, h2) :: t ->
             (printf "item: (%s,%d) ") h1 h2;
             help t
@@ -681,8 +680,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       List.iter help filelines
 
     method section_offset name addr =
-      let rec help l =
-        match l with
+      let rec help = function
         | h :: t ->
             if h.sec_name = name then addr - h.sec_begin_addr else help t
         | [] -> raise (Reassemble_Error "fail in section offset")
@@ -690,8 +688,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       help sec
 
     method section_addr name =
-      let rec help l =
-        match l with
+      let rec help = function
         | h :: t -> if h.sec_name = name then h.sec_begin_addr else help t
         | [] -> raise (Reassemble_Error "fail in section addr")
       in
@@ -790,8 +787,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       | _ -> None
 
     method pp_print_2 l =
-      let rec help l =
-        match l with
+      let rec help = function
         | (h1, h2) :: t ->
             (printf "item: (%s,%d) ") h1 h2;
             help t
@@ -800,8 +796,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       help l
 
     method pp_print_1 l =
-      let rec help l =
-        match l with
+      let rec help = function
         | h :: t ->
             (printf "item: %s ") h;
             help t
@@ -855,8 +850,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       let p =
         object (sp)
           method process lbs =
-            let rec help loc_list =
-              match loc_list with
+            let rec help = function
               | (n, l) :: t -> begin
                   match n with
                   | ".data" ->
@@ -921,8 +915,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       let p =
         object (sp)
           method process lbs sym_addr2label =
-            let rec help loc_list =
-              match loc_list with
+            let rec help = function
               | (n, l) :: t -> begin
                   match n with
                   | ".data" ->
@@ -941,7 +934,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       help t
                   | ".rodata" ->
                       let off = l - self#section_addr ".rodata" in
-                      let s' = dec_hex_col_sym l and s, d = rodata_array.(off) in
+                      let s' = dec_hex_col_sym l
+                      and s, d = rodata_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
                         | Some _ -> ".p2align 4\n"
@@ -983,7 +977,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                       help t
                   | ".data.rel.ro" ->
                       let off = l - self#section_addr ".data.rel.ro" in
-                      let s' = dec_hex_col_sym l and s, d = data_rel_ro_array.(off) in
+                      let s' = dec_hex_col_sym l
+                      and s, d = data_rel_ro_array.(off) in
                       let alignment =
                         match Hashtbl.find_opt align_locations (n, l) with
                         | Some _ -> ".p2align 4\n"
@@ -1016,7 +1011,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                         match n with
                         | ".got.plt" ->
                             let off = l - self#section_addr ".got.plt" in
-                            let s' = dec_hex_col_sym l and s, d = got_plt_array.(off) in
+                            let s' = dec_hex_col_sym l
+                            and s, d = got_plt_array.(off) in
                             let alignment =
                               match Hashtbl.find_opt align_locations (n, l) with
                               | Some _ -> ".p2align 4\n"
@@ -1240,8 +1236,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         rela_plt_map
       in
       if EU.elf_64 () then got_plt_addr2label <- rela_plt_mapping ();
-      let rec create_plt_handler entries =
-        match entries with
+      let rec create_plt_handler : (string * string) list -> string = function
         | [] -> ""
         | (l, v) :: t ->
             let call_entry =
@@ -1300,7 +1295,8 @@ class instrhandler instr_list des' =
       in
       let instr_list =
         List.sort
-          (fun i1 i2 -> compare (IU.get_loc i1).loc_addr (IU.get_loc i2).loc_addr)
+          (fun i1 i2 ->
+            compare (IU.get_loc i1).loc_addr (IU.get_loc i2).loc_addr)
           instr_list
       in
       help [] instr_list locs
@@ -1309,15 +1305,16 @@ class instrhandler instr_list des' =
       (* return list of instr addrs *)
       let module IU = Instr_utils in
       let rec help acc l =
-        match l with h :: t -> help (IU.get_loc h :: acc) t | [] -> List.rev acc
+        match l with
+        | h :: t -> help (IU.get_loc h :: acc) t
+        | [] -> List.rev acc
       in
       locs <- help [] instr_list;
       locs <-
         List.sort (fun loc1 loc2 -> compare loc1.loc_addr loc2.loc_addr) locs
 
     method pp_print l =
-      let rec help l =
-        match l with
+      let rec help = function
         | (h1, h2) :: t ->
             (printf "item: (%s,%d) ") h1 h2;
             help t
@@ -1326,8 +1323,7 @@ class instrhandler instr_list des' =
       help l
 
     method pp_print1 l =
-      let rec help l =
-        match l with
+      let rec help = function
         (*| h1::t ->  print_string ((string_of_int h1.loc_addr)^"\n"); help t *)
         | h1 :: t ->
             print_string (h1 ^ "\n");
@@ -1337,8 +1333,7 @@ class instrhandler instr_list des' =
       help l
 
     method pp_print2 l =
-      let rec help l =
-        match l with
+      let rec help = function
         | h1 :: t ->
             print_string (string_of_int h1.loc_addr ^ "\n");
             help t
@@ -1460,7 +1455,8 @@ class funchandler instr_list u_funcs' =
       in
       let instr_list =
         List.sort
-          (fun i1 i2 -> compare (IU.get_loc i1).loc_addr (IU.get_loc i2).loc_addr)
+          (fun i1 i2 ->
+            compare (IU.get_loc i1).loc_addr (IU.get_loc i2).loc_addr)
           instr_list
       in
       help [] instr_list locs
@@ -1468,15 +1464,16 @@ class funchandler instr_list u_funcs' =
     method set_instr_list =
       let module IU = Instr_utils in
       let rec help acc l =
-        match l with h :: t -> help (IU.get_loc h :: acc) t | [] -> List.rev acc
+        match l with
+        | h :: t -> help (IU.get_loc h :: acc) t
+        | [] -> List.rev acc
       in
       locs <- help [] instr_list;
       locs <-
         List.sort (fun loc1 loc2 -> compare loc1.loc_addr loc2.loc_addr) locs
 
     method pp_print l =
-      let rec help l =
-        match l with
+      let rec help = function
         | (h1, h2) :: t ->
             (printf "item: (%s,%d) ") h1 h2;
             help t
@@ -1485,8 +1482,7 @@ class funchandler instr_list u_funcs' =
       help l
 
     method process =
-      let rec help dlist =
-        match dlist with
+      let rec help = function
         | d :: t ->
             locs <- self#update_loc locs d;
             help t
@@ -1983,8 +1979,7 @@ class reassemble =
       | _ -> e
 
     method vinst2 (f : instr -> bool) (i : instr) : instr =
-      let is_test op =
-        match op with
+      let is_test = function
         | Intel_OP io -> begin
             match io with
             | Intel_CommonOP (Intel_Compare TEST)
@@ -2460,8 +2455,7 @@ class reassemble =
       List.rev (help [] bbl' instrs)
 
     method pp_print_1 l =
-      let rec help l =
-        match l with
+      let rec help = function
         | h :: t ->
             (printf "item: %s ") h;
             help t

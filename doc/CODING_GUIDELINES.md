@@ -105,3 +105,28 @@ f (g (h x))
 `List.find_opt` instead of `List.find`
 
 `int_of_string_opt` instead of `int_of_string`
+
+## Pattern Matching
+
+Use function shorthand for concise pattern matching whenever possible: 
+```ocaml
+let f = function
+   ...
+```
+instead of 
+```ocaml
+let f x =
+   match x with
+   ...
+```
+
+When matching multiple items, drop the bracket since it is unnecessary noise:
+```ocaml
+match x, y with
+...
+```
+instead of
+```ocaml
+match (x, y) with
+...
+```

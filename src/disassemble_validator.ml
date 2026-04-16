@@ -19,18 +19,17 @@ class stack_of_loc =
 
 class dis_validator =
   (*
-   *  Disassembly validator:
-   *
-   *  three situations would be considered as disassembly errors:
-   *        Invalid opcode
-   *        Direct control transfers outside the current module
-   *        Direct control transfer to the middle of an instruction
-   *
-   *  Recover solution:
-   *    we have to identify the data gap:
-   *      1. beginning addr:   to the closest preceding unconditional control-flow transfer
-   *      1. ending addr:   to the closest indirect control flow transfer target
-   *)
+    Disassembly validator:
+
+    three situations would be considered as disassembly errors:
+          Invalid opcode
+          Direct control transfers outside the current module
+          Direct control transfer to the middle of an instruction
+
+    Recover solution:
+      we have to identify the data gap:
+        1. beginning addr:   to the closest preceding unconditional control-flow transfer
+        1. ending addr:   to the closest indirect control flow transfer target *)
   let icf_stack = new stack_of_loc in
 
   object (self)
@@ -78,17 +77,6 @@ class dis_validator =
         text_mem_arr <- Array.of_list text_mem_addrs
       end
 
-    (*
-    let filelines = read_file "init_sec.info"
-      and help l =
-        let items = Str.split (Str.regexp " +") l in
-        let addr = int_of_string ("0x"^(List.nth items 1))
-        and size = int_of_string ("0x"^(List.nth items 3)) in
-          text_secs <- (addr, size)::text_secs
-        in
-        List.iter help filelines
-*)
-
     method invalid_opcode (i : instr) : bool =
       match i with
       | SingleInstr (p, _, _, _) -> begin
@@ -104,8 +92,7 @@ class dis_validator =
       | _ -> false
 
     method invalid_transfer (i : instr) : bool =
-      let is_cp p =
-        match p with
+      let is_cp = function
         | Intel_OP io -> begin
             match io with
             | Intel_ControlOP ico -> begin
@@ -160,9 +147,9 @@ class dis_validator =
       in
       locs <- List.fold_left help [] il;
       if List.length locs != 0 then (
-        (*print_addrlist locs; *)
+        (* print_addrlist locs; *)
         self#validate il;
-        (*self#trim_results; *)
+        (* self#trim_results; *)
         il)
       else il
 
@@ -186,8 +173,7 @@ class dis_validator =
           let e' =
             match e with Some s -> s | _ -> failwith "error in is_icf"
           in
-          let is_cp p =
-            match p with
+          let is_cp = function
             | Intel_OP io -> begin
                 match io with
                 | Intel_ControlOP ico -> begin
@@ -234,7 +220,7 @@ class dis_validator =
         List.mem il.loc_addr locs
       in
       (* this algorithm leverage a stack to store the unconditional control flow transfer
-       * and use two "pointer" to keep track of the control flow transfer destination *)
+         and use two "pointer" to keep track of the control flow transfer destination *)
       let five_q = Queue.create () in
       let update_cft_track i =
         Queue.add i five_q;
@@ -276,14 +262,13 @@ class dis_validator =
           ())
         else begin
           if is_icd i then (
-            (* found indirect control flow destination, match last error*)
+            (* found indirect control flow destination, match last error *)
             update_cfd index;
             update_cft_track i)
           else begin
             let p = IU.get_op i and e = IU.get_cf_des i in
             if is_call p then (
-              (*this is wired, I don't believe
-        situations like this could happen*)
+              (* this is weird, I don't believe situations like this could happen *)
               print_endline "detect call instruction in disassembly validator";
               update_cfd (index + 1);
               if is_icf p e then (

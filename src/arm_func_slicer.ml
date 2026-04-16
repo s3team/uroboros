@@ -208,7 +208,8 @@ class arm_func_slicer instrs funcs =
                   last_pop <- false;
                   push_lr_added <- true;
                   detected_func_by_addr <- false;
-                  func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
+                  func_begins <-
+                    (IU.get_loc inst |> get_loc_addr) :: func_begins
                 end
                 else ()
               end

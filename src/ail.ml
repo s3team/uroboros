@@ -81,10 +81,9 @@ class ail =
       ignore (Sys.command "cat gcc_exception_table.data >> final.s")
 
     method post_process (f : string) (arch : string) : unit =
-      ignore (Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch));
       ignore (Sys.command ("python3 post_process.py " ^ arch));
       ignore (Sys.command "python3 post_process_lib.py")
-      (* self#ehframe_dump;
+    (* self#ehframe_dump;
          self#excpt_tbl_dump; *)
 
     method pre_process (f : string) (arch : string) : unit =
@@ -101,26 +100,36 @@ class ail =
       let module EU = Elf_utils in
       let module FnU = Func_utils in
       let module TR = Time_Record in
-
       let _ = timed "preprocess" (fun () -> self#pre_process f arch) in
       (* .text section is in instrs.info *)
-      let il, fl, re = timed "disassemble" (fun () -> D.disassemble f funcs secs arch) in
+      let il, fl, re =
+        timed "disassemble" (fun () -> D.disassemble f funcs secs arch)
+      in
 
-      print_endline "3: analysis";
+      print_endline "3: symbolization and instrumentation";
 
-      let fbl, bbl, cfg_t, cg, il', re, ufl = timed "analyze_one" (fun () -> A.analyze_one il fl re arch) in
+      let fbl, bbl, cfg_t, cg, il', re, ufl =
+        timed "analyze_one" (fun () -> A.analyze_one il fl re arch)
+      in
 
       let il', ufl', fch = timed "symbolize" (fun () -> S.apply il' ufl f) in
 
-      let ufl' = if EU.elf_32 () then FnU.merge_func ufl' il' else ufl' in
-      let ufl' = FnU.update_func_end ufl' il' in
-
-      let instrumented_il : instr list =
-        timed "instrument" (fun () -> I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch)
+      (* refine function starts and ends for instrumentation *)
+      let ufl' =
+        ufl'
+        |> (if EU.elf_intel () && EU.elf_32 () then
+              flip FnU.refine_func_begin il'
+            else Fun.id)
+        |> flip FnU.refine_func_end il'
       in
 
-      print_endline "4: post processing";
+      let instrumented_il : instr list =
+        timed "instrument" (fun () ->
+            I.apply ~instrs:il' ~fbl ~bbl ~funcs:ufl' ~fname_callsites:fch)
+      in
+
+      print_endline "4: post processing and reassembly";
       timed "postanalyze" (fun () -> A.post_analyze instrumented_il re arch);
 
-      timed "postprocess" (fun () -> self#post_process f arch);
+      timed "postprocess" (fun () -> self#post_process f arch)
   end

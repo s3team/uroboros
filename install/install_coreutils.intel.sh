@@ -1,6 +1,6 @@
 #!/bin/bash
 
-tar -xf coreutils-9.6.tar.xz
+tar -xf test/coreutils-9.6.tar.xz
 cp -r coreutils-9.6 $(pwd)/coreutils-32bit
 cp -r coreutils-9.6 $(pwd)/coreutils-64bit
 cp -r coreutils-9.6 $(pwd)/coreutils-arm-32bit/

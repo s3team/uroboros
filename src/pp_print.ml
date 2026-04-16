@@ -4,8 +4,7 @@ open Elf_utils
 
 let comment_sym = ref ""
 
-let p_condsuff condsuff =
-  match condsuff with
+let p_condsuff = function
   | None -> ""
   | Some cs ->
       show_arm_condsuff cs
@@ -231,26 +230,22 @@ and p_five p e1 e2 e3 e4 =
 and p_location l = l.loc_label
 and p_addr l = "0x" ^ Printf.sprintf "%X: " l.loc_addr
 
-and p_prefix pre =
-  match pre with
+and p_prefix = function
   | Some LOCK -> " lock "
   | Some ADDR32 -> " addr32 "
   | Some BND -> " bnd "
   | None -> ""
 
-let get_loc i =
-  match i with
+let get_loc = function
   | SingleInstr (_, l, _, _) -> l
   | DoubleInstr (_, _, l, _, _) -> l
   | TripleInstr (_, _, _, l, _, _) -> l
   | FourInstr (_, _, _, _, l, _, _) -> l
   | FifInstr (_, _, _, _, _, l, _, _) -> l
 
-let p_tag instr_tag =
-  let hex_str num = Printf.sprintf "0x%x" num in
-  match instr_tag with
+let p_tag = function
   | Some Del -> "del"
-  | Some (Sym value) -> "sym#" ^ hex_str value
+  | Some (Sym value) -> "sym#" ^ dec_hex value
   | None -> "none"
 
 let pp_print_instr i =

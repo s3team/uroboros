@@ -58,8 +58,7 @@ class cg =
       List.iter help funcs
 
     method func_info l =
-      let rec help funcs =
-        match funcs with
+      let rec help = function
         | h :: [] -> begin
             if l.loc_addr >= h.func_begin_addr && l.loc_addr < h.func_end_addr
             then h

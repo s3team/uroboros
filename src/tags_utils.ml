@@ -2,8 +2,7 @@ open Type
 open Printf
 open Pp_print
 
-let get_tags (i : instr) : (string, tags_val) Hashtbl.t =
-  match i with
+let get_tags : instr -> (string, tags_val) Hashtbl.t = function
   | SingleInstr (_, _, _, tags) -> tags
   | DoubleInstr (_, _, _, _, tags) -> tags
   | TripleInstr (_, _, _, _, _, tags) -> tags

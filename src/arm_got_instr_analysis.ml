@@ -448,7 +448,7 @@ module ArmGotAbsWithValues : DfaAbs = struct
             let print_reg_values () =
               let _ = Printf.printf "%s\n" (pp_print_instr' i) in
               let _ = Printf.printf "src1: %s, src2: %s\n" src1_name src2_name in
-              match (src1_value, src2_value) with
+              match src1_value, src2_value with
               | (Some src1_val, Some src2_val) ->
                 Printf.printf "src1: %x, src2: %x\n\n" src1_val src2_val
               | (Some src1_val, None) -> Printf.printf "src1: %x\n\n" src1_val

@@ -33,9 +33,6 @@ module Disam = struct
     ignore
       (Sys.command
          ("cat " ^ f ^ ".disassemble | grep \"^ \" | cut -f1,3 > instrs.info"));
-
-    ignore (Sys.command "python3 filter_nop.py");
-
     ignore (Sys.command "cut -f 1 instrs.info > text_mem.info");
     ()
 
@@ -80,23 +77,27 @@ module Disam = struct
 
       let instr_list = read_file "instrs.info" in
       (* remove_literal_pools is here *)
-      timed "disassemble:process_instrs" (fun () -> ail_parser#process_instrs instr_list arch);
-      timed "disassemble:instr_addrs_collect" (fun () -> re#instr_addrs_collect ail_parser#get_instrs);
+      timed "disassemble:process_instrs" (fun () ->
+          ail_parser#process_instrs instr_list arch);
+      timed "disassemble:instr_addrs_collect" (fun () ->
+          re#instr_addrs_collect ail_parser#get_instrs);
 
       (* func_slicing *)
-      let fl = timed "disassemble:get_funcs" (fun () -> ail_parser#get_funcs) in
       print_endline "2: disassembly validates";
 
       let il_init =
         if EU.elf_32 () && arch = "intel" then
-          IL.adjust_esp ail_parser#get_instrs
+          IL.track_stack_var_fact ail_parser#get_instrs
         else ail_parser#get_instrs
       in
 
       let fl =
+        timed "disassemble:get_funcs" (fun () -> ail_parser#get_funcs)
+        |>
         if EU.elf_64 () && EU.elf_arm () then
-          FnU.fix_fl_underapprox il_init fl
-        else fl
+          timed "disassemble:refine_func_boundary_by_cf" (fun () ->
+              FnU.refine_func_boundary_by_cf il_init)
+        else Fun.id
       in
 
       (*
@@ -106,7 +107,6 @@ module Disam = struct
             f.func_name f.func_begin_addr f.func_end_addr)
         fl;
       *)
-
       let rewrite (il : instr list) =
         if EU.elf_32 () && arch = "intel" then
           let func2cfg = FnU.func2cfg il fl in
@@ -156,7 +156,9 @@ module Disam = struct
         if arch = "thumb" then AP.adjust_thumb_function_pointer ilist else ilist
       in
 
-      let rewriting_result = timed "disassemble:dfa" (fun () -> rewrite il_init) in
+      let rewriting_result =
+        timed "disassemble:dfa" (fun () -> rewrite il_init)
+      in
 
       il :=
         (if EU.elf_32 () && arch = "intel" then

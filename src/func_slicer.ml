@@ -240,8 +240,7 @@ class func_slicer instrs funcs =
             | _ -> failwith "didn't support in call_des")
         | _ -> failwith "didn't support in call_des"
       in
-      let is_cet_begin op =
-        match op with
+      let is_cet_begin = function
         | Intel_OP (Intel_CommonOP (Intel_Other other_op)) -> (
             match other_op with ENDBR32 | ENDBR64 -> true | _ -> false)
         | _ -> false

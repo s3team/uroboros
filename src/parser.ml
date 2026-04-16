@@ -987,8 +987,7 @@ let eiz_symb = function s ->
     val mutable sec_list : section list = [] *)
 
     method pp_print l =
-      let rec help l =
-        match l with
+      let rec help = function
         | h :: t ->
             (printf "item: %s") h;
             help t

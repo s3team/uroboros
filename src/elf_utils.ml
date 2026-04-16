@@ -36,6 +36,8 @@ let elf_arm () =
   (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
   contains ~str:l ~sub:"ARM"
 
+let elf_intel () = not (elf_arm ())
+
 let global_bss () =
   let filelines = read_file "globalbss.info"
   and help acc l =

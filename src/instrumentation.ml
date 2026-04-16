@@ -53,6 +53,7 @@ let load_plugin (f : string) : unit =
 
 let do_instrumentation : bool ref = ref false
 let points_f1 : point_f1 list ref = ref []
+
 (* to group points that target the same address into the same list *)
 let points_f1' : point_f1 list list ref = ref []
 let points_f2 : point_f2 list ref = ref []
@@ -1778,7 +1779,8 @@ let instrument_at_instr (instr : instr) (p_list : point_f1 list) : instr list =
             let add_seq' =
               List.mapi
                 (fun i asi ->
-                  if i = add_seq_len - 1 then IU.update_label asi ih_lab else asi)
+                  if i = add_seq_len - 1 then IU.update_label asi ih_lab
+                  else asi)
                 add_seq
             in
             include_instr := false;

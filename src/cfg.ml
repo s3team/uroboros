@@ -51,8 +51,7 @@ class cfg =
       | _ -> ()
 
     method vinst' (i : instr) =
-      let is_ct op =
-        match op with
+      let is_ct = function
         | Intel_OP io -> begin
             match io with
             | Intel_ControlOP ico -> begin

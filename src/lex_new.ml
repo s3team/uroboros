@@ -11,8 +11,7 @@ type lexeme = Lop of string | Lexp of string | Lloc of string | Lend
 exception LexerError
 
 let pp_print l =
-  let rec help l =
-    match l with
+  let rec help = function
     | h :: t ->
         (printf "item: %s") h;
         help t
@@ -180,8 +179,7 @@ let lexer' instr' location' (arch : string) =
     assist_exp op_str (List.nth tokens 1) (cat_from tokens 2 " ") location
   else do_exp (cat_from tokens 1 " ") op_str location arch
 
-let p_print lexme =
-  match lexme with
+let p_print : lexeme -> unit = function
   | Lend -> print_string " (End)\n"
   | Lop s -> print_string (" (Op " ^ s ^ ")")
   | Lexp s -> print_string (" (Exp " ^ s ^ ")")

@@ -9,9 +9,7 @@ let create (section_name : string) : unit =
           let items =
             String.split_on_char ' ' l |> List.filter (fun s -> s <> "")
           in
-          match items with
-          | _ :: _ :: _ :: sz :: _ -> Some sz
-          | _ -> None
+          match items with _ :: _ :: _ :: sz :: _ -> Some sz | _ -> None
         else None)
       lines
   in

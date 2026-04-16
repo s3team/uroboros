@@ -18,10 +18,6 @@ class ailParser =
     Hashtbl.find_opt addr_hexcode_map loc.loc_addr |> Option.value ~default:""
   in
 
-  let check_if_common_reg (e : exp) : bool =
-    match e with Reg (Arm_Reg (Arm_CommonReg _)) -> true | _ -> false
-  in
-
   let is_movs (op : op) : bool =
     match op with
     | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _) -> true
@@ -34,10 +30,6 @@ class ailParser =
     | _ -> false
   in
 
-  let is_control_op (op : op) : bool =
-    match op with Arm_OP (Arm_ControlOP _, _, _) -> true | _ -> false
-  in
-
   let is_movs_r0_r0 (i : instr) : bool =
     match i with
     | TripleInstr (op, exp1, exp2, _, _, _)
@@ -48,13 +40,9 @@ class ailParser =
     | _ -> false
   in
 
-  let is_pop arm_stackop =
-    match arm_stackop with POP | VPOP | LDMIA -> true | _ -> false
-  in
+  let is_pop = function POP | VPOP | LDMIA -> true | _ -> false in
 
-  let is_push arm_stackop =
-    match arm_stackop with PUSH | VPUSH | STMDB -> true | _ -> false
-  in
+  let is_push = function PUSH | VPUSH | STMDB -> true | _ -> false in
 
   let has_r2_reg (i : instr) =
     let module IU = Instr_utils in
@@ -88,26 +76,10 @@ class ailParser =
     | _ -> false
   in
 
-  let is_exp_lr_reg (i : instr) =
-    let module IU = Instr_utils in
-    let exp = IU.get_exp_1 i in
-    match exp with Reg (Arm_Reg (Arm_LinkReg LR)) -> true | _ -> false
-  in
-
-  let is_movs (op : op) : bool =
-    match op with
-    | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _) -> true
-    | _ -> false
-  in
-
   let is_mov (op : op) : bool =
     match op with
     | Arm_OP (Arm_CommonOP (Arm_Assign MOV), _, _) -> true
     | _ -> false
-  in
-
-  let is_simple_branch (op : op) : bool =
-    match op with Arm_OP (Arm_ControlOP B, _, _) -> true | _ -> false
   in
 
   let check_if_common_reg (e : exp) : bool =
@@ -187,19 +159,6 @@ class ailParser =
         match exp with Reg (Arm_Reg (Arm_LinkReg LR)) -> true | _ -> false
       end
     | _ -> false
-  in
-
-  let collect_branch_targets (instrs : instr list) =
-    let module IU = Instr_utils in
-    List.fold_left
-      (fun acc i ->
-        match IU.get_op i with
-        | Arm_OP (Arm_ControlOP aco, _, _) -> begin
-            let exp = IU.get_exp_1 i in
-            match exp with Symbol (JumpDes j) -> j :: acc | _ -> acc
-          end
-        | _ -> acc)
-      [] instrs
   in
 
   object (self)
@@ -646,7 +605,8 @@ class ailParser =
                     | Arm_OP (Arm_CommonOP (Arm_Assign MOV), _, _)
                     | Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _)
                       when check_if_common_reg (IU.get_exp_1 nn_instr)
-                           && check_if_common_reg (IU.get_exp_2 nn_instr) -> begin
+                           && check_if_common_reg (IU.get_exp_2 nn_instr) ->
+                      begin
                         (* keep the blx instruction *)
                         aux (instr :: acc) true nop_detected false (idx + 1) t
                       end
@@ -736,8 +696,8 @@ class ailParser =
             end
             else begin
               match IU.get_op instr with
-              | Arm_OP (Arm_ControlOP B, None, _) when is_nop (IU.get_op n_instr)
-                ->
+              | Arm_OP (Arm_ControlOP B, None, _)
+                when is_nop (IU.get_op n_instr) ->
                   (* keep the nop instruction to prevent the "undefined reference" issue *)
                   aux (n_instr :: instr :: acc) [] true (idx + 2) t
               | Arm_OP (Arm_ControlOP B, None, _) ->
@@ -1152,8 +1112,7 @@ class ailParser =
 
     method process_instrs (l : string list) (arch : string) =
       let module EU = Elf_utils in
-      let cat_tail s =
-        match s with
+      let cat_tail = function
         | [] -> "" (* this will never happen*)
         | h :: t -> String.trim (String.concat ":" t)
       in
@@ -1249,7 +1208,7 @@ class ailParser =
         else instrs <- p#parse_instr instr loc arch :: instrs
       in
       List.iter help l';
-      if arch = "arm" || arch = "thumb" then begin
+      if (arch = "arm" && EU.elf_32 ()) || arch = "thumb" then begin
         self#build_address_hex_map ();
         if EU.elf_32 () then self#remove_literal_pools instrs;
         instrs <- self#adjust_width_specifier instrs
