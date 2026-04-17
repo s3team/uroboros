@@ -1,3 +1,4 @@
 INSERTCALL BEFORE [printf] CALLSITE [] "aarch64-linux-gnu-gcc -no-pie -c ./instr_modules/c/fun.c" C print_args ./instr_modules/c/fun.c;
 INSERTCALL BEFORE [printf] CALLSITE [int:A] "aarch64-linux-gnu-gcc -no-pie -c ./instr_modules/c/fun.c" C print_int ./instr_modules/c/fun.c;
 INSERTCALL BEFORE [puts] CALLSITE [char*:X] "aarch64-linux-gnu-gcc -no-pie -c ./instr_modules/c/fun.c" C print_string ./instr_modules/c/fun.c;
+INSERT AFTER [main] FUNENTRY [] "aarch64-linux-gnu-gcc -no-pie -c ./instr_modules/c/print_filename.c" C print_filename ./instr_modules/c/print_filename.c; # print the filename at the beginning of main

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 read -r -d '' expected_test00 <<'EOF'
+filename: a.out
 passed int: 10
 ^passed: %d
  10^
@@ -10,6 +11,7 @@ hello world
 EOF
 
 read -r -d '' expected_test05 <<'EOF'
+filename: a.out
 before call to print_info
 called 1 times
 name: Jinquan Zhang
@@ -19,6 +21,7 @@ called 2 times
 EOF
 
 read -r -d '' expected_test07 <<'EOF'
+filename: a.out
 int arg: 10
 int arg: 3628800
 char* arg: %d
@@ -27,6 +30,7 @@ char* arg: %d
 EOF
 
 read -r -d '' expected_simul_io <<'EOF'
+filename: a.out
 Cycle: 0
 analogWrite called.
 Cycle: 1

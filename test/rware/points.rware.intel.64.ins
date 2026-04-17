@@ -4,3 +4,4 @@ INSERT BEFORE [getrandom] CALLSITE [] "gcc -no-pie -c ./instr_modules/c/fun.c" C
 INSERT BEFORE [getrandom] CALLSITE [] "" ASM x "push $rdi
 push $rsi
 mov $rsi, $rdi";
+INSERT AFTER [main] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/print_filename.c" C print_filename ./instr_modules/c/print_filename.c; # print the filename at the beginning of main

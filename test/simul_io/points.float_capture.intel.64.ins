@@ -1,1 +1,2 @@
 INSERT BEFORE [analogWrite] CALLSITE [] "gcc -no-pie -c ./capture.c" C capture_analogWrite_unused ./capture.c;
+INSERT AFTER [main] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/print_filename.c" C print_filename ./instr_modules/c/print_filename.c; # print the filename at the beginning of main

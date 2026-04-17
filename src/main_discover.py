@@ -47,6 +47,35 @@ def check_main_symbol():
     return "not stripped" in lines[0]
 
 
+def follow_jmp_thunk(disasm_lines: list, main_symbol: str) -> str:
+    """
+    If main_symbol is a single-jmp thunk (e.g. __wrap_main),
+    resolve to the real main.
+    """
+    try:
+        target = int(main_symbol.lstrip("$"), 16)
+    except ValueError:
+        return main_symbol
+    for line in disasm_lines:
+        addr, _, tail = line.partition(":")
+        if not tail:
+            continue
+        try:
+            if int(addr.strip(), 16) != target:
+                continue
+        except ValueError:
+            continue
+        if "\tjmp" not in tail and " jmp " not in tail:
+            break
+        for tok in reversed(tail.split()):
+            try:
+                return hex(int(tok, 16))
+            except ValueError:
+                continue
+        break
+    return main_symbol
+
+
 def check_thumb_mode(arch: str, entry_point: int) -> bool:
     return arch == "thumb"
 
@@ -300,6 +329,9 @@ def main(fn: str, arch: str) -> int:
 
         if os.path.exists("main.info"):
             os.system("rm main.info")
+
+        if arch == "intel":
+            main_symbol = follow_jmp_thunk(lines, main_symbol)
 
         if "0x" in main_symbol:
             main_symbol = main_symbol.split("0x")[1]

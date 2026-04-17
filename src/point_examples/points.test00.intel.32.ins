@@ -1,3 +1,4 @@
 INSERTCALL BEFORE [printf] CALLSITE [] "gcc -c ./instr_modules/c/fun.c -m32" C print_args ./instr_modules/c/fun.c; # insert a call to print_args (defined in fun.c) using arguments already assigned in code before call to printf
 INSERTCALL BEFORE [printf] CALLSITE [int:A] "gcc -c ./instr_modules/c/fun.c -m32" C print_int ./instr_modules/c/fun.c; # insert a call to print_int (defined in fun.c) with argument A (defined in the binary) before call to printf
 INSERTCALL BEFORE [puts] CALLSITE [char*:X] "gcc -c ./instr_modules/c/fun.c -m32" C print_string ./instr_modules/c/fun.c; # insert a call to print_string (defined in fun.c) with argument X (defined in the binary) before call to puts
+INSERT AFTER [main] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/print_filename.c -m32" C print_filename ./instr_modules/c/print_filename.c; # print the filename at the beginning of main

@@ -9,3 +9,4 @@ INSERT BEFORE [print_info] FUNEXIT [] "" asm x
 "mov r1, 0
 mov r1, 0
 mov r1, 0";
+INSERT AFTER [main] FUNENTRY [] "arm-linux-gnueabihf-gcc -no-pie -c ./instr_modules/c/print_filename.c" C print_filename ./instr_modules/c/print_filename.c; # print the filename at the beginning of main

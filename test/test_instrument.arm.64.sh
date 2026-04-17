@@ -1,6 +1,7 @@
 #!/bin/bash
 
 read -r -d '' expected_test00 <<'EOF'
+filename: a.out
 passed int: 10
 ^passed: %d
  10^
@@ -10,6 +11,7 @@ hello world
 EOF
 
 read -r -d '' expected_test05 <<'EOF'
+filename: a.out
 before call to print_info
 called 1 times
 name: Jinquan Zhang
@@ -19,6 +21,7 @@ called 2 times
 EOF
 
 read -r -d '' expected_test07 <<'EOF'
+filename: a.out
 int arg: 10
 int arg: 3628800
 char* arg: %d
@@ -27,6 +30,7 @@ char* arg: %d
 EOF
 
 read -r -d '' expected_simul_io <<'EOF'
+filename: a.out
 Cycle: 0
 analogWrite called.
 Cycle: 1
@@ -40,6 +44,7 @@ analogWrite called.
 EOF
 
 read -r -d '' expected_rware_64 <<'EOF'
+filename: a.out
 passed int: 24
 passed int: 16
 passed int: 16
@@ -50,28 +55,48 @@ passed int: 16
 EOF
 
 read -r -d '' expected_unrware_64 <<'EOF'
+filename: a.out
 called 1 times
 called 2 times
 called 3 times
 EOF
 
 read -r -d '' expected_genecdh_64 <<'EOF'
+filename: a.out
 passed int: 24
 EOF
 
 read -r -d '' expected_genecdh_base <<'EOF'
+filename: a.out
 Pass command: genkey|shared
 EOF
 
 read -r -d '' expected_rware_base <<'EOF'
+filename: a.out
 Provide path!
 Usage: ./rware <path>
 EOF
 
 read -r -d '' expected_unrware_base <<'EOF'
+filename: a.out
 Provide info file and unlock key!
 Usage: ./unrware <info-file> <unlock-key>
 EOF
+
+read -r -d '' expected_genecdh_base_static <<'EOF'
+Pass command: genkey|shared
+EOF
+
+read -r -d '' expected_rware_base_static <<'EOF'
+Provide path!
+Usage: ./rware <path>
+EOF
+
+read -r -d '' expected_unrware_base_static <<'EOF'
+Provide info file and unlock key!
+Usage: ./unrware <info-file> <unlock-key>
+EOF
+
 has_failed="false"
 src_dir=$(pwd)/src
 rware_dir=$(pwd)/test/rware
@@ -240,7 +265,7 @@ check_all_encrypted "rware.arm.64"
 check_base_usage "rware.arm.64" "$expected_rware_base"
 
 ## unrware
-TEST_GREP="called" run_test "arm64 unrware" \
+TEST_GREP="called\|filename" run_test "arm64 unrware" \
   ${rware_dir}/points.unrware.arm.64.ins \
   "${rware_dir}/build/unrware_sym" "$expected_unrware_64" \
   info.enc ${rware_dir}/keys
@@ -275,7 +300,7 @@ python3 uroboros.py "${rware_dir}/build/rware_sym" --arch arm &> /dev/null
 $QEMU $(pwd)/a.out ${rware_dir}/hello &> /dev/null
 popd
 check_all_encrypted "rware.arm.static.64"
-check_base_usage "rware.arm.static.64" "$expected_rware_base"
+check_base_usage "rware.arm.static.64" "$expected_rware_base_static"
 
 ## unrware (static)
 echo ">>> arm64 unrware (statically-linked)"
@@ -285,7 +310,7 @@ $QEMU $(pwd)/a.out info.enc ${rware_dir}/keys &> /dev/null
 rm info.enc
 popd
 check_all_decrypted "unrware.arm.static.64"
-check_base_usage "unrware.arm.static.64" "$expected_unrware_base"
+check_base_usage "unrware.arm.static.64" "$expected_unrware_base_static"
 
 in_dir "$rware_dir" make clean
 
@@ -298,7 +323,7 @@ python3 uroboros.py "${rware_dir}/build/genecdh_sym" --arch arm &> /dev/null
 $QEMU $(pwd)/a.out genkey &> /dev/null
 popd
 check_genecdh_files "genecdh.arm.static.64"
-check_base_usage "genecdh.arm.static.64" "$expected_genecdh_base"
+check_base_usage "genecdh.arm.static.64" "$expected_genecdh_base_static"
 
 in_dir "$rware_dir" make clean
 

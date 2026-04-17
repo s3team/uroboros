@@ -393,6 +393,134 @@ module GotAbs : DfaAbs = struct
             loc,
             prefix,
             tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+          other,
+          Ptr (BinOP_PLUS (reg, const)),
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr + const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+            other,
+            Const (Point got_plus_offset),
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+          other,
+          Ptr (BinOP_MINUS (reg, const)),
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr - const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+            other,
+            Const (Point got_plus_offset),
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+          Ptr (BinOP_PLUS (reg, const)),
+          other,
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr + const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+            Const (Point got_plus_offset),
+            other,
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+          Ptr (BinOP_MINUS (reg, const)),
+          other,
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr - const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Compare CMPXCHG)),
+            Const (Point got_plus_offset),
+            other,
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+          other,
+          Ptr (BinOP_PLUS (reg, const)),
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr + const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+            other,
+            Const (Point got_plus_offset),
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+          other,
+          Ptr (BinOP_MINUS (reg, const)),
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr - const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+            other,
+            Const (Point got_plus_offset),
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+          Ptr (BinOP_PLUS (reg, const)),
+          other,
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr + const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+            Const (Point got_plus_offset),
+            other,
+            loc,
+            prefix,
+            tags )
+    | TripleInstr
+        ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+          Ptr (BinOP_MINUS (reg, const)),
+          other,
+          loc,
+          prefix,
+          tags )
+      when ExpSet.mem (Reg reg) ins ->
+        let got_plus_offset = got_addr - const in
+        TripleInstr
+          ( Intel_OP (Intel_CommonOP (Intel_Assign XCHG)),
+            Const (Point got_plus_offset),
+            other,
+            loc,
+            prefix,
+            tags )
     | _ -> i
 
   let process_instr (i : instr) (ins : ExpSet.t) : unit =

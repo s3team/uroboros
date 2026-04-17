@@ -59,7 +59,8 @@ def get_custom_objects(cleanup):
     )
     result = result.stdout.strip().split("\n") if result.stdout else []
     if cleanup or not os.path.exists("points.ins"):
-        return list(set(result))
+        # dict.fromkeys ensure deterministic object linking order
+        return list(dict.fromkeys(result))
     with open("points.ins") as points:
         p = points.readlines()
         for line in p:
@@ -68,7 +69,8 @@ def get_custom_objects(cleanup):
             line_nocmd = line.split('"')[0]
             libs = [os.path.basename(l) for l in line_nocmd[8:].split() if l]
             result.extend(libs)
-    return list(set(result))
+    # dict.fromkey sensure deterministic object linking order
+    return list(dict.fromkeys(result))
 
 
 def reassemble(assembly_file, arch):
@@ -95,7 +97,7 @@ def reassemble(assembly_file, arch):
             compile_option += "-march=armv9-a "
 
     if is_static() == True:
-        compile_option += "-static"
+        compile_option += "-static "
 
     for obj in custom_objects:
         print(f"custom_object: {obj}")
