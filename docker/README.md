@@ -15,7 +15,7 @@ docker build --build-arg UBUNTU_VERSION=24.04 -f ./docker/Dockerfile.intel -t ur
 
 ## Docker usage
 
-run the Docker container with `docker run`.
+Run the Docker container with `docker run`.
 
 ```shell
 docker run -it -v <path to uroboros project directory>:/usr/src uroboros_intel bash

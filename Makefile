@@ -11,13 +11,13 @@ intel.coreutils:
 	test/test_coreutils.sh 2>&1 | tee test.intel.coreutils
 
 arm.thumb:
-	test/test_all.py -a -c --arch arm || true
+	test/test_all.py -a -c --arch arm -m thumb || true
 	test/test_instrument.arm.thumb.sh 2>&1 | tee test.arm.thumb.instrument || true
 	rm $(CURDIR)/src/fun.o || true
 	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 
 arm.64:
-	test/test_all.py -a -c --arch arm || true
+	test/test_all.py -a -c --arch arm -m 64 || true
 	test/test_instrument.arm.64.sh 2>&1 | tee test.arm.64.instrument || true
 	rm $(CURDIR)/src/fun.o || true
 	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +

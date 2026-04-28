@@ -918,12 +918,13 @@ class ailParser =
             match IU.get_op i with
             | Arm_OP (Arm_SystemOP PLDW, _, _) -> true
             | Arm_OP (Arm_CommonOP (Arm_Arithm VHADD), _, _) -> true
-            (* vaddl decodes from literal pool data in Thumb binaries:
-               it appears after bl/b instructions before .ltorg, always
-               followed by the lsls r0,r1,#1 / movs r0,r0 marker pattern *)
-            | Arm_OP (Arm_CommonOP (Arm_Arithm VADDL), _, _) -> true
-            (* The pc register is not allowed with CMP *)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm VADDL), _, _) ->
+                (* vaddl decodes from literal pool data in Thumb binaries:
+              it appears after bl/b instructions before .ltorg, always
+              followed by the lsls r0,r1,#1 / movs r0,r0 marker pattern *)
+                true
             | Arm_OP (Arm_CommonOP (Arm_Compare CMP), _, _) ->
+                (* The pc register is not allowed with CMP *)
                 begin match i with
                 | TripleInstr (_, e1, e2, _, _, _) -> has_pc e1 || has_pc e2
                 | _ -> false
@@ -933,14 +934,14 @@ class ailParser =
             | Arm_OP (Arm_SystemOP SETPAN, _, _) -> true
             | Arm_OP (Arm_ControlOP BXNS, _, _) -> true
             | Arm_OP (Arm_ControlOP BLXNS, _, _) -> true
-            (* STR with PC as the source register is UNPREDICTABLE *)
             | Arm_OP (Arm_CommonOP (Arm_Assign STR), _, _) ->
+                (* STR with PC as the source register is UNPREDICTABLE *)
                 begin match i with
                 | TripleInstr (_, _, e2, _, _, _) -> has_pc e2
                 | _ -> false
                 end
-            (* SDIV with PC as any operand is UNPREDICTABLE *)
             | Arm_OP (Arm_CommonOP (Arm_Arithm SDIV), _, _) ->
+                (* SDIV with PC as any operand is UNPREDICTABLE *)
                 begin match i with
                 | FourInstr (_, e1, e2, e3, _, _, _) ->
                     has_pc e1 || has_pc e2 || has_pc e3
@@ -968,18 +969,24 @@ class ailParser =
                     end
                 | _ -> false
                 end
-            (* LDM with both LR+PC, SP in the load list, or empty list, is UNPREDICTABLE *)
             | Arm_OP (Arm_StackOP LDMIA, _, _)
             | Arm_OP (Arm_CommonOP (Arm_Assign LDMIA), _, _) ->
+                (* LDMIA with both LR+PC, SP in the load list, or empty list, is UNPREDICTABLE *)
                 begin match i with
-                | TripleInstr (_, e1, _, _, _, _) -> (
+                | TripleInstr (_, e1, e2, _, _, _) -> begin
                     (reg_list_has "lr" e1 && reg_list_has "pc" e1)
                     || reg_list_has "sp" e1
-                    || match e1 with Label s -> s = "{}" | _ -> false)
+                    || (match e1 with Label s -> s = "{}" | _ -> false)
+                    ||
+                    match e2 with
+                    | Ptr (WB (Arm_CommonReg r)) ->
+                        reg_list_has (show_arm_reg (Arm_CommonReg r)) e1
+                    | _ -> false
+                  end
                 | _ -> false
                 end
-            (* STM with PC in the register list, empty list, or base reg in list with writeback, is UNPREDICTABLE *)
             | Arm_OP (Arm_CommonOP (Arm_Assign STMIA), _, _) ->
+                (* STMIA with PC in the register list, or empty list, is UNPREDICTABLE *)
                 begin match i with
                 | TripleInstr (_, e1, e2, _, _, _) -> (
                     reg_list_has "pc" e1
@@ -998,8 +1005,18 @@ class ailParser =
                     ||
                     match e2 with
                     | Ptr (WB (Arm_CommonReg r)) ->
+                        (* Detect a pattern where only base registers are used *)
                         reg_list_has (show_arm_reg (Arm_CommonReg r)) e1
                     | _ -> false)
+                | _ -> false
+                end
+            | Arm_OP (Arm_StackOP PUSH, _, _) | Arm_OP (Arm_StackOP POP, _, _)
+              ->
+                (* Empty push or pop *)
+                begin match i with
+                | DoubleInstr (_, e1, _, _, _) ->
+                    begin match e1 with Label s -> s = "{}" | _ -> false
+                    end
                 | _ -> false
                 end
             | _ -> false
@@ -1150,6 +1167,11 @@ class ailParser =
                   | Arm_OP (_, Some _, _) -> true
                   | _ -> false
                 in
+                let has_und_condsuff (instr : instr) : bool =
+                  match IU.get_op instr with
+                  | Arm_OP (_, Some UND, _) -> true
+                  | _ -> false
+                in
                 let rec count_condsuff count n =
                   match n with
                   | 0 -> count
@@ -1160,8 +1182,21 @@ class ailParser =
                       else count_condsuff count (n - 1)
                     end
                 in
+                let rec has_und_in_sequence n =
+                  match n with
+                  | 0 -> false
+                  | _ ->
+                      let target_instr = List.nth ordered_il (idx + n) in
+                      has_und_condsuff target_instr
+                      || has_und_in_sequence (n - 1)
+                in
                 let cond_count = count_condsuff 0 it_cond_length in
-                if cond_count < it_cond_length then
+                let und_in_block = has_und_in_sequence it_cond_length in
+                if und_in_block then
+                  (* UND condition means the else-branch of AL — literal pool data.
+                   Remove IT and all instructions in the block. *)
+                  aux acc it_cond_length (idx + 1) t
+                else if cond_count < it_cond_length then
                   (* Remove only IT instructions, and keep the sequences *)
                   aux acc 0 (idx + 1) t
                 else aux (instr :: acc) 0 (idx + 1) t

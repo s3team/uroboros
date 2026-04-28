@@ -229,7 +229,7 @@ def uroboros_all(targets: list, args):
         for arch in arches:
             for pie in pies:
                 for static in statics:
-                    if isa == "arm" and arch != "64" and static is True:
+                    if isa == "arm" and (arch != "64" and arch != "thumb") and static is True:
                         logger.warning(
                             f"Static linking is not supported for ARM thumb or ARM 32 architecture"
                         )

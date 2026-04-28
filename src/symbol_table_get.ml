@@ -226,6 +226,21 @@ let apply (il : instr list) (ufunc : func list) (f : string) :
   let fname2css = Hashtbl.create 100 in
   (* function name to callsites list *)
   let sym_addr2label : (int, string * string) Hashtbl.t = parse_nm () in
+  (* Pre-pass: find addresses where a symbol label was already applied by add_func_label.
+   When ldr [pc,#N] is split into movw+movt for ARM Thumb, both share the same loc_addr.
+   Without this guard, add_existing_symbols would append the symbol name to the
+   movt instruction as well, producing duplicate function labels in final.s. *)
+  let sym_already_applied : (int, unit) Hashtbl.t = Hashtbl.create 100 in
+  List.iter
+    (fun i ->
+      let i_loc = IU.get_loc i in
+      let i_addr = i_loc.loc_addr in
+      let i_label = i_loc.loc_label in
+      match Hashtbl.find_opt sym_addr2label i_addr with
+      | Some (sym_name, _) when contains ~str:i_label ~sub:sym_name ->
+          Hashtbl.replace sym_already_applied i_addr ()
+      | _ -> ())
+    il;
   let rec add_existing_symbols il acc =
     match il with
     | [] -> List.rev acc
@@ -236,11 +251,15 @@ let apply (il : instr list) (ufunc : func list) (f : string) :
           let i_label = i_loc.loc_label in
           match Hashtbl.find_opt sym_addr2label i_addr with
           | Some (sym_name, sym_type) ->
-              (* avoid multiple labels that are the same *)
-              if contains ~str:i_label ~sub:sym_name then i
-              else
+              if Hashtbl.mem sym_already_applied i_addr then i
+              else if contains ~str:i_label ~sub:sym_name then begin
+                Hashtbl.replace sym_already_applied i_addr ();
+                i
+              end else begin
+                Hashtbl.replace sym_already_applied i_addr ();
                 update_loc i
                   { i_loc with loc_label = i_label ^ sym_name ^ ":\n" }
+              end
           | None -> i
         in
         match i' with

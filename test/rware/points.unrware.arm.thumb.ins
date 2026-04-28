@@ -1,0 +1,2 @@
+INSERT BEFORE [rename] CALLSITE [] "arm-linux-gnueabihf-gcc -mthumb -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;
+INSERT AFTER [main] FUNENTRY [] "arm-linux-gnueabihf-gcc -mthumb -no-pie -c ./instr_modules/c/print_filename.c" C print_filename ./instr_modules/c/print_filename.c; # print the filename at the beginning of main

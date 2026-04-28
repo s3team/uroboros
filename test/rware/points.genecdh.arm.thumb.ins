@@ -1,0 +1,9 @@
+INSERT BEFORE [getrandom] CALLSITE [] "" ASM x "ldr r0, [sp, 0]
+ldr r1, [sp, 4]
+add sp, sp, 8";
+INSERT BEFORE [getrandom] CALLSITE [] "arm-linux-gnueabihf-gcc -mthumb -no-pie -c ./instr_modules/c/fun.c" C print_int ./instr_modules/c/fun.c;
+INSERT BEFORE [getrandom] CALLSITE [] "" ASM x "sub sp, sp, 8
+str r0, [sp, 0]
+str r1, [sp, 4]
+mov r0, r1";
+INSERT AFTER [main] FUNENTRY [] "arm-linux-gnueabihf-gcc -mthumb -no-pie -c ./instr_modules/c/print_filename.c" C print_filename ./instr_modules/c/print_filename.c; # print the filename at the beginning of main
