@@ -3,6 +3,7 @@
 
 import glob
 import os
+import sys
 import argparse
 import subprocess
 import time
@@ -12,7 +13,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJ_ROOT_PATH = str(SCRIPT_DIR.parent)
 
 
-def run(executable_binaries: list[str], arch):
+def run(executable_binaries: list[str], arch, fail_fast: bool = False):
+    def _fail(msg):
+        print(msg, flush=True)
+        if fail_fast:
+            sys.exit(1)
+
     for binary in executable_binaries:
         binary_only_name = os.path.basename(binary)
         result_path = f"{PROJ_ROOT_PATH}/src/{binary_only_name}.result"
@@ -30,31 +36,31 @@ def run(executable_binaries: list[str], arch):
                 cwd=PROJ_ROOT_PATH + "/src",
             )
         except subprocess.TimeoutExpired:
-            print(f"Timeout expired: {binary_only_name}")
             with open(result_path, "w") as f:
                 f.write(f"Timeout expired: {binary_only_name}")
+            _fail(f"Timeout expired: {binary_only_name}")
             continue
         end_time = time.time()
 
-        # Save result.stdout to /home/gpk5233/work/research/Uroboros_ws/AIL/src
+        # Save result.stdout to src
         with open(result_path, "w") as f:
             f.write(result.stdout.decode())
             # Save the time diff
             time_diff = end_time - start_time
-            f.write(f"Time taken: %.2f\n" % time_diff)
+            f.write(f"Time taken: %.2fs\n" % time_diff)
 
-        print(f"Time taken: %.2f" % time_diff)
+        print(f"Time taken: %.2fs" % time_diff)
 
         # Check if final.s and a.out are generated
         if not os.path.exists(f"{PROJ_ROOT_PATH}/src/final.s"):
-            print(f"final.s not generated for {binary_only_name}\n")
+            _fail(f"final.s not generated for {binary_only_name}\n")
             continue
 
         if not os.path.exists(f"{PROJ_ROOT_PATH}/src/a.out"):
-            print(f"a.out not generated for {binary_only_name}\n")
+            _fail(f"a.out not generated for {binary_only_name}\n")
             continue
 
-        # Run qemu-arm -L /usr/arm-linux-gnueabihf/ ~/work/research/Uroboros_ws/AIL/src/a.out --help
+        # Run qemu-arm -L /usr/arm-linux-gnueabihf/ a.out --help
         # and record if it runs successfully or not
         print("Running qemu-arm to verify the binary...", flush=True)
         print(
@@ -73,27 +79,48 @@ def run(executable_binaries: list[str], arch):
             stderr=subprocess.PIPE,
         )
 
-        if (binary_only_name != "false" and qemu_result.returncode == 0) or (
+        qemu_ok = (binary_only_name != "false" and qemu_result.returncode == 0) or (
             binary_only_name == "false" and qemu_result.returncode == 1
-        ):
-            print(f"qemu-arm succeeded: {binary_only_name}\n")
-        else:
-            print(f"qemu-arm failed: {binary_only_name}\n")
+        )
 
         # Remove the a.out and final.s files
         os.remove(f"{PROJ_ROOT_PATH}/src/a.out")
         os.remove(f"{PROJ_ROOT_PATH}/src/final.s")
 
+        if qemu_ok:
+            print(f"qemu-arm succeeded: {binary_only_name}\n")
+        else:
+            _fail(f"qemu-arm failed: {binary_only_name}\n")
+
+
+def get_default_dir_path(arch: str) -> str | None:
+    # install/install_coreutils.arm.sh writes these dirs at the project root
+    if arch == "thumb":
+        return os.path.join(PROJ_ROOT_PATH, "coreutils-arm-thumb", "src")
+    if arch == "arm":
+        return os.path.join(PROJ_ROOT_PATH, "coreutils-arm-32bit", "src")
+    if arch == "aarch64":
+        return os.path.join(PROJ_ROOT_PATH, "coreutils-arm-64bit", "src")
+    return None
+
+
+def ensure_coreutils_built(dir_path: str) -> None:
+    if os.path.isdir(dir_path):
+        return
+    print(f"Coreutils directory not found: {dir_path}", flush=True)
+    print("Running install/install_coreutils.arm.sh ...", flush=True)
+    result = subprocess.run(
+        ["./install/install_coreutils.arm.sh"],
+        cwd=PROJ_ROOT_PATH,
+    )
+    if result.returncode != 0 or not os.path.isdir(dir_path):
+        print(f"install_coreutils.arm.sh did not produce {dir_path}", flush=True)
+        sys.exit(1)
+
 
 def get_binaries(arch: str, programs: list[str], dir_path: str = None) -> list[str]:
-    # Set the directory path based on architecture
     if dir_path is None:
-        if arch == "thumb":
-            dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-thumb", "src")
-        elif arch == "arm":
-            dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-32bit", "src")
-        elif arch == "aarch64":
-            dir_path = os.path.join(PROJ_ROOT_PATH, "install", "coreutils-arm-64bit", "src")
+        dir_path = get_default_dir_path(arch)
 
     # Get all executable binaries in the `dir_path`
     executable_binaries = glob.glob(os.path.join(dir_path, "*"))
@@ -134,16 +161,19 @@ def main(args):
     target_dir_path = args.dir_path
     if target_dir_path is not None:
         target_dir_path = os.path.abspath(target_dir_path)
+    else:
+        target_dir_path = get_default_dir_path(arch)
 
+    ensure_coreutils_built(target_dir_path)
     executable_binaries = get_binaries(arch, programs, target_dir_path)
 
     print(f"Running tests with architecture: {arch}")
     # dry_run(uroboros_path, executable_binaries, arch)
-    run(executable_binaries, arch)
+    run(executable_binaries, arch, fail_fast=args.fail_fast)
 
 
 if __name__ == "__main__":
-    # get arguments options from command line like --arch, -m
+    # Get arguments options from command line like --arch, -m
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--arch",
@@ -163,6 +193,11 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Directory path to get binaries (default: install/coreutils*)",
+    )
+    parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Exit with non-zero status on the first failure (recompile or qemu)",
     )
     args = parser.parse_args()
     main(args)

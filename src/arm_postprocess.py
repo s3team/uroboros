@@ -1,3 +1,27 @@
+import time
+from functools import wraps
+import re as _re
+
+
+def measure_time(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+
+        result = func(*args, **kwargs)
+
+        end = time.perf_counter()
+
+        elapsed = end - start
+        minutes = int(elapsed // 60)
+        seconds = elapsed % 60
+        print(f"elapsed time ({func.__name__}): {minutes}m {seconds:.2f}s")
+
+        return result
+
+    return wrapper
+
+
 def is_32():
     lines = []
     with open("elf.info") as f:
@@ -19,23 +43,25 @@ def check_switch_pattern(lines):
         return (False, 0)
 
     # Filter out label lines (e.g., "BB_17:") and track their positions
+    keywords = ("cmp", "bhi", "add", "ldr", "bx", "mov", "sub")
     instruction_indices = []
     for i, line in enumerate(lines):
         stripped = line.strip()
         # Skip lines that are only labels (end with : and don't contain instruction keywords)
-        if stripped.endswith(":") and not any(
-            pattern in line.lower()
-            for pattern in ["cmp", "bhi", "add", "ldr", "bx", "mov", "sub"]
-        ):
-            continue
+        if stripped.endswith(":"):
+            lower = line.lower()
+            if not any(p in lower for p in keywords):
+                continue
         instruction_indices.append(i)
+        if len(instruction_indices) >= 6:
+            break
 
     # Need at least 6 instruction lines for the pattern
     if len(instruction_indices) < 6:
         return (False, 0)
 
     # Check the pattern against the first 6 instructions
-    instruction_lines = [lines[i] for i in instruction_indices[:6]]
+    instruction_lines = [lines[i] for i in instruction_indices]
 
     if (
         "cmp" in instruction_lines[0]
@@ -129,7 +155,7 @@ def handle_switch_tables(filename):
 
             if "bx" in line:
                 is_pattern_found, pattern_length = check_switch_pattern(
-                    lines[index - 6 :]
+                    lines[index - 6 : index + 7]
                 )
                 if is_pattern_found:
                     # find nop from start_index_to_find_nop to 3 lines after the pattern
@@ -142,48 +168,6 @@ def handle_switch_tables(filename):
 
                     switch_table_counter += 1
                     switch_label = f"switch_table_{switch_table_counter}"
-
-    with open(filename, "w") as f:
-        f.writelines(new_content)
-
-
-def remove_unused_literal_pools_in_data(filename):
-    """
-    Remove unused data in the second text section.
-    The data is used to symbolize literal pools from the original binary.
-    """
-
-    new_content = []
-    with open(filename, "r") as f:
-        text_section_count = 0
-        is_going_through_second_text_section = False
-        symbol_detected = 0
-        lines = f.readlines()
-        for line in lines:
-            if ".section" in line and ".text" in line:
-                text_section_count += 1
-
-            if text_section_count == 2:
-                is_going_through_second_text_section = True
-
-            if not is_going_through_second_text_section:
-                new_content.append(line)
-            else:
-                if ".section" in line and ".text" in line:
-                    new_content.append(line)
-                elif "S_0x" in line:
-                    symbol_detected += 4
-                    new_content.append(line)
-                elif symbol_detected > 0:
-                    symbol_detected -= 1
-                    new_content.append(line)
-                elif ".section" in line and ".rodata" in line:
-                    is_going_through_second_text_section = False
-                    text_section_count += 1
-                    new_content.append(line)
-                else:
-                    # skip the line because it is not a symbol
-                    continue
 
     with open(filename, "w") as f:
         f.writelines(new_content)
@@ -244,6 +228,56 @@ def insert_ltorg_directive(filename):
 
     with open(filename, "w") as f:
         f.writelines(new_content)
+
+
+def insert_ltorg_after_blx_pool_pattern(filename):
+    """Insert .ltorg after `nop` when this exact 6-line pattern follows:
+
+        blx <anything>
+        nop
+        <random instr>
+        movs ra, rb
+        <random instr>
+        movs ra, rb           (same ra, rb as the previous movs)
+
+    In the Coreutils `factor` binary, the `mulredc2` function becomes too
+    large. Since the function contains no unconditional branches,
+    `insert_ltorg_directive` cannot insert `.ltorg` in the middle of the
+    function.
+
+    This function assumes that a `blx` instruction matching the pattern calls a
+    noreturn function (e.g., `__assert_fail`).
+    """
+    movs_re = _re.compile(r"^movs\s+(\w+)\s*,\s*(\w+)\s*$")
+
+    def movs_regs(s):
+        m = movs_re.match(s.strip())
+        return (m.group(1), m.group(2)) if m else None
+
+    with open(filename, "r") as f:
+        lines = f.readlines()
+
+    new_lines = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        new_lines.append(lines[i])
+        if (
+            i + 5 < n
+            and lines[i].strip().startswith("blx ")
+            and lines[i + 1].strip() == "nop"
+        ):
+            r3 = movs_regs(lines[i + 3])
+            r5 = movs_regs(lines[i + 5])
+            if r3 is not None and r3 == r5:
+                new_lines.append(lines[i + 1])
+                new_lines.append(".ltorg\n")
+                i += 2
+                continue
+        i += 1
+
+    with open(filename, "w") as f:
+        f.writelines(new_lines)
 
 
 def remove_invalid_d2c_labels(filename):
@@ -379,41 +413,33 @@ def convert_symbol_to_use_movw_movt(filename):
         f.writelines(new_content)
 
 
-import re as _re
-
-# Matches cbz/cbnz instructions, capturing indent, mnemonic, register, and target.
-_CBZ_RE = _re.compile(r'^(\s*)(cbnz|cbz)\s+(\w+),(.+?)\s*$')
-# Matches a label definition at the start of a (stripped) line.
-_LABEL_DEF_RE = _re.compile(r'^([A-Za-z_.][A-Za-z0-9_.]*):\s*')
-
-
 def _thumb_instr_size(opcode, operands_str):
     """Return estimated byte size of a Thumb-2 instruction.
 
     Returns 2 for instructions that are always 16-bit, 4 otherwise.
     """
     op = opcode.lower()
-    operands = [o.strip() for o in operands_str.split(',')]
+    operands = [o.strip() for o in operands_str.split(",")]
 
-    if op in ('cbz', 'cbnz', 'nop', 'bkpt'):
+    if op in ("cbz", "cbnz", "nop", "bkpt"):
         return 2
-    if op.endswith('.n'):
+    if op.endswith(".n"):
         return 2
-    if op.endswith('.w'):
+    if op.endswith(".w"):
         return 4
-    if op in ('bl', 'blx') and (not operands or not _re.match(r'^r\d+$', operands[0])):
+    if op in ("bl", "blx") and (not operands or not _re.match(r"^r\d+$", operands[0])):
         return 4  # branch-to-label form
     # bx rN / blx rN (register form) → 16-bit
-    if op in ('bx', 'blx') and operands and _re.match(r'^r\d+$', operands[0]):
+    if op in ("bx", "blx") and operands and _re.match(r"^r\d+$", operands[0]):
         return 2
     # movs rN, rM  (low regs) or  movs rN, #imm8 → 16-bit
-    if op == 'movs' and len(operands) >= 2:
+    if op == "movs" and len(operands) >= 2:
         dst, src = operands[0], operands[1]
-        if _re.match(r'^r[0-7]$', dst) and _re.match(r'^r[0-7]$', src):
+        if _re.match(r"^r[0-7]$", dst) and _re.match(r"^r[0-7]$", src):
             return 2
-        if _re.match(r'^r[0-7]$', dst) and _re.match(r'^#(?:0x[\da-fA-F]+|\d+)$', src):
+        if _re.match(r"^r[0-7]$", dst) and _re.match(r"^#(?:0x[\da-fA-F]+|\d+)$", src):
             try:
-                if 0 <= int(src.lstrip('#'), 0) <= 255:
+                if 0 <= int(src.lstrip("#"), 0) <= 255:
                     return 2
             except ValueError:
                 pass
@@ -427,9 +453,12 @@ def _build_offset_map(lines):
     flushes them (4 bytes each, 4-byte aligned) at each .ltorg directive.
 
     Returns:
-        line_offsets  – list[int]: estimated byte offset at the start of each line
-        label_offsets – dict[str, int]: label name → estimated byte offset
+        line_offsets  - list[int]: estimated byte offset at the start of each line
+        label_offsets - dict[str, int]: label name → estimated byte offset
     """
+    # Matches a label definition at the start of a (stripped) line.
+    _LABEL_DEF_RE = _re.compile(r"^([A-Za-z_.][A-Za-z0-9_.]*):\s*")
+
     label_offsets = {}
     line_offsets = []
     pending_literals = 0
@@ -440,37 +469,37 @@ def _build_offset_map(lines):
         line_offsets.append(current_offset)
         stripped = line.strip()
 
-        if '.section .text' in line:
+        if ".section .text" in line:
             in_text = True
-        elif in_text and '.section' in line and '.text' not in line:
+        elif in_text and ".section" in line and ".text" not in line:
             in_text = False
 
         if not in_text or not stripped:
             continue
-        if stripped[0] in ('@', '#'):
+        if stripped[0] in ("@", "#"):
             continue
 
         # Extract any label prefix (e.g. "S_0x1234: movs r0,r1" or "S_0x1234:")
         lm = _LABEL_DEF_RE.match(stripped)
         if lm:
             label_offsets[lm.group(1)] = current_offset
-            stripped = stripped[lm.end():].strip()
+            stripped = stripped[lm.end() :].strip()
             if not stripped:
                 continue
 
-        if stripped.startswith('.'):
-            if stripped.startswith('.ltorg'):
+        if stripped.startswith("."):
+            if stripped.startswith(".ltorg"):
                 if current_offset % 4:
                     current_offset += 4 - (current_offset % 4)
                 current_offset += pending_literals * 4
                 pending_literals = 0
-            elif _re.match(r'\.(long|word|4byte)\b', stripped):
+            elif _re.match(r"\.(long|word|4byte)\b", stripped):
                 current_offset += 4
-            elif _re.match(r'\.(hword|short|2byte)\b', stripped):
+            elif _re.match(r"\.(hword|short|2byte)\b", stripped):
                 current_offset += 2
-            elif stripped.startswith('.byte'):
+            elif stripped.startswith(".byte"):
                 current_offset += 1
-            elif _re.match(r'\.align\b', stripped):
+            elif _re.match(r"\.align\b", stripped):
                 try:
                     align = 1 << int(stripped.split()[1])
                     if current_offset % align:
@@ -480,14 +509,14 @@ def _build_offset_map(lines):
             continue
 
         # ldr r,=symbol  queues one 4-byte literal-pool entry
-        if _re.match(r'ldr\S*\s+\w+\s*,\s*=', stripped):
+        if _re.match(r"ldr\S*\s+\w+\s*,\s*=", stripped):
             pending_literals += 1
             current_offset += 4
             continue
 
         parts = stripped.split(None, 1)
         opcode = parts[0]
-        ops_str = parts[1] if len(parts) > 1 else ''
+        ops_str = parts[1] if len(parts) > 1 else ""
         current_offset += _thumb_instr_size(opcode, ops_str)
 
     return line_offsets, label_offsets
@@ -518,59 +547,73 @@ def expand_out_of_range_cbz_cbnz(filename):
     assembler reports "undefined symbol" rather than "branch out of range",
     making the root cause easier to identify.
     """
-    with open(filename, 'r') as f:
+    # Matches cbz/cbnz instructions, capturing indent, mnemonic, register, and target.
+    _CBZ_RE = _re.compile(r"^(\s*)(cbnz|cbz)\s+(\w+),(.+?)\s*$")
+    CBZ_OFFSET_LIMIT = 126
+
+    with open(filename, "r") as f:
         lines = f.readlines()
 
-    line_offsets, label_offsets = _build_offset_map(lines)
-
-    new_lines = []
     skip_counter = 0
 
-    for i, line in enumerate(lines):
-        m = _CBZ_RE.match(line)
-        if not m:
-            new_lines.append(line)
-            continue
+    # Iterate to a fixed-point, which handles the case where expanding one
+    # out-of-range cbz/cbnz causes another one to become out of range.
+    # Note that those cbz/cbnz often come from literal pools.
+    while True:
+        line_offsets, label_offsets = _build_offset_map(lines)
+        new_lines = []
+        changed = False
 
-        indent, mnemonic, reg, target = (
-            m.group(1), m.group(2), m.group(3), m.group(4)
-        )
-        instr_off = line_offsets[i]
+        for i, line in enumerate(lines):
+            m = _CBZ_RE.match(line)
+            if not m:
+                new_lines.append(line)
+                continue
 
-        out_of_range = False
-        if _re.match(r'^S_0x[0-9A-Fa-f]+$', target):
+            indent, mnemonic, reg, target = (
+                m.group(1),
+                m.group(2),
+                m.group(3),
+                m.group(4),
+            )
+            instr_off = line_offsets[i]
+
+            out_of_range = False
             tgt_off = label_offsets.get(target)
-            if tgt_off is None:
-                # Label defined in the file but not yet assembled (missing label
-                # from the OCaml pipeline).  Expand so the assembler reports
-                # "undefined symbol" rather than "branch out of range".
+            if tgt_off is not None:
+                # Any label we know about (S_0x... or freshly-inserted .Lcbz_skip_...).
+                offset = tgt_off - (instr_off + 4)
+                if offset < 0 or offset > CBZ_OFFSET_LIMIT:
+                    out_of_range = True
+            elif _re.match(r"^S_0x[0-9A-Fa-f]+$", target):
+                # Label-shaped but missing from the file.
+                # Expand so the assembler reports "undefined symbol" rather than
+                # "branch out of range".
+                # For "undefined symbol", see [uroboros.py#modify_error].
                 out_of_range = True
             else:
-                # cbz/cbnz are 16-bit; PC = instruction_address + 4.
-                # Valid forward range: offset ∈ [0, 126].
-                offset = tgt_off - (instr_off + 4)
-                if offset < 0 or offset > 126:
-                    out_of_range = True
-        else:
-            # Raw absolute-address target (e.g. #0x2ea56).  The binary may have
-            # shifted due to inserted literal pools, making the offset negative.
-            # Always expand so b.w handles the wider range.
-            out_of_range = True
+                # Immediate target address (e.g., #0x12344)
+                out_of_range = True
 
-        if out_of_range:
-            skip_counter += 1
-            skip_label = f'.Lcbz_skip_{skip_counter}'
-            inverse = 'cbz' if mnemonic == 'cbnz' else 'cbnz'
-            # Strip leading '#' from raw hex targets: b.w does not use the '#' prefix.
-            bw_target = target.lstrip('#')
-            new_lines.append(f'{indent}{inverse} {reg},{skip_label}\n')
-            new_lines.append(f'{indent}b.w {bw_target}\n')
-            new_lines.append(f'{indent}{skip_label}:\n')
-        else:
-            new_lines.append(line)
+            if out_of_range:
+                skip_counter += 1
+                skip_label = f".Lcbz_skip_{skip_counter}"
+                inverse = "cbz" if mnemonic == "cbnz" else "cbnz"
+                # Strip leading '#' from raw hex targets: b.w does not use the '#' prefix.
+                bw_target = target.lstrip("#")
+                new_lines.append(f"{indent}{inverse} {reg},{skip_label}\n")
+                new_lines.append(f"{indent}b.w {bw_target}\n")
+                new_lines.append(f"{indent}{skip_label}:\n")
+                changed = True
+            else:
+                new_lines.append(line)
 
-    with open(filename, 'w') as f:
-        f.writelines(new_lines)
+        lines = new_lines
+        if not changed:
+            break
+
+    with open(filename, "w") as f:
+        f.writelines(lines)
 
 
 def main(argv):
@@ -587,6 +630,7 @@ def main(argv):
         remove_unused_literal_pools_in_data(assembly_path)
         expand_out_of_range_cbz_cbnz(assembly_path)
         insert_ltorg_directive(assembly_path)
+        insert_ltorg_after_blx_pool_pattern(assembly_path)
         remove_caret(assembly_path)
         # remove_invalid_d2c_labels(assembly_path)
     elif arch == "arm" and is_32():

@@ -208,7 +208,12 @@ def process(f, i, arch):
             os.system("python3 gobmk_sub.py")
 
         if arch == "thumb" or arch == "arm":
+            start_time = time.time()
             os.system(f"python3 arm_postprocess.py final.s {arch}")
+            end_time = time.time()
+            minutes = int((end_time - start_time) // 60)
+            seconds = (end_time - start_time) % 60
+            print(f"elapsed time (arm_postprocess): {minutes}m {seconds:.2f}s")
 
         reassemble("final.s", arch)
         modify_error(parse_errors())

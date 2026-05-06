@@ -171,21 +171,26 @@ module ArmGotAbsWithValues : DfaAbs = struct
   let check_and_replace_instr (addr : int) (dst_e : exp) (loc : loc)
       (prefix : prefix option) =
     let arm_reassemble = Lazy.force arm_reassemble_lazy in
-    let sec = arm_reassemble#check_sec addr in
+    (* Strip the LSB from Thumb function pointers.
+    See arm_postprocess.ml#adjust_thumb_function_pointer *)
+    let target_addr = if addr mod 2 = 1 then addr - 1 else addr in
+    let sec = arm_reassemble#check_sec target_addr in
     match sec with
     | Some _s ->
         let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
         let new_instr =
           TripleInstr
-            (ldr_op, Const (Point addr), dst_e, loc, prefix, Hashtbl.create 0)
+            (ldr_op, Const (Point target_addr), dst_e, loc, prefix,
+             Hashtbl.create 0)
         in
         Hashtbl.replace result loc.loc_addr [ new_instr ]
     | None ->
-        if arm_reassemble#check_text addr then
+        if arm_reassemble#check_text target_addr then
           let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
           let new_instr =
             TripleInstr
-              (ldr_op, Const (Point addr), dst_e, loc, prefix, Hashtbl.create 0)
+              (ldr_op, Const (Point target_addr), dst_e, loc, prefix,
+               Hashtbl.create 0)
           in
           Hashtbl.replace result loc.loc_addr [ new_instr ]
         else ()
@@ -225,6 +230,15 @@ module ArmGotAbsWithValues : DfaAbs = struct
             in
             let regs = parse_label_to_regs label in
             List.fold_left (fun state reg -> RegMap.remove reg state) outs regs
+        | Arm_OP (Arm_ControlOP (BL | BLX), _, _), _ ->
+            (* AAPCS: kill caller-saved registers across a call so that stale
+               values (e.g. a .rodata string pointer prepared in r0 before a
+               gettext call) don't get propagated through subsequent
+               mov r4, r0 instructions and end up impersonating the GOT
+               anchor at later GOT loads. *)
+            let caller_saved = [ "r0"; "r1"; "r2"; "r3"; "r12"; "ip"; "lr" ] in
+            List.fold_left
+              (fun state reg -> RegMap.remove reg state) outs caller_saved
         | _ -> outs
         end
     | TripleInstr (p, e1, e2, loc, prefix, _) ->
@@ -483,6 +497,7 @@ module ArmGotAbsWithValues : DfaAbs = struct
             in
             let _ = print_reg_values () in *)
             (* end debug *)
+
             if has_got_addr src1_name || has_got_addr src2_name then begin
               let sym_addr_opt =
                 if has_got_addr src1_name then

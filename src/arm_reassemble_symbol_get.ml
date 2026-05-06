@@ -1114,7 +1114,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
             rodata_list <- (".section .rodata\n", "") :: rodata_list;
             got_list <- (".section .got\n", "") :: got_list;
             data_list <- (".section .data\n", "") :: data_list;
-            bss_list <- (".section .bss\n", "") :: bss_list;
+            bss_list <- (".section .bss\n.balign 4\n", "") :: bss_list;
             data_rel_ro_list <-
               (".section .data.rel.ro\n", "") :: data_rel_ro_list;
             let module EU = Elf_utils in
@@ -2294,7 +2294,172 @@ class arm_reassemble =
         | SevenInstr (p, e1, e2, e3, e4, e5, e6, l, pre, tags) as seven_instr ->
             seven_instr
 
-    method jmp_table_rewrite (instrs : instr list) = instrs
+    (* Thumb dispatcher pattern (PIC-style switch table emitted inline in .text):
+    add  Rd, pc, #N            ; Rd <- align(pc, 4) + N           (table base)
+    ldr.w Rs, [Rd, Rt, lsl #2] ; Rs <- mem[base + Rt*4]            (entry value)
+    add  Rd, Rs                ; Rd <- base + entry                (Thumb-flagged target)
+    bx   Rd                    ; jump
+    
+    Each 4-byte table entry holds (target | 1) - base, so it can stay code-
+    relative across modes. After Uroboros relocates labels, the raw offsets
+    stored in the table are stale, so the table must be re-emitted as an
+    assembler expression of the form `.long S_target - S_base + 1`. The
+    disassembler also decoded the table data as bogus Thumb code; the
+    decoded instructions are commented out so the bytes only come from the
+    injected `.long` directives. *)
+    method jmp_table_rewrite (instrs : instr list) =
+      if arch <> "thumb" then instrs
+      else
+        let module IU = Instr_utils in
+        let dispatcher_match (i1 : instr) (i2 : instr) (i3 : instr) (i4 : instr)
+            : int option =
+          match (i1, i2, i3, i4) with
+          | ( FourInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
+                  Const (Immediate imm),
+                  Reg (Arm_Reg (Arm_PCReg _)),
+                  Reg (Arm_Reg (Arm_CommonReg rd)),
+                  loc1,
+                  _,
+                  _ ),
+              TripleInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
+                  Ptr
+                    (ThreeOP_S
+                      ( Arm_Reg (Arm_CommonReg rd_chk),
+                        Arm_Reg (Arm_CommonReg rs),
+                        shift_str )),
+                  Reg (Arm_Reg (Arm_CommonReg rs_dst)),
+                  _,
+                  _,
+                  _ ),
+              TripleInstr
+                ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _),
+                  Reg (Arm_Reg (Arm_CommonReg rs_src)),
+                  Reg (Arm_Reg (Arm_CommonReg rd_dst)),
+                  _,
+                  _,
+                  _ ),
+              DoubleInstr
+                ( Arm_OP (Arm_ControlOP BX, _, _),
+                  Reg (Arm_Reg (Arm_CommonReg rd_bx)),
+                  _,
+                  _,
+                  _ ) )
+            when rd = rd_chk && rd = rd_dst && rd = rd_bx && rs = rs_dst
+                 && rs = rs_src
+                 && contains ~str:shift_str ~sub:"lsl" ->
+              let pc_addr = loc1.loc_addr + 4 in
+              let aligned = pc_addr - (pc_addr mod 4) in
+              Some (aligned + imm)
+          | _ -> None
+        in
+        let walk_table base : int list =
+          (* Walk the jump table starting at [base] *)  
+          let max_entries = 256 in
+          let rec aux i acc =
+            if i >= max_entries then List.rev acc
+            else
+              let entry_addr = base + (4 * i) in
+              match Hashtbl.find_opt text_as_data_set entry_addr with
+              | None -> List.rev acc
+              | Some hex -> begin
+                  match int_of_string_opt ("0x" ^ hex) with
+                  | None -> List.rev acc
+                  | Some 0 -> List.rev acc
+                  | Some v ->
+                      let target = base + v - (v land 1) in
+                      if v land 1 = 1 && self#check_text target then
+                        aux (i + 1) (target :: acc)
+                      else List.rev acc
+                end
+          in
+          aux 0 []
+        in
+        let arr = Array.of_list instrs in
+        let n = Array.length arr in
+        let entry_lookup : (int, int * int * bool * bool) Hashtbl.t =
+          Hashtbl.create 64
+        in
+        (* instr_addr in [bx_end, base) - alignment-only padding to drop *)
+        let pad_lookup : (int, unit) Hashtbl.t = Hashtbl.create 16 in
+        let instr_idx = ref 0 in
+        while !instr_idx + 3 < n do
+          let i1 = arr.(!instr_idx) in
+          let i2 = arr.(!instr_idx + 1) in
+          let i3 = arr.(!instr_idx + 2) in
+          let i4 = arr.(!instr_idx + 3) in
+          match dispatcher_match i1 i2 i3 i4 with
+          | Some base ->
+              let targets = walk_table base in
+              if List.length targets > 0 then begin
+                List.iteri
+                  (fun target_idx target ->
+                    let entry_addr = base + (4 * target_idx) in
+                    for off = 0 to 3 do
+                      Hashtbl.replace entry_lookup
+                        (entry_addr + off)
+                        (target, base, off = 0, target_idx = 0)
+                    done)
+                  targets;
+                (* Mark any padding instructions between bx and base.
+                They're alignment-only and must be dropped so the
+                assembler's own .balign 4 directive controls layout. *)
+                let bx_loc = (IU.get_loc i4).loc_addr in
+                (* Scan forward for instructions whose address is in [bx_end, base). *)
+                let pad_scan_idx = ref (!instr_idx + 4) in
+                while
+                  !pad_scan_idx < n
+                  &&
+                  let a = (IU.get_loc arr.(!pad_scan_idx)).loc_addr in
+                  a > bx_loc && a < base
+                do
+                  Hashtbl.replace pad_lookup
+                    (IU.get_loc arr.(!pad_scan_idx)).loc_addr ();
+                  incr pad_scan_idx
+                done
+              end;
+              instr_idx := !instr_idx + 4
+          | None -> incr instr_idx
+        done;
+        if Hashtbl.length entry_lookup = 0 then instrs
+        else
+          List.map
+            (fun instr ->
+              let addr = (IU.get_loc instr).loc_addr in
+              if Hashtbl.mem pad_lookup addr then begin
+                let _ = mark_commented_out instr in
+                instr
+              end
+              else
+                match Hashtbl.find_opt entry_lookup addr with
+                | None -> instr
+                | Some (target, base, is_first_byte, is_first_entry) ->
+                    let _ = mark_commented_out instr in
+                    if not is_first_byte then instr
+                    else
+                      let target_label = "S_" ^ dec_hex target in
+                      let base_label = "S_" ^ dec_hex base in
+                      if not (Hashtbl.mem text_set target) then begin
+                        Hashtbl.replace text_set target "";
+                        deslist <- target_label :: deslist
+                      end;
+                      let directive_prefix =
+                        if is_first_entry then
+                          ".balign 4\n" ^ base_label ^ ":\n.long "
+                          ^ target_label ^ " - " ^ base_label ^ " + 1\n"
+                        else
+                          ".long " ^ target_label ^ " - " ^ base_label
+                          ^ " + 1\n"
+                      in
+                      let loc = IU.get_loc instr in
+                      IU.set_loc instr
+                        {
+                          loc with
+                          loc_label = directive_prefix ^ loc.loc_label;
+                        })
+            instrs
+
     method jmp_table_rewrite64 (instrs : instr list) = instrs
 
     method process_rela_plt () =

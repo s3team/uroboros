@@ -169,6 +169,9 @@ module Disam = struct
            (*|> (fun il -> FnU.perform_dfa_rewrites (got_rewrite il) @@ il )*)
          else if EU.elf_64 () && arch = "intel" then
            re#jmp_table_rewrite64 @@ il_init
+         else if EU.elf_32 () && arch = "thumb" then
+           IL.perform_dfa_rewrites rewriting_result @@ il_init
+           |> re#jmp_table_rewrite
          else begin IL.perform_dfa_rewrites rewriting_result @@ il_init
            (* The postprocess should be executed after symbolization completed.
             * Note that the symbolization-related functions such as vinst2 and v_exp2

@@ -908,8 +908,13 @@ class ailParser =
       let ordered_il = List.rev instr_list in
       match arch with
       | "thumb" -> begin
-          let has_pc e =
+          let is_pc e =
             match e with Reg (Arm_Reg (Arm_PCReg _)) -> true | _ -> false
+          in
+          let is_sp e =
+            match e with
+            | Reg (Arm_Reg (Arm_StackReg (R13 | SP | X31))) -> true
+            | _ -> false
           in
           let reg_list_has sub e =
             match e with Label s -> contains ~str:s ~sub | _ -> false
@@ -920,36 +925,43 @@ class ailParser =
             | Arm_OP (Arm_CommonOP (Arm_Arithm VHADD), _, _) -> true
             | Arm_OP (Arm_CommonOP (Arm_Arithm VADDL), _, _) ->
                 (* vaddl decodes from literal pool data in Thumb binaries:
-              it appears after bl/b instructions before .ltorg, always
-              followed by the lsls r0,r1,#1 / movs r0,r0 marker pattern *)
+                it appears after bl/b instructions before .ltorg, always
+                followed by the lsls r0,r1,#1 / movs r0,r0 marker pattern *)
                 true
             | Arm_OP (Arm_CommonOP (Arm_Compare CMP), _, _) ->
                 (* The pc register is not allowed with CMP *)
                 begin match i with
-                | TripleInstr (_, e1, e2, _, _, _) -> has_pc e1 || has_pc e2
+                | TripleInstr (_, e1, e2, _, _, _) -> is_pc e1 || is_pc e2
                 | _ -> false
                 end
             (* ARMv8-M instructions not present in ARMv7 Thumb binaries.
-               Might need to remove this when ARMv8-M support is added *)
+            Might need to remove this when ARMv8-M support is added *)
             | Arm_OP (Arm_SystemOP SETPAN, _, _) -> true
             | Arm_OP (Arm_ControlOP BXNS, _, _) -> true
             | Arm_OP (Arm_ControlOP BLXNS, _, _) -> true
+            | Arm_OP (Arm_ControlOP BLX, _, _) ->
+                (* BLX with PC is UNPREDICTABLE in Thumb *)
+                begin match i with
+                | DoubleInstr (_, e1, _, _, _) -> is_pc e1
+                | _ -> false
+                end
             | Arm_OP (Arm_CommonOP (Arm_Assign STR), _, _) ->
                 (* STR with PC as the source register is UNPREDICTABLE *)
                 begin match i with
-                | TripleInstr (_, _, e2, _, _, _) -> has_pc e2
+                | TripleInstr (_, _, e2, _, _, _) -> is_pc e2
                 | _ -> false
                 end
-            | Arm_OP (Arm_CommonOP (Arm_Arithm SDIV), _, _) ->
-                (* SDIV with PC as any operand is UNPREDICTABLE *)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm SDIV), _, _)
+            | Arm_OP (Arm_CommonOP (Arm_Arithm UDIV), _, _) ->
+                (* SDIV/UDIV with PC as any operand is UNPREDICTABLE *)
                 begin match i with
                 | FourInstr (_, e1, e2, e3, _, _, _) ->
-                    has_pc e1 || has_pc e2 || has_pc e3
+                    is_pc e1 || is_pc e2 || is_pc e3
                 | _ -> false
                 end
             | Arm_OP (Arm_CommonOP (Arm_Assign LDRD), _, _) ->
                 begin match i with
-                | FourInstr (_, _, _, e3, _, _, _) -> has_pc e3
+                | FourInstr (_, _, _, e3, _, _, _) -> is_pc e3
                 | _ -> false
                 end
             (* Multiply-long where rdhi == rdlo is UNPREDICTABLE *)
@@ -1019,6 +1031,83 @@ class ailParser =
                     end
                 | _ -> false
                 end
+            | Arm_OP (Arm_CommonOP (Arm_Logic ORR), _, _) ->
+                (* ORR with SP in second operand is not allowed *)
+                begin match i with
+                | FourInstr (_, _, e2, _, _, _, _) -> is_sp e2
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Logic EORS), _, _) ->
+                (* EORS with SP as the destination register is not allowed *)
+                begin match i with
+                | FourInstr (_, _, _, e3, _, _, _) -> is_sp e3
+                | _ -> false
+                end
+            | Arm_OP (Arm_SystemOP (WFI | WFE | SEV | YIELD), Some _, _) ->
+                (* Hint instructions decoded with a condition suffix from
+                misclassified literal-pool / interworking bytes. *)
+                true
+            | Arm_OP (Arm_CommonOP (Arm_Arithm (MAR | MRA)), _, _) ->
+                (* XScale-only coprocessor moves; not part of ARMv7 Thumb.
+                Decoded from literal-pool data.
+                Might need to be handled specially after adding support for ARMv8 *)
+                true
+            | Arm_OP (Arm_CommonOP (Arm_Assign STRHT), _, _) ->
+                (* STRHT with PC source is illegal. *)
+                begin match i with
+                | TripleInstr (_, _, e2, _, _, _) -> is_pc e2
+                | FourInstr (_, _, _, e3, _, _, _) -> is_pc e3
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Assign STRD), _, _) ->
+                (* STRD with PC or SP as Rt or Rt2 is UNPREDICTABLE *)
+                begin match i with
+                | FifInstr (_, _, _, e3, e4, _, _, _) ->
+                    is_pc e3 || is_pc e4 || is_sp e3 || is_sp e4
+                | FourInstr (_, _, e2, e3, _, _, _) ->
+                    is_pc e2 || is_pc e3 || is_sp e2 || is_sp e3
+                | TripleInstr (_, e1, e2, _, _, _) ->
+                    is_pc e1 || is_pc e2 || is_sp e1 || is_sp e2
+                | _ -> false
+                end
+            | Arm_OP
+                ( Arm_CommonOP
+                    (Arm_Assign
+                       (LDRSH | LDRSHT | LDRH | LDRHT | LDRB | LDRBT | LDRD)),
+                  _,
+                  _ ) ->
+                (* Loads with PC as the destination register are UNPREDICTABLE in Thumb. *)
+                begin match i with
+                | TripleInstr (_, _, e2, _, _, _) -> is_pc e2
+                | FourInstr (_, _, _, e3, _, _, _) -> is_pc e3
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Arithm (SBC | SBCS | ADC | ADCS)), _, _)
+              ->
+                (* SBC/SBCS/ADC/ADCS with PC as the destination are UNPREDICTABLE.
+                e.g., `sbcs.w pc, sp, #imm`. *)
+                begin match i with
+                | FourInstr (_, _, _, e3, _, _, _) -> is_pc e3
+                | TripleInstr (_, _, e2, _, _, _) -> is_pc e2
+                | _ -> false
+                end
+            | Arm_OP (Arm_SystemOP (CPSID | CPSIE), _, _) ->
+                (* CPSID/CPSIE without explicit flags (a/i/f) is illegal. *)
+                begin match i with
+                | SingleInstr _ -> true
+                | DoubleInstr (_, Label s, _, _, _) ->
+                    let s = String.trim s in
+                    s = ""
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Arithm ADD), _, _) ->
+                (* `add.w Rd, pc, Rm` (3-register form with PC as Rn) is not encodable. 
+                Only the 3-operand register form is illegal.
+                `add Rd, pc, #imm` is the legitimate ADR pseudo-encoding and must be kept. *)
+                begin match i with
+                | FourInstr (_, Reg _, e2, _, _, _, _) -> is_pc e2
+                | _ -> false
+                end
             | _ -> false
           in
           let rec help acc = function
@@ -1048,8 +1137,54 @@ class ailParser =
       (* instrs <- self#remove_literal_pools_after_blx_exit instrs; *)
       (* instrs <- self#remove_literal_pools_after_branch instrs; *)
       instrs <- self#remove_literal_pools_by_pc_relative_load instrs;
+      instrs <- self#remove_cbz_in_literal_pool instrs;
       instrs <- self#remove_illegal_instructions instrs arch;
       instrs <- self#remove_undefined_instructions instrs
+
+    method remove_cbz_in_literal_pool (instr_list : instr list) : instr list =
+      (* Comment out CBZ/CBNZ flanked on BOTH sides by literal-pool padding
+      markers (`movs r1, r0` = 0x0001, `movs r0, r0` = 0x0000). These two
+      encodings are the canonical disassembly artefacts for the zero /
+      0x0001 high half-word of 4-byte literal-pool entries, so a CBZ
+      sandwiched between them is itself the low half of a literal-pool
+      word — not real code. 
+      TODO: need to check the case. *)
+      let module IU = Instr_utils in
+      let ordered_il = List.rev instr_list in
+      let is_cbz_or_cbnz (i : instr) : bool =
+        match IU.get_op i with
+        | Arm_OP (Arm_ControlOP CBZ, _, _) | Arm_OP (Arm_ControlOP CBNZ, _, _)
+          ->
+            true
+        | _ -> false
+      in
+      let is_movs_pad (i : instr) : bool =
+        match i with
+        | TripleInstr
+            ( Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _),
+              Reg (Arm_Reg (Arm_CommonReg R0)),
+              Reg (Arm_Reg (Arm_CommonReg R0)),
+              _,
+              _,
+              _ )
+        | TripleInstr
+            ( Arm_OP (Arm_CommonOP (Arm_Assign MOVS), _, _),
+              Reg (Arm_Reg (Arm_CommonReg R0)),
+              Reg (Arm_Reg (Arm_CommonReg R1)),
+              _,
+              _,
+              _ ) ->
+            true
+        | _ -> false
+      in
+      let rec aux acc = function
+        | [] -> acc
+        | prev :: instr :: next :: t
+          when is_movs_pad prev && is_cbz_or_cbnz instr && is_movs_pad next ->
+            aux (mark_commented_out instr :: prev :: acc) (next :: t)
+        | instr :: t -> aux (instr :: acc) t
+      in
+      aux [] ordered_il
 
     method convert_instructions (instr_list : instr list) : instr list =
       let module IU = Instr_utils in
@@ -1133,10 +1268,90 @@ class ailParser =
     method remove_it_sequence (instr_list : instr list) : instr list =
       let module IU = Instr_utils in
       let ordered_il = List.rev instr_list in
+      let it_cond_length_of it_op =
+        (* The IT-block condition is parsed as a separate `al`/`eq`/... operand. 
+        However, `IT al` is usually from literal pools. *)
+        match it_op with
+        | IT -> 1
+        | ITE | ITT -> 2
+        | ITTT | ITTE | ITEE | ITET -> 3
+        | ITTTT | ITTTE | ITTET | ITTEE | ITETT | ITETE | ITEET | ITEEE -> 4
+        | _ -> 0
+      in
+      let it_operand_str instr =
+        match instr with
+        | DoubleInstr (_, Label s, _, _, _) ->
+            Some (String.lowercase_ascii (String.trim s))
+        | _ -> None
+      in
+      let opposite_of = function
+        | "eq" -> "ne"
+        | "ne" -> "eq"
+        | "cs" | "hs" -> "cc"
+        | "cc" | "lo" -> "cs"
+        | "mi" -> "pl"
+        | "pl" -> "mi"
+        | "vs" -> "vc"
+        | "vc" -> "vs"
+        | "hi" -> "ls"
+        | "ls" -> "hi"
+        | "ge" -> "lt"
+        | "lt" -> "ge"
+        | "gt" -> "le"
+        | "le" -> "gt"
+        | _ -> ""
+      in
+      let condsuff_str instr =
+        match IU.get_op instr with
+        | Arm_OP (_, Some cs, _) ->
+            Some
+              (show_arm_condsuff cs
+              |> Str.split (Str.regexp " +")
+              |> last_ele |> String.lowercase_ascii)
+        | _ -> None
+      in
+      let is_illegal_it_block instr it_op idx =
+        (* Every instruction in an IT block must carry a condsuff equal to
+        the IT operand or its opposite. A foreign suffix (or a truncated
+        block) means the block is decoded literal-pool data. *)
+        match it_operand_str instr with
+        | None -> false
+        | Some it_cond ->
+            let opp = opposite_of it_cond in
+            let len = it_cond_length_of it_op in
+            let rec check k =
+              if k > len then false
+              else if k = 0 then check (k + 1)
+              else
+                match
+                  try Some (List.nth ordered_il (idx + k)) with _ -> None
+                with
+                | None -> true
+                | Some i -> (
+                    match condsuff_str i with
+                    | None -> true
+                    | Some cs ->
+                        if cs = it_cond || (opp <> "" && cs = opp) then
+                          check (k + 1)
+                        else true)
+            in
+            check 1
+      in
       let rec aux acc skip_count idx = function
         | [] -> acc
         | instr :: t ->
             begin match IU.get_op instr with
+            | Arm_OP (Arm_Condition it_op, _, _)
+              when it_operand_str instr = Some "al" ->
+                (* IT al — treat as data. *)
+                let it_cond_length = it_cond_length_of it_op in
+                aux acc it_cond_length (idx + 1) t
+            | Arm_OP (Arm_Condition it_op, _, _)
+              when is_illegal_it_block instr it_op idx ->
+                (* Drop only the IT instruction. Body instructions are left in
+                place and will be handled by `remove_orphan_condsuff`. *)
+                let _ = it_cond_length_of it_op in
+                aux acc 0 (idx + 1) t
             | Arm_OP (Arm_Condition it_op, _, _) ->
                 let it_cond_length =
                   match it_op with
@@ -1157,11 +1372,10 @@ class ailParser =
                   | ITEEE -> 4
                   | _ -> failwith "unsupported IT opcode"
                 in
-                (* Check for the instructions within the length.
-                 * If there is at least one instruction that does not have condition suffix,
-                 * then it is likely literal pools.
-                 * Thus, we remove the IT instruction and the following instructions within the length.
-                 *)
+                (* Check for the instructions within the length. If there is
+                at least one instruction that does not have condition suffix,
+                then it is likely literal pools. Thus, we remove the IT 
+                instruction and the following instructions within the length. *)
                 let has_condsuff (instr : instr) : bool =
                   match IU.get_op instr with
                   | Arm_OP (_, Some _, _) -> true

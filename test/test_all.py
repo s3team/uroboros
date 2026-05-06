@@ -105,7 +105,7 @@ def run_uroboros(binary: Path, isa: str, arch: int):
     if isa == "arm" and arch == "thumb":
         uroboros_args.append("--arch")
         uroboros_args.append("thumb")
-    elif isa == "arm" and (arch == "32" or arch=="64"):
+    elif isa == "arm" and (arch == "32" or arch == "64"):
         uroboros_args.append("--arch")
         uroboros_args.append("arm")
 
@@ -172,7 +172,7 @@ def test_recompiled_binary(raw: Path, recompiled: Path, isa: str, arch: int):
         )
         raw_cmd = ["script", "-q", "-c", qemu_raw_cmd]
         recompiled_cmd = ["script", "-q", "-c", qemu_recompiled_command]
- 
+
     else:
         logger.error(f"Unsupported ISA {isa} ({arch}) for test_recompiled_binary")
         return False
@@ -224,12 +224,20 @@ def uroboros_all(targets: list, args):
     arches = [args.m] if args.m is not None else ["thumb", "32", "64"]
     isas = [args.arch] if args.arch is not None else ["intel", "arm"]
     pies = [not args.no_pie] if args.no_pie is True else [True, False]
-    statics = [args.static] if args.static is True else [True, False]
+    statics = (
+        [args.static]
+        if args.static is True
+        else [True, False] if args.dyn is False else [False]
+    )
     for isa in isas:
         for arch in arches:
             for pie in pies:
                 for static in statics:
-                    if isa == "arm" and (arch != "64" and arch != "thumb") and static is True:
+                    if (
+                        isa == "arm"
+                        and (arch != "64" and arch != "thumb")
+                        and static is True
+                    ):
                         logger.warning(
                             f"Static linking is not supported for ARM thumb or ARM 32 architecture"
                         )
@@ -297,6 +305,7 @@ if __name__ == "__main__":
     test_args.add_argument("--no-pie", action="store_true", help="Disable PIE flag")
     test_args.add_argument("--stripped", action="store_true", help="Strip binary")
     test_args.add_argument("--static", action="store_true", help="Static binary")
+    test_args.add_argument("--dyn", action="store_true", help="Dynamic binary")
     test_args.add_argument(
         "-g", "--debug-symbol", action="store_true", help="Compile with debug symbols"
     )

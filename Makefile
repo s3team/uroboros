@@ -20,6 +20,9 @@ arm.thumb:
 	rm $(CURDIR)/src/fun.o || true
 	find $(CURDIR)/src/points -maxdepth 1 ! -name '.gitignore' -type f -exec rm -v {} +
 
+arm.thumb.coreutils:
+	test/run_arm_coreutils.py --arch thumb --fail-fast 2>&1 | tee test.arm.thumb.coreutils
+
 arm.64:
 	test/test_all.py -a -c --arch arm -m 64 || true
 	test/test_instrument.arm.64.sh 2>&1 | tee test.arm.64.instrument || true
@@ -37,6 +40,7 @@ clean:
 	rm src/info.enc || true
 	rm src/private.key || true
 	rm src/public_key.h || true
+	rm src/points/*.ins || true
 	find . -type f -name "*.help" -delete || true
 	find . -type f -name "*.res" -delete || true
 	find . -type f -name "*.out" -delete || true
