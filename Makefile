@@ -1,5 +1,9 @@
 # Local CI or Regression Testing + Cleaning
 
+# Without pipefail, `cmd | tee log` always exits 0 and hides test failures
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
 intel:
 	test/test_all.py -a -c --arch intel || true
 	test/test_instrument.intel.sh 2>&1 | tee test.intel.instrument || true

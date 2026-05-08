@@ -1,6 +1,9 @@
 #!/bin/bash
 
+set -o pipefail
+
 arch="$1"
+has_failed="false"
 
 if [[ "$arch" == "intel" ]]; then
   #########
@@ -8,9 +11,13 @@ if [[ "$arch" == "intel" ]]; then
   #########
 
   tmpfile=$(mktemp)
-  python3 $(pwd)/test/test_all.py -a --arch intel &> "$tmpfile"
-  failed=$(cat "$tmpfile" | grep "Uroboros failed on")
-  mismatched=$(cat "$tmpfile" | grep "Output mismatch for")
+  echo "##### raw intel outputs #####"
+  if ! stdbuf -oL -eL python3 $(pwd)/test/test_all.py -a --arch intel 2>&1 | tee "$tmpfile"; then
+    echo "##### test_all.py exited non-zero (intel) #####"
+    has_failed="true"
+  fi
+  failed=$(grep "Uroboros failed on" "$tmpfile")
+  mismatched=$(grep "Output mismatch for" "$tmpfile")
   failed=$(echo "$failed" | sort)
   mismatched=$(echo "$mismatched" | sort)
 
@@ -18,7 +25,6 @@ if [[ "$arch" == "intel" ]]; then
   cat "$tmpfile"
   rm "$tmpfile"
 
-  has_failed="false"
   if [[ -n "$failed" ]]; then
     echo "##### expected failures not matching (intel) #####"
     echo "~ actual:"
@@ -39,9 +45,13 @@ elif [[ "$arch" == "arm" ]]; then
   #######
 
   tmpfile=$(mktemp)
-  python3 $(pwd)/test/test_all.py -a --arch arm &> "$tmpfile"
-  failed=$(cat "$tmpfile" | grep "Uroboros failed on")
-  mismatched=$(cat "$tmpfile" | grep "Output mismatch for")
+  echo "##### raw arm outputs #####"
+  if ! stdbuf -oL -eL python3 $(pwd)/test/test_all.py -a --arch arm 2>&1 | tee "$tmpfile"; then
+    echo "##### test_all.py exited non-zero (arm) #####"
+    has_failed="true"
+  fi
+  failed=$(grep "Uroboros failed on" "$tmpfile")
+  mismatched=$(grep "Output mismatch for" "$tmpfile")
   failed=$(echo "$failed" | sort)
   mismatched=$(echo "$mismatched" | sort)
 
@@ -49,7 +59,6 @@ elif [[ "$arch" == "arm" ]]; then
   cat "$tmpfile"
   rm "$tmpfile"
 
-  has_failed="false"
   if [[ -n "$failed" ]]; then
     echo "##### expected failures not matching (arm) #####"
     echo "~ actual:"
