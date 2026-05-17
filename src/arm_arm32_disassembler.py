@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import bisect
 import os
-import re
 from dataclasses import dataclass
 
 import main_discover
@@ -30,6 +29,11 @@ _COND_CODES = {
     "lo",
 }
 
+_BL_OPS = frozenset("bl" + c for c in _COND_CODES)
+_BLX_OPS = frozenset("blx" + c for c in _COND_CODES)
+_BCC_OPS = frozenset("b" + c for c in _COND_CODES if c != "al")
+_BAL_OPS = frozenset({"b", "bal"})
+
 
 @dataclass
 class ParsedInstruction:
@@ -38,10 +42,12 @@ class ParsedInstruction:
     operands: str
     size: int
     line: str
-
-
-def _normalize_opcode(opcode: str) -> str:
-    return opcode.strip().lower().split(".")[0]
+    is_bl: bool = False
+    is_blx: bool = False
+    is_cond_jump: bool = False
+    is_uncond_jump: bool = False
+    is_return: bool = False
+    target_addr: int | None = None
 
 
 def _extract_size(hex_column: str) -> int:
@@ -51,81 +57,13 @@ def _extract_size(hex_column: str) -> int:
     return max(1, len(compact_hex) // 2)
 
 
-def _parse_instruction_line(line: str) -> ParsedInstruction | None:
-    parts = line.rstrip("\n").split("\t")
-    if len(parts) < 4 and not (len(parts) == 3 and "nop" in parts[2].strip().lower()):
-        return None
-
-    addr_str = parts[0].strip().rstrip(":")
-    if not re.fullmatch(r"[0-9a-fA-F]+", addr_str):
-        return None
-
-    try:
-        addr = int(addr_str, 16)
-    except ValueError:
-        return None
-
-    opcode = parts[2].strip().lower()
-    # For `nop` instructions, there is no operands column.
-    operands = parts[3].strip() if len(parts) > 3 else ""
-    size = _extract_size(parts[1])
-    return ParsedInstruction(
-        addr=addr, opcode=opcode, operands=operands, size=size, line=line
-    )
-
-
-def _load_disassembly(path: str) -> tuple[list[str], dict[int, ParsedInstruction]]:
-    header_lines: list[str] = []
-    addr_map: dict[int, ParsedInstruction] = {}
-
-    with open(path, "r") as file_obj:
-        for line in file_obj:
-            parsed = _parse_instruction_line(line)
-            if parsed is None:
-                header_lines.append(line)
-                continue
-
-            if parsed.addr not in addr_map:
-                addr_map[parsed.addr] = parsed
-
-    return header_lines, addr_map
-
-
-def _is_bl(opcode: str) -> bool:
-    op = _normalize_opcode(opcode)
-    return op in {"bl" + cond for cond in _COND_CODES}
-
-
-def _is_blx(opcode: str) -> bool:
-    op = _normalize_opcode(opcode)
-    return op in {"blx" + cond for cond in _COND_CODES}
-
-
-def _is_function_call(opcode: str) -> bool:
-    return _is_bl(opcode) or _is_blx(opcode)
-
-
-def _is_conditional_jump(opcode: str) -> bool:
-    op = _normalize_opcode(opcode)
-    return op in {"b" + cond for cond in _COND_CODES if cond != "al"}
-
-
-def _is_unconditional_jump(opcode: str) -> bool:
-    op = _normalize_opcode(opcode)
-    return op in {"b", "bal"}
-
-
-def _is_return_instruction(instruction: ParsedInstruction) -> bool:
-    op = _normalize_opcode(instruction.opcode)
-    operands = instruction.operands.lower()
-
-    if op in {"bx"} and ("lr" in operands or "r14" in operands):
+def _is_return_opcode(op: str, operands_lower: str) -> bool:
+    if op == "bx" and ("lr" in operands_lower or "r14" in operands_lower):
         return True
-    if op.startswith("pop") and "pc" in operands:
+    if op.startswith("pop") and "pc" in operands_lower:
         return True
-    if op.startswith("ldmia") and "sp" in operands and "pc" in operands:
+    if op.startswith("ldmia") and "sp" in operands_lower and "pc" in operands_lower:
         return True
-
     return False
 
 
@@ -136,13 +74,79 @@ def _extract_target_addr(operands: str) -> int | None:
     first_token = operands.split()[0].strip().strip(",")
     if first_token.startswith("#"):
         first_token = first_token[1:]
+    if first_token.startswith("0x"):
+        first_token = first_token[2:]
 
     try:
-        if first_token.startswith("0x"):
-            return int(first_token, 16)
         return int(first_token, 16)
     except ValueError:
         return None
+
+
+def _parse_instruction_line(line: str) -> ParsedInstruction | None:
+    parts = line.rstrip("\n").split("\t")
+    if len(parts) < 4 and not (len(parts) == 3 and "nop" in parts[2].strip().lower()):
+        return None
+
+    addr_str = parts[0].strip().rstrip(":")
+    try:
+        addr = int(addr_str, 16)
+    except ValueError:
+        return None
+
+    raw_opcode = parts[2].strip().lower()
+    # For `nop` instructions, there is no operands column.
+    operands = parts[3].strip() if len(parts) > 3 else ""
+    size = _extract_size(parts[1])
+
+    op = raw_opcode.split(".", 1)[0]
+    operands_lower = operands.lower()
+    is_bl = op in _BL_OPS
+    is_blx = op in _BLX_OPS
+    is_cond_jump = (not is_bl) and (not is_blx) and op in _BCC_OPS
+    is_uncond_jump = op in _BAL_OPS
+    is_return = _is_return_opcode(op, operands_lower)
+    target_addr = (
+        _extract_target_addr(operands)
+        if is_bl or is_blx or is_cond_jump or is_uncond_jump
+        else None
+    )
+
+    return ParsedInstruction(
+        addr=addr,
+        opcode=raw_opcode,
+        operands=operands,
+        size=size,
+        line=line,
+        is_bl=is_bl,
+        is_blx=is_blx,
+        is_cond_jump=is_cond_jump,
+        is_uncond_jump=is_uncond_jump,
+        is_return=is_return,
+        target_addr=target_addr,
+    )
+
+
+def _load_disassembly(
+    path: str,
+) -> tuple[list[tuple[str, "ParsedInstruction | None"]], dict[int, ParsedInstruction]]:
+    """Read and parse a disassembly file once.
+
+    Returns the ordered (line, parsed) pairs (parsed is None for non-instruction
+    lines) and an addr→ParsedInstruction map. Callers that only need the map
+    can discard the ordered list.
+    """
+    ordered: list[tuple[str, ParsedInstruction | None]] = []
+    addr_map: dict[int, ParsedInstruction] = {}
+
+    with open(path, "r") as file_obj:
+        for line in file_obj:
+            parsed = _parse_instruction_line(line)
+            ordered.append((line, parsed))
+            if parsed is not None and parsed.addr not in addr_map:
+                addr_map[parsed.addr] = parsed
+
+    return ordered, addr_map
 
 
 def _parse_main_info_addr() -> int | None:
@@ -163,9 +167,6 @@ def _parse_main_info_addr() -> int | None:
         hex_part = line[2:]
     else:
         hex_part = line
-
-    if not re.fullmatch(r"[0-9a-fA-F]+", hex_part):
-        return None
 
     try:
         return int(hex_part, 16)
@@ -249,7 +250,7 @@ def build_mixed_disassembly(
     if not os.path.exists(thumb_path):
         raise FileNotFoundError(f"missing thumb disassembly file: {thumb_path}")
 
-    _, arm32_map = _load_disassembly(arm32_path)
+    arm32_ordered, arm32_map = _load_disassembly(arm32_path)
     _, thumb_map = _load_disassembly(thumb_path)
 
     # Pre-compute init function address set and sorted list for range checks.
@@ -284,54 +285,47 @@ def build_mixed_disassembly(
         their correct (previously determined) modes.
         """
         if from_mode_map is None:
-            for addr, instruction in arm32_map.items():
+            for addr, instr in arm32_map.items():
                 if _is_init_addr(addr):
                     continue
-                if _is_bl(instruction.opcode):
-                    t = _extract_target_addr(instruction.operands)
-                    if t is not None:
-                        a32.add(t)
-                elif _is_blx(instruction.opcode):
-                    t = _extract_target_addr(instruction.operands)
-                    if t is not None:
-                        th.add(t)
-            for addr, instruction in thumb_map.items():
+                t = instr.target_addr
+                if t is None:
+                    continue
+                if instr.is_bl:
+                    a32.add(t)
+                elif instr.is_blx:
+                    th.add(t)
+            for addr, instr in thumb_map.items():
                 if _is_init_addr(addr):
                     continue
-                if _is_bl(instruction.opcode):
-                    t = _extract_target_addr(instruction.operands)
-                    if t is not None:
-                        th.add(t)
-                elif _is_blx(instruction.opcode):
-                    t = _extract_target_addr(instruction.operands)
-                    if t is not None:
-                        a32.add(t)
+                t = instr.target_addr
+                if t is None:
+                    continue
+                if instr.is_bl:
+                    th.add(t)
+                elif instr.is_blx:
+                    a32.add(t)
         else:
             for addr, mode in from_mode_map.items():
                 if _is_init_addr(addr):
                     continue
                 current_map = arm32_map if mode == "arm32" else thumb_map
-                instruction = current_map.get(addr)
-                if instruction is None:
+                instr = current_map.get(addr)
+                if instr is None:
+                    continue
+                t = instr.target_addr
+                if t is None:
                     continue
                 if mode == "arm32":
-                    if _is_bl(instruction.opcode):
-                        t = _extract_target_addr(instruction.operands)
-                        if t is not None:
-                            a32.add(t)
-                    elif _is_blx(instruction.opcode):
-                        t = _extract_target_addr(instruction.operands)
-                        if t is not None:
-                            th.add(t)
+                    if instr.is_bl:
+                        a32.add(t)
+                    elif instr.is_blx:
+                        th.add(t)
                 else:
-                    if _is_bl(instruction.opcode):
-                        t = _extract_target_addr(instruction.operands)
-                        if t is not None:
-                            th.add(t)
-                    elif _is_blx(instruction.opcode):
-                        t = _extract_target_addr(instruction.operands)
-                        if t is not None:
-                            a32.add(t)
+                    if instr.is_bl:
+                        th.add(t)
+                    elif instr.is_blx:
+                        a32.add(t)
 
     # Get the main symbol address.
     arch = "thumb" if initial_mode == "thumb" else "arm"
@@ -350,7 +344,8 @@ def build_mixed_disassembly(
     arm32_start_addrs: set[int] = set()
     thumb_start_addrs: set[int] = set()
     instruction_addr_mode_map: dict[int, str] = {}
-    merged_lines: list[str] = []
+    visited: dict[int, tuple[str, int]] = {}
+    selected_lines: dict[int, str] = {}
 
     # Sorted address lists used to skip over zero-padding gaps (shown as `...`
     # in objdump output) when instruction lookup returns None.
@@ -447,118 +442,104 @@ def build_mixed_disassembly(
             selected_lines[current_addr] = instruction.line
             instruction_addr_mode_map[current_addr] = mode
 
-            if _is_function_call(instruction.opcode):
-                # Push both the call target and the next instruction.
-                target_addr = _extract_target_addr(instruction.operands)
-                next_addr = (current_addr + instruction.size) & ~1
+            next_addr = (current_addr + instruction.size) & ~1
+            if instruction.is_bl or instruction.is_blx:
+                target_addr = instruction.target_addr
                 stack.append((next_addr, mode))
                 if target_addr is not None:
-                    target_mode = _next_mode(mode, _is_blx(instruction.opcode))
+                    target_mode = _next_mode(mode, instruction.is_blx)
                     if target_mode == "thumb":
                         thumb_start_addrs.add(target_addr)
                     else:
                         arm32_start_addrs.add(target_addr)
                     stack.append((target_addr & ~1, target_mode))
-            elif _is_return_instruction(instruction):
+            elif instruction.is_return:
                 # Push to back to prioritize covering the control-flow first
-                stack.insert(0, ((current_addr + instruction.size) & ~1, mode))
+                stack.insert(0, (next_addr, mode))
                 continue
-            elif _is_conditional_jump(instruction.opcode):
-                # Push both the jump target and the next instruction.
-                target_addr = _extract_target_addr(instruction.operands)
-                next_addr = (current_addr + instruction.size) & ~1
+            elif instruction.is_cond_jump:
+                target_addr = instruction.target_addr
                 stack.append((next_addr, mode))
                 if target_addr is not None:
                     stack.append((target_addr & ~1, mode))
-            elif _is_unconditional_jump(instruction.opcode):
-                # Push only next instruction
-                # since the jump target will eventually be handled.
-                next_addr = (current_addr + instruction.size) & ~1
-                stack.append((next_addr, mode))
             else:
-                next_addr = (current_addr + instruction.size) & ~1
+                # Unconditional jump or non-control-flow: fall through.
                 stack.append((next_addr, mode))
 
-        new_merged_lines: list[str] = []
+        # Check for convergence using the mode map, which fully determines the
+        # output: if instruction_addr_mode_map is unchanged then visited and
+        # selected_lines are unchanged, so the merged output would be unchanged
+        # too. Comparing mode maps avoids rebuilding the (~85k-line) output on
+        # every iteration just to compare it.
+        if (
+            mode_map_for_rescan is not None
+            and instruction_addr_mode_map == mode_map_for_rescan
+        ):
+            break
 
-        selected_covered_addrs: set[int] = set()
-        for addr, (_, size) in visited.items():
-            for byte_addr in range(addr, addr + size):
-                selected_covered_addrs.add(byte_addr)
+        mode_map_for_rescan = instruction_addr_mode_map
 
-        selected_addrs_sorted = sorted(selected_lines.keys())
-        selected_idx = 0
-        emitted_selected_addrs: set[int] = set()
+    # Build the merged output once after convergence using the cached
+    # arm32_ordered list (avoids re-reading and re-parsing arm32_path
+    # on every fixed-point iteration).
+    merged_lines = []
+    selected_covered_addrs: set[int] = set()
+    for addr, (_, size) in visited.items():
+        for byte_addr in range(addr, addr + size):
+            selected_covered_addrs.add(byte_addr)
 
-        with open(arm32_path, "r") as file_obj:
-            for line in file_obj:
-                parsed = _parse_instruction_line(line)
-                if parsed is None:
-                    # Not an instruction line, just copy it
-                    new_merged_lines.append(line)
-                    continue
+    selected_addrs_sorted = sorted(selected_lines.keys())
+    selected_idx = 0
+    emitted_selected_addrs: set[int] = set()
 
-                while (
-                    selected_idx < len(selected_addrs_sorted)
-                    and selected_addrs_sorted[selected_idx] < parsed.addr
-                ):
-                    selected_addr = selected_addrs_sorted[selected_idx]
-                    if selected_addr not in emitted_selected_addrs:
-                        new_merged_lines.append(selected_lines[selected_addr])
-                        emitted_selected_addrs.add(selected_addr)
-                    selected_idx += 1
+    def _emit_selected(addr_int: int) -> None:
+        if init_fn_addr_ints and _is_init_addr(addr_int):
+            return
+        merged_lines.append(selected_lines[addr_int])
 
-                if (
-                    parsed.addr in selected_lines
-                    and parsed.addr not in emitted_selected_addrs
-                ):
-                    new_merged_lines.append(selected_lines[parsed.addr])
-                    emitted_selected_addrs.add(parsed.addr)
-                    if (
-                        selected_idx < len(selected_addrs_sorted)
-                        and selected_addrs_sorted[selected_idx] == parsed.addr
-                    ):
-                        selected_idx += 1
-                    continue
+    for line, parsed in arm32_ordered:
+        if parsed is None:
+            merged_lines.append(line)
+            continue
 
-                overlaps_selected = any(
-                    (parsed.addr + offset) in selected_covered_addrs
-                    for offset in range(parsed.size)
-                )
-                if overlaps_selected:
-                    continue
-
-                new_merged_lines.append(line)
-
-        while selected_idx < len(selected_addrs_sorted):
+        while (
+            selected_idx < len(selected_addrs_sorted)
+            and selected_addrs_sorted[selected_idx] < parsed.addr
+        ):
             selected_addr = selected_addrs_sorted[selected_idx]
             if selected_addr not in emitted_selected_addrs:
-                new_merged_lines.append(selected_lines[selected_addr])
+                _emit_selected(selected_addr)
                 emitted_selected_addrs.add(selected_addr)
             selected_idx += 1
 
-        # Filter init function instructions from the merged output.
-        if init_fn_addr_ints:
-            filtered_merged: list[str] = []
-            for line in new_merged_lines:
-                addr_str = line.split(":")[0].strip()
-                try:
-                    addr_int = int(addr_str, 16)
-                except ValueError:
-                    filtered_merged.append(line)
-                    continue
-                if _is_init_addr(addr_int):
-                    continue
-                filtered_merged.append(line)
-            new_merged_lines = filtered_merged
+        if parsed.addr in selected_lines and parsed.addr not in emitted_selected_addrs:
+            _emit_selected(parsed.addr)
+            emitted_selected_addrs.add(parsed.addr)
+            if (
+                selected_idx < len(selected_addrs_sorted)
+                and selected_addrs_sorted[selected_idx] == parsed.addr
+            ):
+                selected_idx += 1
+            continue
 
-        # Check for convergence.
-        if new_merged_lines == merged_lines:
-            break
+        overlaps_selected = any(
+            (parsed.addr + offset) in selected_covered_addrs
+            for offset in range(parsed.size)
+        )
+        if overlaps_selected:
+            continue
 
-        merged_lines = new_merged_lines
-        # Next iteration re-scans using the correct modes determined in this pass.
-        mode_map_for_rescan = instruction_addr_mode_map
+        if init_fn_addr_ints and _is_init_addr(parsed.addr):
+            continue
+
+        merged_lines.append(line)
+
+    while selected_idx < len(selected_addrs_sorted):
+        selected_addr = selected_addrs_sorted[selected_idx]
+        if selected_addr not in emitted_selected_addrs:
+            _emit_selected(selected_addr)
+            emitted_selected_addrs.add(selected_addr)
+        selected_idx += 1
 
     with open(output_path, "w") as out_file:
         out_file.writelines(merged_lines)

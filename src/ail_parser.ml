@@ -807,7 +807,7 @@ class ailParser =
         instr list =
       (* Remove instructions pointed to by PC-relative loads *)
       let ordered_il = List.rev instr_list in
-      let pc_relative_addrs = ref [] in
+      let pc_relative_addrs : (int, unit) Hashtbl.t = Hashtbl.create 1024 in
       (* Build a set of all known instruction addresses so we never comment out
          a real instruction: a literal pool data entry that happens to decode as
          an LDR with a target inside actual code would otherwise incorrectly
@@ -821,11 +821,7 @@ class ailParser =
         | [] -> acc
         | instr :: [] -> (instr :: instr_buffer) @ acc
         | instr :: t ->
-            begin if
-              List.exists
-                (fun addr -> addr = (get_loc instr).loc_addr)
-                !pc_relative_addrs
-            then begin
+            begin if Hashtbl.mem pc_relative_addrs (get_loc instr).loc_addr then begin
               (* Skip (comment out) this instruction *)
               let commented_out_instr = mark_commented_out instr in
               aux (commented_out_instr :: acc) (instr :: instr_buffer) t
@@ -846,12 +842,12 @@ class ailParser =
                   let module AU = ArmUtils in
                   let pc_addr = AU.get_pc_relative_addr "thumb" instr in
                   (* Only treat the target as a literal pool if it is not
-                     already a known instruction address. If it is, the LDR
-                     itself is likely a literal pool data entry that was
-                     decoded as an LDR instruction but actually contains a
-                     pointer into executable code. *)
+                  already a known instruction address. If it is, the LDR
+                  itself is likely a literal pool data entry that was
+                  decoded as an LDR instruction but actually contains a
+                  pointer into executable code. *)
                   if not (Hashtbl.mem instr_addr_set pc_addr) then
-                    pc_relative_addrs := pc_addr :: !pc_relative_addrs;
+                    Hashtbl.replace pc_relative_addrs pc_addr ();
                   aux (instr :: acc) [] t
                 end
               | _ -> begin aux (instr :: acc) [] t end
@@ -1435,7 +1431,7 @@ class ailParser =
             let lines = Utils.read_file "arm32_replaced.info" in
             List.filter_map
               (fun line ->
-                match Str.split (Str.regexp ":") line with
+                match String.split_on_char ':' line with
                 | [ s; e ] -> (
                     match (int_of_string_opt s, int_of_string_opt e) with
                     | Some start_addr, Some end_addr ->
@@ -1600,11 +1596,10 @@ class ailParser =
       List.iter
         (fun line ->
           let trimmed_line = String.trim line in
-          match Str.split (Str.regexp ":") trimmed_line with
+          match String.split_on_char ':' trimmed_line with
           | addr :: hex :: _ ->
               let addr' = "0x" ^ addr in
               let trimmed_hex = String.trim hex in
-              (* Printf.printf "addr: %d, hex: %s\n" (int_of_string addr') trimmed_hex; *)
               Hashtbl.replace addr_hexcode_map (int_of_string addr') trimmed_hex
           | _ -> ())
         lines
@@ -1681,7 +1676,7 @@ class ailParser =
       let p = self#create_parser arch in
       let _ = p#set_funclist funcs
       and _ = p#set_seclist secs
-      and split = Str.split (Str.regexp_string ":") in
+      and split = String.split_on_char ':' in
       (* change empty instruction to "undefined" string *)
       let l' =
         List.map

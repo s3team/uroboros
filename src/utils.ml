@@ -111,11 +111,24 @@ let rec last_ele : 'a list -> 'a = function
   | [] -> failwith "error in last_ele"
 
 let contains ~(str : string) ~(sub : string) : bool =
-  let re = Str.regexp_string sub in
-  try
-    ignore (Str.search_forward re str 0);
-    true
-  with Not_found -> false
+  let str_len = String.length str in
+  let sub_len = String.length sub in
+  if sub_len = 0 then true
+  else if sub_len > str_len then false
+  else
+    let last = str_len - sub_len in
+    let rec match_from i j =
+      if j = sub_len then true
+      else if String.unsafe_get str (i + j) = String.unsafe_get sub j then
+        match_from i (j + 1)
+      else false
+    in
+    let rec check_at i =
+      if i > last then false
+      else if match_from i 0 then true
+      else check_at (i + 1)
+    in
+    check_at 0
 
 (* on 32bit system, OCaml's maxinum integer is 0x3fffffff *)
 let string_to_int32 (s : string) : int option =
