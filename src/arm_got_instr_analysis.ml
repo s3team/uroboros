@@ -18,9 +18,11 @@ module ArmGotAbsWithValues : DfaAbs = struct
 
   (* A tracked register is in one of three states:
     - absent in the map: not yet computed (bottom)
-    - [Val v]: known to hold the concrete value [v]
+    - [Val (v, src)]: known to hold the concrete value [v]; [src] is the
+      loc_addr of the LDR that loaded the value (when it came from a
+      PC-relative literal-pool load), else [None]
     - [Top]: oscillating / killed / unknown *)
-  type reg_val = Top | Val of int
+  type reg_val = Top | Val of int * int option
   type abs_state = reg_val RegMap.t
   type abstraction = abs_state
 
@@ -84,12 +86,21 @@ module ArmGotAbsWithValues : DfaAbs = struct
 
   let get_register_value (state : abs_state) (reg_name : string) : int option =
     match RegMap.find_opt reg_name state with
-    | Some (Val v) -> Some v
+    | Some (Val (v, _)) -> Some v
+    | Some Top | None -> None
+
+  let get_register_source (state : abs_state) (reg_name : string) : int option =
+    match RegMap.find_opt reg_name state with
+    | Some (Val (_, src)) -> src
     | Some Top | None -> None
 
   let update_register (state : abs_state) (reg_name : string) (value : int) :
       abs_state =
-    RegMap.add reg_name (Val value) state
+    RegMap.add reg_name (Val (value, None)) state
+
+  let update_register_with_source (state : abs_state) (reg_name : string)
+      (value : int) (src_ldr_loc : int) : abs_state =
+    RegMap.add reg_name (Val (value, Some src_ldr_loc)) state
 
   let remove_register (state : abs_state) (reg_name : string) : abs_state =
     RegMap.add reg_name Top state
@@ -165,7 +176,11 @@ module ArmGotAbsWithValues : DfaAbs = struct
                     (fun cur next ->
                       match (cur, next) with
                       | Top, _ | _, Top -> Top
-                      | Val a, Val b -> if a = b then Val a else Top)
+                      | Val (a, sa), Val (b, sb) ->
+                          if a <> b then Top
+                          else
+                            let src = if sa = sb then sa else None in
+                            Val (a, src))
                     first rest
                 in
                 RegMap.add reg joined acc)
@@ -248,12 +263,15 @@ module ArmGotAbsWithValues : DfaAbs = struct
                 (* No need to pass [imm] to [AU.get_pc_relative_addr]. *)
                 let pc_relative_addr = AU.get_pc_relative_addr !arch i in
                 if has_literal_pool_data pc_relative_addr then begin
-                  (* update the register value in the output state *)
+                  (* update the register value in the output state, and
+                  record THIS LDR's loc as the source so a later
+                  [add Rd, pc] can flag this LDR as a GOT-pool load. *)
                   let (Some data_str) =
                     get_literal_pool_data pc_relative_addr
                   in
                   let data = int_of_string ("0x" ^ data_str) in
-                  update_register outs dst_reg_name data
+                  update_register_with_source outs dst_reg_name data
+                    loc.loc_addr
                 end
                 else
                   (* pc-relative address not in literal pool (e.g. points to
@@ -329,6 +347,14 @@ module ArmGotAbsWithValues : DfaAbs = struct
                       if sum mod 2 = 1 then sum else sum - (sum mod 4)
                     in
                     let _ = check_and_replace_instr aligned_sum e2 loc prefix in
+                    (* Flag the source LDR (the PC-relative load that
+                    produced [dst_reg_value]) as a GOT-pool load, so the
+                    LDR-fold classifier in vinst2 treats its pool value
+                    as opaque rather than as an absolute symbol address. *)
+                    (match get_register_source ins dst_reg_name with
+                    | Some src_ldr_loc ->
+                        Hashtbl.replace got_pool_load_ldrs src_ldr_loc ()
+                    | None -> ());
                     update_register outs dst_reg_name aligned_sum
                 | None -> remove_register outs dst_reg_name
                 end
@@ -547,7 +573,7 @@ module ArmGotAbsWithValues : DfaAbs = struct
   let print_abstraction abs =
     RegMap.iter
       (fun k v ->
-        let s = match v with Top -> "TOP" | Val n -> dec_hex n in
+        let s = match v with Top -> "TOP" | Val (n, _) -> dec_hex n in
         print_endline (k ^ " -> " ^ s))
       abs
 end

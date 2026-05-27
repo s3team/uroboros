@@ -11,6 +11,10 @@ open Share_lib_helper
 
 exception Reassemble_Error of string
 
+(* Set of addresses of PC-relative LDR followed by `add Rd, pc` instruction.
+This is to prevent classification of the LDR's pool value as a symbolic address. *)
+let got_pool_load_ldrs : (int, unit) Hashtbl.t = Hashtbl.create 200
+
 let rev_map f l =
   let rec aux f l acc =
     match l with h :: t -> aux f t (f h :: acc) | [] -> acc
@@ -2379,6 +2383,32 @@ class arm_reassemble =
                 | Some s -> int_of_string ("0x" ^ s)
                 | None -> pc_relative_addr
               in
+              (* Classify the pool value.
+              1) PC-relative LDR followed by `add Rd, pc` (GOT load) ->
+                 no symbolization. The value is a PC-relative offset,
+                 not an address. The DFA already symbolizes the
+                 downstream ADD, so this LDR's value is dead.
+              2) PC-relative LDR loading an absolute symbol address
+                 (e.g. C++ vtable / RTTI in .rodata, an instruction in
+                 .text, or an exact PLT entry start) -> symbolize as
+                 [Const (Point value)] so the linker rebinds it to the
+                 new layout. Otherwise the address is stale and any
+                 deref (vptr, function pointer) lands in garbage.
+              3) Anything else (constants, FP literals, packed bits,
+                 GOT offsets the DFA missed) -> no symbolization;
+                 emit as raw immediate via movw/movt. *)
+              let is_got_pool_load =
+                Hashtbl.mem got_pool_load_ldrs (Instr_utils.get_loc i).loc_addr
+              in
+              let is_symbolic_address addr =
+                let even = addr - (addr land 1) in
+                Hashtbl.mem plt_hash addr || self#check_text addr
+                || (addr land 1 = 1 && self#check_text even)
+                ||
+                match self#check_sec addr with
+                | Some _ -> true
+                | None -> false
+              in
               match cond with
               | Some _ ->
                   (* Conditional LDR instructions in IT blocks cannot be converted
@@ -2388,16 +2418,19 @@ class arm_reassemble =
                   in
                   TripleInstr (ldr_op, Const (Point value), dst, l, pre, tags)
               | None ->
-                  let movwt_tags =
-                    let t = Hashtbl.copy tags in
-                    Hashtbl.replace t "instr_tag" (Str "movw_movt");
-                    t
-                  in
                   let ldr_op =
                     Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
                   in
-                  TripleInstr
-                    (ldr_op, Const (Immediate value), dst, l, pre, movwt_tags)
+                  if (not is_got_pool_load) && is_symbolic_address value then
+                    TripleInstr (ldr_op, Const (Point value), dst, l, pre, tags)
+                  else
+                    let movwt_tags =
+                      let t = Hashtbl.copy tags in
+                      Hashtbl.replace t "instr_tag" (Str "movw_movt");
+                      t
+                    in
+                    TripleInstr
+                      (ldr_op, Const (Immediate value), dst, l, pre, movwt_tags)
             end
             else i
         | TripleInstr (p, e1, e2, l, pre, tags) when has_sym_instr_tag i ->
