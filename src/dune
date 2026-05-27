@@ -181,7 +181,13 @@
 (library
  (name analysis_process)
  (modules analysis_process)
- (libraries pp_print reassemble_symbol_get cfg cg)
+ (libraries
+  pp_print
+  reassemble_symbol_get
+  arm_reassemble_symbol_get
+  cfg
+  cg
+  arm_postprocess)
  (wrapped false)
  (flags
   (:standard -w -7-8-26-27-10-11-32-33-39)))

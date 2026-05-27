@@ -8,11 +8,14 @@ module Analysis = struct
   open Utils
   open Pp_print
   open Type
+  open Arm_reassemble_symbol_get
   open Reassemble_symbol_get
   open Elf_utils
 
   let analyze_one il fl re (arch : string) =
     let module FnU = Func_utils in
+    (* let module ARSG = Arm_reassemble_symbol_get in *)
+    let arm_reassemble_lazy = lazy (new arm_reassemble) in
     let cfg = new cfg in
     let cg = new cg in
 
@@ -23,6 +26,9 @@ module Analysis = struct
 
     let il' =
       cg#visit il
+      |> (if arch = "thumb" then
+            (Lazy.force arm_reassemble_lazy)#pair_movw_movt_for_symbolization
+          else Fun.id)
       |> re#visit_type_infer_analysis []
       |> re#share_lib_processing |> re#adjust_loclabel
     in
@@ -30,7 +36,7 @@ module Analysis = struct
     re#reassemble_dump u_fl;
 
     let il' =
-      re#adjust_jmpref il'
+      il' |> re#adjust_jmpref
       (* |> re#add_func_label u_fl *)
       |> cfg#visit
     in

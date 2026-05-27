@@ -64,15 +64,15 @@ module AdrpAbs : DfaAbs = struct
       AdrpMap.empty preds
 
   let is_store_op : op -> bool = function
-    | Arm_OP (Arm_CommonOP (Arm_Assign op), _, _) -> begin
-        match op with
+    | Arm_OP (Arm_CommonOP (Arm_Assign op), _, _) ->
+        begin match op with
         | STR | STRB | STRBT | STRD | STREX | STREXB | STREXD | STREXH | STRH
         | STRHT | STRT | STP | STUR | STURB | STURH | STLR | STXR | STLXR | VSTR
         | VST4 | VSTM | VSTMDB | VPUSH | VSTMIA | FSTMIAX | STM | STMDA | STMED
         | STMIB | STMDB | STMFD | STMIA | STMEA | ST1B ->
             true
         | _ -> false
-      end
+        end
     | _ -> false
 
   let is_compare_op : op -> bool = function
@@ -80,16 +80,6 @@ module AdrpAbs : DfaAbs = struct
     | _ -> false
 
   let is_read_last_reg p = is_store_op p || is_compare_op p
-
-  let widen (old_abs : abs_state) (new_abs : abs_state) : abs_state =
-    if AdrpMap.is_empty old_abs then new_abs
-    else
-      AdrpMap.filter
-        (fun reg new_val ->
-          match AdrpMap.find_opt reg old_abs with
-          | None -> false
-          | Some old_val -> old_val = new_val)
-        new_abs
 
   let flow_through (i : instr) (ins : abs_state) : abs_state =
     let module TU = Tags_utils in
@@ -151,8 +141,8 @@ module AdrpAbs : DfaAbs = struct
           loc,
           pre,
           tags )
-      when AdrpMap.mem (p_reg exp_offset_reg) outs -> begin
-        match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
+      when AdrpMap.mem (p_reg exp_offset_reg) outs ->
+        begin match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
         | Some base_addr -> begin
             let ldr_dest_exp = promote_reg_for_load arm_exp_reg in
             let abs_addr : int = base_addr in
@@ -235,7 +225,7 @@ module AdrpAbs : DfaAbs = struct
             | None -> outs
           end
         | None -> outs
-      end
+        end
     | TripleInstr
         ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), condsuff, widthsuff),
           Ptr (BinOP_PLUS (exp_offset_reg, offset)),
@@ -243,8 +233,8 @@ module AdrpAbs : DfaAbs = struct
           loc,
           pre,
           tags )
-      when AdrpMap.mem (p_reg exp_offset_reg) outs -> begin
-        match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
+      when AdrpMap.mem (p_reg exp_offset_reg) outs ->
+        begin match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
         | Some base_addr -> begin
             let ldr_dest_exp = promote_reg_for_load arm_exp_reg in
             let abs_addr : int = base_addr + offset in
@@ -366,7 +356,7 @@ module AdrpAbs : DfaAbs = struct
             | None -> outs
           end
         | None -> outs
-      end
+        end
     | TripleInstr
         ( Arm_OP (Arm_CommonOP (Arm_Assign load_op), condsuff, widthsuff),
           Ptr (BinOP_PLUS (exp_offset_reg, offset)),
@@ -376,8 +366,8 @@ module AdrpAbs : DfaAbs = struct
           tags )
       when (load_op = LDRB || load_op = LDRSW || load_op = LDRH
           || load_op = LDRSH || load_op = LDRSB)
-           && AdrpMap.mem (p_reg exp_offset_reg) outs -> begin
-        match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
+           && AdrpMap.mem (p_reg exp_offset_reg) outs ->
+        begin match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
         | Some base_addr -> begin
             let abs_addr : int = base_addr + offset in
             let pseudo_qx_instrs : instr list =
@@ -460,7 +450,7 @@ module AdrpAbs : DfaAbs = struct
             | None -> outs
           end
         | None -> outs
-      end
+        end
     | TripleInstr
         ( Arm_OP (Arm_CommonOP (Arm_Assign store_op), condsuff, widthsuff),
           Ptr (BinOP_PLUS (exp_offset_reg, offset)),
@@ -469,8 +459,8 @@ module AdrpAbs : DfaAbs = struct
           pre,
           tags )
       when (store_op = STR || store_op = STRB || store_op = STRH)
-           && AdrpMap.mem (p_reg exp_offset_reg) outs -> begin
-        match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
+           && AdrpMap.mem (p_reg exp_offset_reg) outs ->
+        begin match AdrpMap.find_opt (p_reg exp_offset_reg) outs with
         | Some base_addr -> begin
             let abs_addr : int = base_addr + offset in
             let pseudo_qx_instrs : instr list =
@@ -564,7 +554,7 @@ module AdrpAbs : DfaAbs = struct
             | None -> outs
           end
         | None -> outs
-      end
+        end
     | FourInstr
         ( Arm_OP (Arm_CommonOP (Arm_Arithm ADD), condsuff, widthsuff),
           Const (Immediate offset),
@@ -581,8 +571,8 @@ module AdrpAbs : DfaAbs = struct
           loc,
           pre,
           tags )
-      when AdrpMap.mem (p_reg exp_reg1) outs -> begin
-        match AdrpMap.find_opt (p_reg exp_reg1) outs with
+      when AdrpMap.mem (p_reg exp_reg1) outs ->
+        begin match AdrpMap.find_opt (p_reg exp_reg1) outs with
         | Some base_addr -> begin
             let abs_addr : int = base_addr + offset in
             let pseudo_qx_instrs : instr list =
@@ -646,24 +636,23 @@ module AdrpAbs : DfaAbs = struct
             | None -> outs
           end
         | None -> outs
-      end
+        end
     | TripleInstr (p, _, Reg dest_exp, _, _, _) when not (is_read_last_reg p) ->
-      begin
-        match AdrpMap.find_opt (p_reg dest_exp) outs with
+        begin match AdrpMap.find_opt (p_reg dest_exp) outs with
         | Some _ -> AdrpMap.remove (p_reg dest_exp) outs
         | None -> outs
-      end
+        end
     | FourInstr (p, _, _, Reg dest_exp, _, _, _) when not (is_read_last_reg p)
-      -> begin
-        match AdrpMap.find_opt (p_reg dest_exp) outs with
+      ->
+        begin match AdrpMap.find_opt (p_reg dest_exp) outs with
         | Some _ -> AdrpMap.remove (p_reg dest_exp) outs
         | None -> outs
-      end
+        end
     | FifInstr (p, _, _, _, Reg dest_exp, _, _, _) when not (is_read_last_reg p)
-      -> begin
-        match AdrpMap.find_opt (p_reg dest_exp) outs with
+      ->
+        begin match AdrpMap.find_opt (p_reg dest_exp) outs with
         | Some _ -> AdrpMap.remove (p_reg dest_exp) outs
         | None -> outs
-      end
+        end
     | _ -> outs
 end

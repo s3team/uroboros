@@ -7,6 +7,8 @@ open Utils
 class arm_func_slicer instrs funcs =
   object (self)
     inherit common_func_slicer instrs funcs
+
+    (* Detect cases where extra instructions precede `push {..., lr}`. *)
     val mutable push_lr_added : bool = false
     val mutable detected_func_by_addr : bool = false
 
@@ -150,11 +152,11 @@ class arm_func_slicer instrs funcs =
         | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
           when detected_func_by_addr ->
             (* To avoid recognizing the push instruction as the start of a function:
-             * ldr     r2, [pc, #564]
-             * cmp     r0, #2
-             * ldr     r3, [pc, #560]
-             * add     r2, pc, r2
-             * push    {r4, r5, r6, r7, r8, r9, sl, lr} *)
+            ldr     r2, [pc, #564]
+            cmp     r0, #2
+            ldr     r3, [pc, #560]
+            add     r2, pc, r2
+            push    {r4, r5, r6, r7, r8, r9, sl, lr} *)
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -173,10 +175,9 @@ class arm_func_slicer instrs funcs =
           when (has_lr_reg lab || has_fp_reg lab) && not detected_func_by_addr
           ->
             (* The above when condition was commented out due to the following case:
-             * in make-prime-list:
-             * 1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
-             * should be recognized as a function beginning
-             *)
+            in make-prime-list:
+            1072c:       e92d 0ff0       stmdb   sp!, {r4, r5, r6, r7, r8, r9, sl, fp}
+            should be recognized as a function beginning *)
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
@@ -186,16 +187,18 @@ class arm_func_slicer instrs funcs =
                 idx = 0
                 || is_unconditional_terminator (List.nth ordered_il (idx - 1))
               in
-              if prev_terminates then
-                func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
+              let inst_addr = IU.get_loc inst |> get_loc_addr in
+              (* Also accept when the address is a known function start.
+              Wihtout this, a function can be folded into a prior function *)
+              if prev_terminates || in_start_addrs inst_addr then
+                func_begins <- inst_addr :: func_begins
             end
             else begin
               push_lr_added <- false
             end
-        (* add a function *)
-        (* push	{r7}
-         * sub	sp, #12
-         *)
+        (* add a function:
+        push	{r7}
+        sub	sp, #12 *)
         | DoubleInstr (Arm_OP (Arm_StackOP PUSH, _, _), Label lab, _, _, _)
           when not (has_lr_reg lab) -> begin
             let prev_terminates =
@@ -221,8 +224,7 @@ class arm_func_slicer instrs funcs =
                     (IU.get_loc inst |> get_loc_addr) :: func_begins
               | _ -> begin
                   (* When there is a `push {..., lr}` within the next two instructions,
-                   * add the current instruction as a function beginning
-                   *)
+                  add the current instruction as a function beginning *)
                   let check_push_lr (instr_list : instr list) : bool =
                     List.exists (fun i -> is_func_prologue i) instr_list
                   in
@@ -243,11 +245,11 @@ class arm_func_slicer instrs funcs =
             end
           end
         (* S_0x14FB4:
-         * ldr r3,[pc, #0x8]
-         * movs r1,#0x0
-         * add r3,pc
-         * ldr r2,[r3, #0x0]
-         * b.w __cxa_atexit *)
+        ldr r3,[pc, #0x8]
+        movs r1,#0x0
+        add r3,pc
+        ldr r2,[r3, #0x0]
+        b.w __cxa_atexit *)
         | TripleInstr
             ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
               Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg r), offset)),
@@ -295,21 +297,23 @@ class arm_func_slicer instrs funcs =
             last_ret <- true;
             last_special <- false;
             last_pop <- false
-        (* ret
-         * nop
-         * nop
-         * S_0x400520:
-         * adrp x0,0x411000 *)
+        (* e.g.:
+        ret
+        nop
+        nop
+        S_0x400520:
+        adrp x0,0x411000 *)
         | TripleInstr (_, _, _, _, _, _) when last_ret ->
             last_nop <- false;
             last_ret <- false;
             last_special <- false;
             last_pop <- false;
             func_begins <- (IU.get_loc inst |> get_loc_addr) :: func_begins
-        (* ret
-         * nop
-         * S_0x400590:
-         * stp x29,x30,[sp, #-0x20]! *)
+        (* e.g.:
+        ret
+        nop
+        S_0x400590:
+        stp x29,x30,[sp, #-0x20]! *)
         | FourInstr (_, _, _, _, _, _, _) when last_ret ->
             last_nop <- false;
             last_ret <- false;

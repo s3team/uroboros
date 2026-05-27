@@ -816,6 +816,54 @@ class ailParser =
       List.iter
         (fun i -> Hashtbl.replace instr_addr_set (get_loc i).loc_addr ())
         ordered_il;
+      (* Address -> instruction lookup, for IT-block safety check. *)
+      let addr_to_instr : (int, instr) Hashtbl.t = Hashtbl.create 2048 in
+      List.iter
+        (fun i -> Hashtbl.replace addr_to_instr (get_loc i).loc_addr i)
+        ordered_il;
+      (* True when the 8-byte range starting at `pc_addr` contains an IT instruction. 
+      Marking the fake IT's range as data would orphan the condition suffixes 
+      on the following instructions, so keep the IT for stability. *)
+      let pool_has_it (pc_addr : int) : bool =
+        let module IU = Instr_utils in
+        let rec loop offset =
+          if offset >= 8 then false
+          else
+            match Hashtbl.find_opt addr_to_instr (pc_addr + offset) with
+            | Some i ->
+                begin match IU.get_op i with
+                | Arm_OP (Arm_Condition _, _, _) -> true
+                | _ -> loop (offset + 2)
+                end
+            | None -> loop (offset + 2)
+        in
+        loop 0
+      in
+      (* Mark 8 bytes of pool starting at `pc_addr` *)
+      let mark_pool_d (pc_addr : int) : unit =
+        if not (pool_has_it pc_addr) then begin
+          let rec loop offset =
+            if offset < 8 then begin
+              Hashtbl.replace pc_relative_addrs (pc_addr + offset) ();
+              loop (offset + 2)
+            end
+          in
+          loop 0
+        end
+      in
+      (* True if the destination is a NEON D register (64-bit load). *)
+      let is_neon_d_reg (dest : exp) : bool =
+        match dest with
+        | Reg (Arm_Reg (Arm_SpecialReg r)) ->
+            begin match r with
+            | D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9 | D10 | D11 | D12
+            | D13 | D14 | D15 | D16 | D17 | D18 | D19 | D20 | D21 | D22 | D23
+            | D24 | D25 | D26 | D27 | D28 | D29 | D30 | D31 ->
+                true
+            | _ -> false
+            end
+        | _ -> false
+      in
       (* [instr_buffer] is for temporarily keeping literal pools until another function begins *)
       let rec aux acc instr_buffer = function
         | [] -> acc
@@ -848,6 +896,35 @@ class ailParser =
                   pointer into executable code. *)
                   if not (Hashtbl.mem instr_addr_set pc_addr) then
                     Hashtbl.replace pc_relative_addrs pc_addr ();
+                  aux (instr :: acc) [] t
+                end
+              | TripleInstr
+                  ( Arm_OP (Arm_CommonOP (Arm_Assign VLDR), _, _),
+                    Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), offset)),
+                    dest,
+                    _,
+                    _,
+                    _ )
+                when offset mod 4 = 0
+                     && (not (is_commented_out instr))
+                     && is_neon_d_reg dest -> begin
+                  let module AU = ArmUtils in
+                  let pc_addr = AU.get_pc_relative_addr "thumb" instr in
+                  mark_pool_d pc_addr;
+                  aux (instr :: acc) [] t
+                end
+              | FourInstr
+                  ( Arm_OP (Arm_CommonOP (Arm_Assign LDRD), _, _),
+                    Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), offset)),
+                    Reg (Arm_Reg (Arm_CommonReg _)),
+                    Reg (Arm_Reg (Arm_CommonReg _)),
+                    _,
+                    _,
+                    _ )
+                when offset mod 4 = 0 && not (is_commented_out instr) -> begin
+                  let module AU = ArmUtils in
+                  let pc_addr = AU.get_pc_relative_addr "thumb" instr in
+                  mark_pool_d pc_addr;
                   aux (instr :: acc) [] t
                 end
               | _ -> begin aux (instr :: acc) [] t end
@@ -1009,11 +1086,23 @@ class ailParser =
             | Arm_OP (Arm_CommonOP (Arm_Assign STMDB), _, _) ->
                 begin match i with
                 | TripleInstr (_, e1, e2, _, _, _) -> (
-                    reg_list_has "pc" e1
+                    reg_list_has "pc" e1 || reg_list_has "sp" e1
                     ||
                     match e2 with
                     | Ptr (WB (Arm_CommonReg r)) ->
                         (* Detect a pattern where only base registers are used *)
+                        reg_list_has (show_arm_reg (Arm_CommonReg r)) e1
+                    | _ -> false)
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Assign LDMDB), _, _) ->
+                (* LDMDB with SP or PC in the register list is UNPREDICTABLE. *)
+                begin match i with
+                | TripleInstr (_, e1, e2, _, _, _) -> (
+                    reg_list_has "sp" e1 || reg_list_has "pc" e1
+                    ||
+                    match e2 with
+                    | Ptr (WB (Arm_CommonReg r)) ->
                         reg_list_has (show_arm_reg (Arm_CommonReg r)) e1
                     | _ -> false)
                 | _ -> false
@@ -1028,9 +1117,51 @@ class ailParser =
                 | _ -> false
                 end
             | Arm_OP (Arm_CommonOP (Arm_Logic ORR), _, _) ->
-                (* ORR with SP in second operand is not allowed *)
+                (* ORR with SP or PC as Rn (2nd source operand) is not allowed. *)
                 begin match i with
-                | FourInstr (_, _, e2, _, _, _, _) -> is_sp e2
+                | FourInstr (_, _, e2, _, _, _, _) -> is_sp e2 || is_pc e2
+                | FifInstr (_, _, _, e3, _, _, _, _) -> is_sp e3 || is_pc e3
+                | _ -> false
+                end
+            | Arm_OP
+                ( Arm_CommonOP
+                    (Arm_Arithm
+                       (SMMLA | SMMLAR | SMMLS | SMMLSR | SMLAWB | SMLAWT)),
+                  _,
+                  _ ) ->
+                (* SMMLA/SMMLS/SMLAWB family with SP or PC as Rn is UNPREDICTABLE *)
+                begin match i with
+                | FifInstr (_, _, _, e3, _, _, _, _) -> is_sp e3 || is_pc e3
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Arithm ANDS), _, _) ->
+                (* ANDS with SP or PC as Rn is UNPREDICTABLE. *)
+                begin match i with
+                | FourInstr (_, _, e2, _, _, _, _) -> is_sp e2 || is_pc e2
+                | FifInstr (_, _, _, e3, _, _, _, _) -> is_sp e3 || is_pc e3
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Arithm RSBS), _, _) ->
+                (* RSBS Rd, Rn, #imm with SP or PC as Rn is UNPREDICTABLE. *)
+                begin match i with
+                | FourInstr (_, _, e2, _, _, _, _) -> is_sp e2 || is_pc e2
+                | _ -> false
+                end
+            | Arm_OP (Arm_CommonOP (Arm_Assign CFSTR32), _, _) ->
+                (* XScale FPA / iWMMXt coprocessor store — not part of ARMv7-A Thumb. *)
+                true
+            | Arm_OP
+                (Arm_CommonOP (Arm_Arithm VMLA), _, Some (Arm_Opqualifier F16))
+              ->
+                (* vmla.f16 is part of the Armv8 Half-Precision (FP16) extension. *)
+                true
+            | Arm_OP (Arm_CommonOP (Arm_Assign SRSDB), _, _) -> true
+            | Arm_OP (Arm_CommonOP (Arm_Assign VSTR), _, _) ->
+                (* VSTR always stores a VFP S/D register. *)
+                begin match i with
+                | TripleInstr (_, _, e2, _, _, _) ->
+                    begin match e2 with Reg _ -> false | _ -> true
+                    end
                 | _ -> false
                 end
             | Arm_OP (Arm_CommonOP (Arm_Logic EORS), _, _) ->
@@ -1104,6 +1235,27 @@ class ailParser =
                 | FourInstr (_, Reg _, e2, _, _, _, _) -> is_pc e2
                 | _ -> false
                 end
+            | Arm_OP
+                ( Arm_SystemOP
+                    ( CDP2 | LDC2 | LDC2L | STC2 | STC2L | MCR2 | MRC2 | MCRR2
+                    | MRRC2 ),
+                  Some _,
+                  _ ) ->
+                (* The "2" coprocessor variants are architecturally
+                unconditional. A conditional form is UNPREDICTABLE. *)
+                true
+            | Arm_OP
+                (Arm_SystemOP (STFP | LDFP | STFE | LDFE | BFL | BFCSEL), _, _)
+              ->
+                (* Obsolete FPA mnemonics and ARMv8.1-M branch-future ops that don't
+                exist on the target *)
+                true
+            | Arm_OP
+                ( Arm_CommonOP (Arm_Assign (VLD1 | VLD2 | VLD4 | VST1 | VST4)),
+                  _,
+                  _ ) ->
+                (* A NEON load/store that has a d-register above d31 is illegal *)
+                IU.has_high_d_reg_instr i
             | _ -> false
           in
           let rec help acc = function
@@ -1306,10 +1458,15 @@ class ailParser =
               |> last_ele |> String.lowercase_ascii)
         | _ -> None
       in
+      let is_branch_op (i : instr) : bool =
+        match IU.get_op i with
+        | Arm_OP (Arm_ControlOP (B | BL | BX | BLX | BXJ), _, _) -> true
+        | _ -> false
+      in
       let is_illegal_it_block instr it_op idx =
         (* Every instruction in an IT block must carry a condsuff equal to
-        the IT operand or its opposite. A foreign suffix (or a truncated
-        block) means the block is decoded literal-pool data. *)
+        the IT operand or its opposite. Another suffix means the block is
+        decoded literal-pool data. *)
         match it_operand_str instr with
         | None -> false
         | Some it_cond ->
@@ -1324,12 +1481,14 @@ class ailParser =
                 with
                 | None -> true
                 | Some i -> (
-                    match condsuff_str i with
-                    | None -> true
-                    | Some cs ->
-                        if cs = it_cond || (opp <> "" && cs = opp) then
-                          check (k + 1)
-                        else true)
+                    if k < len && is_branch_op i then true
+                    else
+                      match condsuff_str i with
+                      | None -> true
+                      | Some cs ->
+                          if cs = it_cond || (opp <> "" && cs = opp) then
+                            check (k + 1)
+                          else true)
             in
             check 1
       in
@@ -1462,12 +1621,24 @@ class ailParser =
                 aux (instr :: acc) length t
             | Arm_OP (_, Some _, _) when it_remaining > 0 ->
                 aux (instr :: acc) (it_remaining - 1) t
+            | Arm_OP (Arm_ControlOP B, Some _, _) ->
+                (* Conditional B (b<cond>) has its own encoding and is
+                legal without an IT block: keep as-is. *)
+                aux (instr :: acc) 0 t
+            | Arm_OP (Arm_ControlOP (BL | BX | BLX | BXJ), Some _, _)
+              when is_in_arm32_range instr ->
+                (* ARM32 allows BL/BX/BLX/BXJ to be conditional without an IT block:
+                keep it. *)
+                aux (instr :: acc) 0 t
+            | Arm_OP (Arm_ControlOP (BL | BX | BLX | BXJ), Some _, _) ->
+                (* In Thumb, BL/BX/BLX/BXJ have no conditional encoding *)
+                aux (mark_commented_out instr :: acc) 0 t
             | Arm_OP (Arm_ControlOP _, Some _, _) ->
-                (* Branch with condition suffix but no IT block: keep as-is. *)
+                (* Other conditional control ops: keep it *)
                 aux (instr :: acc) 0 t
             | Arm_OP (_, Some _, _) when is_in_arm32_range instr ->
                 (* ARM32 conditional instruction: all instructions can be
-                   conditional without an IT block in ARM32 mode. *)
+                conditional without an IT block in ARM32 mode. *)
                 aux (instr :: acc) 0 t
             | Arm_OP
                 ( (Arm_SystemOP (MRC | MRC2 | MCR | MCR2) as cop_op),
@@ -1612,46 +1783,16 @@ class ailParser =
       in
       let is_illegal_instr (instr : string) : bool =
         (* If there is an "illegal" instruction in the Thumb objdump result,
-         * the instruction is a literal pool in most cases.
-         * Therefore, we can skip the instruction.
-         * See [text_as_data] in [arm_reassemble_symbol_get.ml#v_exp2] *)
+        the instruction is a literal pool in most cases. Therefore, we can skip 
+        the instruction. 
+        See [text_as_data] in [arm_reassemble_symbol_get.ml#v_exp2] *)
         let illegal_instrs =
           [
             "illegal";
             "??";
-            "cdp";
-            "cdp2";
-            "ldc2l";
-            "stc";
-            "stc2l";
-            "ltc2l";
-            "vst1";
-            "ldc";
-            "ldcl";
-            "mrrc";
-            "mcrr";
-            "vld4";
-            "vld1.8";
-            "bfcsel";
-          ]
-        in
-        let illegal_opcodes =
-          [
-            "bfl";
-            "vrhadd";
-            (* original: stcl p1, c10, [ip], 8
-             * in objdump: stfp f2, [ip], #8 ;; wrong
-             *)
-            "stfp";
-            (* original: ldcl p1, c10, [ip], 8
-             * in objdump: ldfp f2, [ip], #8 ;; wrong
-             *)
-            "ldfp";
-            "stfe";
-            (* original: ldcl p1, c0, [r0], 8
-             * in objdump: ldfe    f0, [r0], #8 ;; wrong
-             *)
-            "ldfe";
+            (* Objdump emits `<undefined>` due to literal pools.
+            (e.g. `strb.w r4, [r0, <undefined>]`). *)
+            "<undefined>";
           ]
         in
         let rec has_illegal_instr instr' = function
@@ -1660,17 +1801,7 @@ class ailParser =
               if contains ~str:instr' ~sub:illegal_instr then true
               else has_illegal_instr instr' t
         in
-        let rec has_illegal_opcode instr' = function
-          | [] -> false
-          | illegal_opcode :: t ->
-              (* split using \t or " " as delimeters *)
-              let items = Str.split (Str.regexp "[\t ]+") instr' in
-              let opcode = List.nth items 0 in
-              if contains ~str:opcode ~sub:illegal_opcode then true
-              else has_illegal_opcode instr' t
-        in
         has_illegal_instr instr illegal_instrs
-        || has_illegal_opcode instr illegal_opcodes
       in
       (* make a branch here to split Intel and ARM parsers using inheritance *)
       let p = self#create_parser arch in

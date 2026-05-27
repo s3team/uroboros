@@ -115,9 +115,17 @@ let handle_deref (ilist : instr list) =
             let movt_op = Arm_OP (Arm_CommonOP (Arm_Assign MOVT), None, None) in
             let lo16 = value land 0xFFFF in
             let hi16 = value lsr 16 in
+            (* Mark the pair as derived from a PC-relative literal pool load.
+            [pair_movw_movt_for_symbolization] uses this tag to skip 
+            re-combining the halves into an address. *)
+            let pool_tag () =
+              let t = Hashtbl.create 1 in
+              Hashtbl.add t "from_pc_literal" (Str "");
+              t
+            in
             let movw_instr =
               TripleInstr
-                (movw_op, Const (Immediate lo16), dst, l, pre, Hashtbl.create 0)
+                (movw_op, Const (Immediate lo16), dst, l, pre, pool_tag ())
             in
             let movt_instr =
               TripleInstr
@@ -126,7 +134,7 @@ let handle_deref (ilist : instr list) =
                   dst,
                   { l with loc_label = "" },
                   pre,
-                  Hashtbl.create 0 )
+                  pool_tag () )
             in
             help t (movt_instr :: movw_instr :: acc)
         | _ -> help t (i :: acc)

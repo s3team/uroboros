@@ -53,6 +53,16 @@ def is_static():
         return False
 
 
+def is_cpp(binary):
+    # C++ binaries depend on the libstdc++ runtime.
+    # Detect it from the binary's dynamic dependencies.
+    try:
+        deps = os.popen(f"readelf -d {binary} 2>/dev/null").read()
+        return "libstdc++" in deps
+    except Exception:
+        return False
+
+
 def get_custom_objects(cleanup):
     result = subprocess.run(
         "ls | grep '\\.o$'", shell=True, capture_output=True, text=True
@@ -73,27 +83,30 @@ def get_custom_objects(cleanup):
     return list(dict.fromkeys(result))
 
 
-def reassemble(assembly_file, arch):
+def reassemble(assembly_file, arch, binary):
     compiler = ""
     compile_option = "-no-pie -lm -lrt -lpthread "
     is_32bit_binary = is_32()
     custom_objects = get_custom_objects(cleanup=False)
+    # C++ binaries reference the libstdc++ runtime; the g++ driver links it,
+    # the gcc driver does not.
+    cpp = is_cpp(binary)
 
     if arch == "intel":
-        compiler = "gcc"
+        compiler = "g++" if cpp else "gcc"
         if is_32bit_binary:
             compile_option += "-m32 "
         else:
             compile_option += "-m64 -lcrypto -lselinux -lgmp "
     elif arch == "thumb":
-        compiler = "arm-linux-gnueabihf-gcc"
+        compiler = "arm-linux-gnueabihf-g++" if cpp else "arm-linux-gnueabihf-gcc"
         compile_option += "-mthumb -march=armv7-a -mfpu=neon -mfloat-abi=hard "
     elif arch == "arm":
         if is_32bit_binary:
-            compiler = "arm-linux-gnueabihf-gcc"
+            compiler = "arm-linux-gnueabihf-g++" if cpp else "arm-linux-gnueabihf-gcc"
             compile_option += "-marm -march=armv7-a -mfpu=neon -mfloat-abi=hard "
         else:
-            compiler = "aarch64-linux-gnu-gcc"
+            compiler = "aarch64-linux-gnu-g++" if cpp else "aarch64-linux-gnu-gcc"
             compile_option += "-march=armv9-a "
 
     if is_static() == True:
@@ -215,9 +228,9 @@ def process(f, i, arch):
             seconds = (end_time - start_time) % 60
             print(f"elapsed time (arm_postprocess): {minutes}m {seconds:.2f}s")
 
-        reassemble("final.s", arch)
+        reassemble("final.s", arch, f)
         modify_error(parse_errors())
-        reassemble("final.s", arch)
+        reassemble("final.s", arch, f)
 
         custom_objects = get_custom_objects(cleanup=True)
         for obj in custom_objects:

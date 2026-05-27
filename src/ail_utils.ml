@@ -193,8 +193,8 @@ module Opcode_utils = struct
     | _ -> false
 
   let is_stack_op : op -> bool = function
-    | Intel_OP io -> begin
-        match io with
+    | Intel_OP io ->
+        begin match io with
         | Intel_StackOP PUSH
         | Intel_StackOP PUSHL
         | Intel_StackOP PUSHF
@@ -247,8 +247,8 @@ module Exp_utils = struct
     match e with Symbol (CallDes _) -> true | _ -> false
 
   let is_indirect : exp -> bool = function
-    | Symbol s -> begin
-        match s with StarDes _ -> true | _ -> false
+    | Symbol s ->
+        begin match s with StarDes _ -> true | _ -> false
         (* this is triky:  repz ret could be parsed into
          *        ((op repz) (exp ret))
          *  and the post_process.py script will translate into
@@ -384,6 +384,30 @@ module Instr_utils = struct
     | SixInstr (_, _, e, _, _, _, _, _, _) -> e
     | SevenInstr (_, _, e, _, _, _, _, _, _, _) -> e
 
+  (** Check whether if an instr has a NEON register above d31.*)
+  let has_high_d_reg_instr (i : instr) : bool =
+    let high_d_regs = List.init 32 (fun i -> "d" ^ string_of_int (i + 32)) in
+    let has_high_d_reg e =
+      match e with
+      | Label s -> List.exists (fun r -> contains ~str:s ~sub:r) high_d_regs
+      | _ -> false
+    in
+    match i with
+    | SingleInstr _ -> false
+    | DoubleInstr (_, e1, _, _, _) -> has_high_d_reg e1
+    | TripleInstr (_, e1, e2, _, _, _) -> has_high_d_reg e1 || has_high_d_reg e2
+    | FourInstr (_, e1, e2, e3, _, _, _) ->
+        has_high_d_reg e1 || has_high_d_reg e2 || has_high_d_reg e3
+    | FifInstr (_, e1, e2, e3, e4, _, _, _) ->
+        has_high_d_reg e1 || has_high_d_reg e2 || has_high_d_reg e3
+        || has_high_d_reg e4
+    | SixInstr (_, e1, e2, e3, e4, e5, _, _, _) ->
+        has_high_d_reg e1 || has_high_d_reg e2 || has_high_d_reg e3
+        || has_high_d_reg e4 || has_high_d_reg e5
+    | SevenInstr (_, e1, e2, e3, e4, e5, e6, _, _, _) ->
+        has_high_d_reg e1 || has_high_d_reg e2 || has_high_d_reg e3
+        || has_high_d_reg e4 || has_high_d_reg e5 || has_high_d_reg e6
+
   let has_lr_reg (i : instr) : bool =
     let exp = get_exp_1 i in
     match exp with
@@ -518,8 +542,8 @@ module IL_utils = struct
        offset for accurate fact propagation in the data-flow analysis *)
     (* this is specific to 32-bit intel binaries *)
     let rec traverse : instr list -> instr list = function
-      | i1 :: i2 :: i3 :: rest -> begin
-          match (i2, i3) with
+      | i1 :: i2 :: i3 :: rest ->
+          begin match (i2, i3) with
           | ( TripleInstr
                 ( Intel_OP (Intel_CommonOP (Intel_Arithm SUB)),
                   Reg (Intel_Reg (Intel_StackReg ESP)),

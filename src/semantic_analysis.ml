@@ -7,7 +7,6 @@ module type DfaAbs = sig
   val equal : abstraction -> abstraction -> bool
   val merge : instr option list -> (instr, abstraction) Hashtbl.t -> abstraction
   val flow_through : instr -> abstraction -> abstraction
-  val widen : abstraction -> abstraction -> abstraction
   val process_instr : instr -> abstraction -> unit
   val print_abstraction : abstraction -> unit
 
@@ -50,7 +49,7 @@ module DFA (A : DfaAbs) = struct
       A.process_instr i ins;
 
       let old_outs = Hashtbl.find out_map i in
-      let outs = A.widen old_outs (A.flow_through i ins) in
+      let outs = A.flow_through i ins in
 
       (* debug log *)
       (* print_endline ("> " ^ (pp_print_instr' i));

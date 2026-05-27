@@ -16,8 +16,13 @@ module ArmGotAbsWithValues : DfaAbs = struct
   open Type
   module RegMap = Map.Make (String)
 
-  type abs_state = int RegMap.t (* register name -> value *)
-  type abstraction = abs_state (* register name -> value *)
+  (* A tracked register is in one of three states:
+    - absent in the map: not yet computed (bottom)
+    - [Val v]: known to hold the concrete value [v]
+    - [Top]: oscillating / killed / unknown *)
+  type reg_val = Top | Val of int
+  type abs_state = reg_val RegMap.t
+  type abstraction = abs_state
 
   let initial = RegMap.empty
   let equal = RegMap.equal ( = )
@@ -77,18 +82,17 @@ module ArmGotAbsWithValues : DfaAbs = struct
     end
     else ()
 
-  (** Get register value from the abstract state *)
   let get_register_value (state : abs_state) (reg_name : string) : int option =
-    RegMap.find_opt reg_name state
+    match RegMap.find_opt reg_name state with
+    | Some (Val v) -> Some v
+    | Some Top | None -> None
 
-  (** Update register value in the abstract state *)
   let update_register (state : abs_state) (reg_name : string) (value : int) :
       abs_state =
-    RegMap.add reg_name value state
+    RegMap.add reg_name (Val value) state
 
-  (** Remove register from the abstract state *)
   let remove_register (state : abs_state) (reg_name : string) : abs_state =
-    RegMap.remove reg_name state
+    RegMap.add reg_name Top state
 
   let tracked_reg_name_of_arm_reg (reg : arm_reg) : string option =
     match reg with
@@ -127,13 +131,9 @@ module ArmGotAbsWithValues : DfaAbs = struct
     in
     aux s
 
-  (** Merge register value maps from predecessors. Keep register-value bindings
-      where all predecessors that define the register agree on its value. If a
-      predecessor doesn't define a register, it doesn't cause disagreement. Only
-      drop a register if different predecessors have different values for it. *)
+  (** Merge predecessors' register-value maps. *)
   let merge (preds : instr option list)
       (input_map : (instr, abs_state) Hashtbl.t) : abs_state =
-    (* Get all non-None predecessor states *)
     let pred_states =
       List.filter_map
         (fun p_op ->
@@ -144,7 +144,6 @@ module ArmGotAbsWithValues : DfaAbs = struct
     match pred_states with
     | [] -> RegMap.empty
     | states ->
-        (* Collect all registers that appear in at least one state *)
         let all_regs =
           List.fold_left
             (fun acc state ->
@@ -153,19 +152,23 @@ module ArmGotAbsWithValues : DfaAbs = struct
                 state acc)
             [] states
         in
-        (* For each register, keep it if all states that define it agree on the value *)
         List.fold_left
           (fun acc reg ->
-            (* Get all values for this register across all states *)
             let values =
               List.filter_map (fun state -> RegMap.find_opt reg state) states
             in
             match values with
-            | [] -> acc (* No state has this register *)
-            | v :: rest ->
-                (* Keep the register if all states that have it agree on the value *)
-                if List.for_all (fun x -> x = v) rest then RegMap.add reg v acc
-                else acc (* States disagree, drop the register *))
+            | [] -> acc
+            | first :: rest ->
+                let joined =
+                  List.fold_left
+                    (fun cur next ->
+                      match (cur, next) with
+                      | Top, _ | _, Top -> Top
+                      | Val a, Val b -> if a = b then Val a else Top)
+                    first rest
+                in
+                RegMap.add reg joined acc)
           RegMap.empty all_regs
 
   let check_and_replace_instr (addr : int) (dst_e : exp) (loc : loc)
@@ -180,8 +183,12 @@ module ArmGotAbsWithValues : DfaAbs = struct
         let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
         let new_instr =
           TripleInstr
-            (ldr_op, Const (Point target_addr), dst_e, loc, prefix,
-             Hashtbl.create 0)
+            ( ldr_op,
+              Const (Point target_addr),
+              dst_e,
+              loc,
+              prefix,
+              Hashtbl.create 0 )
         in
         Hashtbl.replace result loc.loc_addr [ new_instr ]
     | None ->
@@ -189,26 +196,15 @@ module ArmGotAbsWithValues : DfaAbs = struct
           let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
           let new_instr =
             TripleInstr
-              (ldr_op, Const (Point target_addr), dst_e, loc, prefix,
-               Hashtbl.create 0)
+              ( ldr_op,
+                Const (Point target_addr),
+                dst_e,
+                loc,
+                prefix,
+                Hashtbl.create 0 )
           in
           Hashtbl.replace result loc.loc_addr [ new_instr ]
         else ()
-
-  (** Widening: intersection-based to guarantee convergence.
-      - First visit (old = initial empty): accept new_abs as-is.
-      - Subsequent visits: keep ONLY registers already in old_abs with the same
-        value. This makes out_map monotonically shrink after the first visit,
-        bounding total work to O(|instructions| * |registers|). *)
-  let widen (old_abs : abs_state) (new_abs : abs_state) : abs_state =
-    if RegMap.is_empty old_abs then new_abs (* First visit: accept everything *)
-    else
-      RegMap.filter
-        (fun reg new_val ->
-          match RegMap.find_opt reg old_abs with
-          | None -> false (* not in old: drop (intersection, not union) *)
-          | Some old_val -> old_val = new_val (* keep only if value unchanged *))
-        new_abs
 
   (** Transfer function: compute output state from input state *)
   let flow_through (i : instr) (ins : abs_state) : abs_state =
@@ -238,7 +234,8 @@ module ArmGotAbsWithValues : DfaAbs = struct
                anchor at later GOT loads. *)
             let caller_saved = [ "r0"; "r1"; "r2"; "r3"; "r12"; "ip"; "lr" ] in
             List.fold_left
-              (fun state reg -> RegMap.remove reg state) outs caller_saved
+              (fun state reg -> RegMap.remove reg state)
+              outs caller_saved
         | _ -> outs
         end
     | TripleInstr (p, e1, e2, loc, prefix, _) ->
@@ -352,10 +349,32 @@ module ArmGotAbsWithValues : DfaAbs = struct
                 (* src value unknown, kill dst *)
                 remove_register outs dst_reg_name
           end
-        | ( Arm_OP (Arm_CommonOP (Arm_Assign (MOV | MOVS | MOVW)), None, _),
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign MOVW), None, _),
+            Const (Immediate imm),
+            Reg (Arm_Reg dst) ) ->
+            begin match tracked_reg_name_of_arm_reg dst with
+            | Some dst_reg_name ->
+                update_register outs dst_reg_name (imm land 0xffff)
+            | None -> outs
+            end
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign MOVT), None, _),
+            Const (Immediate imm),
+            Reg (Arm_Reg dst) ) ->
+            begin match tracked_reg_name_of_arm_reg dst with
+            | Some dst_reg_name ->
+                begin match get_register_value ins dst_reg_name with
+                | Some low ->
+                    let combined =
+                      ((imm land 0xffff) lsl 16) lor (low land 0xffff)
+                    in
+                    update_register outs dst_reg_name combined
+                | None -> remove_register outs dst_reg_name
+                end
+            | None -> outs
+            end
+        | ( Arm_OP (Arm_CommonOP (Arm_Assign (MOV | MOVS)), None, _),
             Const (Immediate _),
             Reg (Arm_Reg dst) ) ->
-            (* MOV/MOVS/MOVW dst, #imm - kill dst (don't track constants, only GOT addresses) *)
             begin match tracked_reg_name_of_arm_reg dst with
             | Some dst_reg_name -> remove_register outs dst_reg_name
             | None -> outs
@@ -497,7 +516,6 @@ module ArmGotAbsWithValues : DfaAbs = struct
             in
             let _ = print_reg_values () in *)
             (* end debug *)
-
             if has_got_addr src1_name || has_got_addr src2_name then begin
               let sym_addr_opt =
                 if has_got_addr src1_name then
@@ -527,5 +545,9 @@ module ArmGotAbsWithValues : DfaAbs = struct
     | _ -> ()
 
   let print_abstraction abs =
-    RegMap.iter (fun k v -> print_endline (k ^ " -> " ^ dec_hex v)) abs
+    RegMap.iter
+      (fun k v ->
+        let s = match v with Top -> "TOP" | Val n -> dec_hex n in
+        print_endline (k ^ " -> " ^ s))
+      abs
 end

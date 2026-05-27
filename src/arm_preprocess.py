@@ -1,5 +1,7 @@
 import bisect
 import os
+import re
+import struct
 import sys
 
 import arm_arm32_disassembler
@@ -806,6 +808,9 @@ def dump_data_section_as_data(fn):
     os.system("rm data_section_as_data.temp")
 
 
+_vmov_float_re = re.compile(r"\bvmov[a-z]{0,2}\.f(?:32|64)\b")
+
+
 def adjust_floating_point_instructions(fn):
     """
     Find vmov instructions and change their immediates with the floating point numbers.
@@ -823,17 +828,30 @@ def adjust_floating_point_instructions(fn):
         lines = f.readlines()
         for line in lines:
             line = line.rstrip("\n")
-            if "vmov" in line and ";" in line:
+            if _vmov_float_re.search(line) and ";" in line:
                 # 15282:	eeb7 6b00 	vmov.f64	d6, #112	; 0x3f800000  1.0
                 # after:
                 # 15282:	eeb7 6b00 	vmov.f64	d6, #1.0	; 0x3f800000  1.0
+                # Only `.f32`/`.f64` forms take a float immediate; `.i8/.i16/.i32/.i64`
+                # take an integer-extended immediate and must be left alone.
                 parts = line.split(";")
                 if len(parts) == 2:
                     inst = parts[0]
                     comment = parts[1]
-                    # Find the floating point value in `comment`
-                    comment_parts = comment.split(" ")
-                    float_imm = comment_parts[-1]
+                    # Comment is either `0x3f800000  1.0` (sN regs, includes float)
+                    # or just `0x3f800000` (dN NEON regs). For the latter form,
+                    # decode the pattern to a float literal.
+                    comment_parts = comment.split()
+                    last = comment_parts[-1] if comment_parts else ""
+                    if last.startswith("0x"):
+                        try:
+                            bits = int(last, 16) & 0xFFFFFFFF
+                            f = struct.unpack("!f", struct.pack("!I", bits))[0]
+                            float_imm = repr(f)
+                        except (ValueError, struct.error):
+                            float_imm = last
+                    else:
+                        float_imm = last
                     # Replace the immediate value with the floating point value
                     inst_arr = inst.split(",")
                     inst_arr[-1] = f" #{float_imm}"  # The blank matters

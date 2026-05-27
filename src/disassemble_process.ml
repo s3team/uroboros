@@ -38,14 +38,13 @@ module Disam = struct
 
   let get_userfuncs fl = List.filter (fun f -> f.is_lib = false) fl
 
-  let create_re (arch : string) =
+  let create_re (arch : string) : common_reassemble =
     match arch with
     | "intel" -> (new reassemble :> common_reassemble)
-    | "thumb" | "arm" -> begin
-        let re = (new arm_reassemble :> common_reassemble) in
-        let _ = re#set_arch arch in
-        re
-      end
+    | "thumb" | "arm" ->
+        let arm_re = new arm_reassemble in
+        let _ = arm_re#set_arch arch in
+        (arm_re :> common_reassemble)
     | _ -> failwith "unsupported architecture for reassemble"
 
   let disassemble f funcs secs arch =
@@ -70,7 +69,6 @@ module Disam = struct
       let module AD = DFA (AGA) in
       let module ADRPA = AdrpAbs in
       let module ADRPD = DFA (ADRPA) in
-      let module AP = ArmPostprocess in
       ail_parser#set_funcs funcs;
       ail_parser#set_secs secs;
       ail_parser#set_arch arch;
@@ -154,13 +152,18 @@ module Disam = struct
       in
 
       let arm_postprocess (ilist : instr list) : instr list =
-        if arch = "thumb" then AP.adjust_thumb_function_pointer ilist else ilist
+        if arch = "thumb" then adjust_thumb_function_pointer ilist else ilist
       in
 
       let rewriting_result =
         timed "disassemble:dfa" (fun () -> rewrite il_init)
       in
 
+      (* The postprocess should be executed after symbolization completed.
+      Note that the symbolization-related functions such as vinst2 and v_exp2
+      are called by [visit_type_infer_analysis] and [visit_heuristic_analysis].
+      If something wrong happens, AP functions might need to be moved to
+      [ail.ml#post_process]. *)
       il :=
         (if EU.elf_32 () && arch = "intel" then
            IL.perform_dfa_rewrites rewriting_result @@ il_init
@@ -172,15 +175,11 @@ module Disam = struct
          else if EU.elf_32 () && arch = "thumb" then
            IL.perform_dfa_rewrites rewriting_result @@ il_init
            |> re#jmp_table_rewrite
-         else begin IL.perform_dfa_rewrites rewriting_result @@ il_init
-           (* The postprocess should be executed after symbolization completed.
-            * Note that the symbolization-related functions such as vinst2 and v_exp2
-            * are called by visit_type_infer_analysis and visit_heuristic_analysis.
-            * If something wrong happens, AP functions might need to be moved to [ail.ml#post_process].
-            *)
+         else begin
+           IL.perform_dfa_rewrites rewriting_result @@ il_init
          end)
         |> re#visit_heuristic_analysis
-        |> process_tags (* should be located after visit_heuristic_analysis *)
+        |> process_tags (* should be located after [visit_heuristic_analysis] *)
         |> re#adjust_loclabel |> re#adjust_jmpref
         |> re#add_func_label @@ get_userfuncs fl
         |> re#add_ltorg_after_terminators |> dis_valid#visit |> arm_postprocess;

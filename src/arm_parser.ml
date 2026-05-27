@@ -35,6 +35,7 @@ class arm_parse =
   let opqualifier_symb = function
     | "w" -> W
     | "n" -> N
+    | "f16" -> F16
     | "f32" -> F32
     | "f64" -> F64
     | "u8" -> U8
@@ -45,6 +46,8 @@ class arm_parse =
     | "s32" -> S32
     | "i16" -> I16
     | "i8" -> I8
+    | "i32" -> I32
+    | "i64" -> I64
     | "s64" -> S64
     | "u64" -> U64
     | "8" -> SIZE 8
@@ -260,10 +263,12 @@ class arm_parse =
     try Arm_Opqualifier (opqualifier_symb s)
     with _ -> (
       let s_list = Str.split (Str.regexp_string ".") s in
-      let s1 = List.nth s_list 0 in
-      let s2 = List.nth s_list 1 in
-      try Arm_Double_Opqualifier (opqualifier_symb s1, opqualifier_symb s2)
-      with _ -> raise ParseError)
+      if List.length s_list < 2 then raise ParseError
+      else
+        let s1 = List.nth s_list 0 in
+        let s2 = List.nth s_list 1 in
+        try Arm_Double_Opqualifier (opqualifier_symb s1, opqualifier_symb s2)
+        with _ -> raise ParseError)
   and loc_symb s =
     { loc_label = ""; loc_addr = int_of_string s; loc_visible = true }
   and const_symb s =
@@ -546,6 +551,11 @@ class arm_parse =
     | "vaddl" -> VADDL
     | "vraddhn" -> VRADDHN
     | "vmax" -> VMAX
+    | "vaddw" -> VADDW
+    | "vbic" -> VBIC
+    | "vbsl" -> VBSL
+    | "veor" -> VEOR
+    | "vqadd" -> VQADD
     | "abs" -> ABS
     | "addg" -> ADDG
     | "addpt" -> ADDPT
@@ -698,6 +708,17 @@ class arm_parse =
     | "vrev32" -> VREV32
     | "vrev64" -> VREV64
     | "vswp" -> VSWP
+    | "vld1" -> VLD1
+    | "vld2" -> VLD2
+    | "vst1" -> VST1
+    | "vmovl" -> VMOVL
+    | "vmovn" -> VMOVN
+    | "vmvn" -> VMVN
+    | "vtbl" -> VTBL
+    | "vtrn" -> VTRN
+    | "vuzp" -> VUZP
+    | "cfstr32" -> CFSTR32
+    | "srsdb" -> SRSDB
     | "fldmiax" -> FLDMIAX
     | "fstmiax" -> FSTMIAX
     | "movi" -> MOVI
@@ -765,6 +786,8 @@ class arm_parse =
     | "cmhs" -> CMHS
     | "fcmp" -> FCMP
     | "cmge" -> CMGE
+    | "vcge" -> VCGE
+    | "vcgt" -> VCGT
     | _ -> raise ParseError
   and conditionop_symb = function
     | "it" -> IT
@@ -793,6 +816,7 @@ class arm_parse =
     | "setend" -> SETEND
     | "vsli" -> VSLI
     | "cntb" -> CNTB
+    | "wlstp" -> WLSTP
     | _ -> raise ParseError
   and stackop_symb = function
     | "push" -> PUSH
@@ -849,6 +873,24 @@ class arm_parse =
     | "mcrr2" -> MCRR2
     | "mrc" -> MRC
     | "mrc2" -> MRC2
+    | "mrrc" -> MRRC
+    | "mrrc2" -> MRRC2
+    | "cdp" -> CDP
+    | "cdp2" -> CDP2
+    | "ldc" -> LDC
+    | "ldcl" -> LDCL
+    | "ldc2" -> LDC2
+    | "ldc2l" -> LDC2L
+    | "stc" -> STC
+    | "stcl" -> STCL
+    | "stc2" -> STC2
+    | "stc2l" -> STC2L
+    | "stfp" -> STFP
+    | "ldfp" -> LDFP
+    | "stfe" -> STFE
+    | "ldfe" -> LDFE
+    | "bfl" -> BFL
+    | "bfcsel" -> BFCSEL
     | "setpan" -> SETPAN
     | "brk" -> BRK
     | "prfm" -> PRFM
@@ -1228,15 +1270,71 @@ class arm_parse =
           | [] -> ""
           | first :: _ -> first
         in
+        (* See [arm_postprocess.py#remove_caret] *)
         let compact (instr : string) =
-          (* See [arm_postprocess.py#remove_caret] *)
+          (* Drop NEON/VFP alignment hint ` :<N>` inside [] (e.g. `[sp :64]`
+          -> `[sp]`). The hint is an encoding optimization; reassembled
+          code is functionally correct without it. *)
+          let instr = Str.global_replace (Str.regexp " :[0-9]+") "" instr in
           let instr' = Str.global_replace (Str.regexp ", ") "," instr in
           if contains ~str:instr' ~sub:" " then
             let instr' = Str.global_replace (Str.regexp "lsl ") "lsl^" instr' in
             instr'
           else instr'
         in
-        let compact_instr = remove_comment (compact instr) in
+        (* Coprocessor instructions: objdump prints the coprocessor number as
+        a bare integer and cdp/mcr/mrc opcode2 as `{N}`. But it should be `pN`. *)
+        let fix_coproc (s : string) : string =
+          let coproc_ops =
+            [
+              "cdp";
+              "cdp2";
+              "ldc";
+              "ldcl";
+              "ldc2";
+              "ldc2l";
+              "stc";
+              "stcl";
+              "stc2";
+              "stc2l";
+              "mcr";
+              "mcr2";
+              "mrc";
+              "mrc2";
+              "mcrr";
+              "mcrr2";
+              "mrrc";
+              "mrrc2";
+            ]
+          in
+          let brace_ops = [ "cdp"; "cdp2"; "mcr"; "mcr2"; "mrc"; "mrc2" ] in
+          match Str.bounded_split (Str.regexp "[\t ]+") s 2 with
+          | [ op; operands ] when List.mem op coproc_ops ->
+              (* operand 0 is the coprocessor number: bare integer -> pN *)
+              let operands =
+                match Str.bounded_split (Str.regexp_string ",") operands 2 with
+                | [ first; rest ]
+                  when first <> ""
+                       && String.for_all (fun c -> c >= '0' && c <= '9') first
+                  ->
+                    "p" ^ first ^ "," ^ rest
+                | _ -> operands
+              in
+              (* cdp/mcr/mrc opcode2: drop the braces objdump prints *)
+              let operands =
+                let n = String.length operands in
+                if List.mem op brace_ops && n > 0 && operands.[n - 1] = '}' then
+                  try
+                    let i = String.rindex operands '{' in
+                    String.sub operands 0 i
+                    ^ String.sub operands (i + 1) (n - i - 2)
+                  with Not_found -> operands
+                else operands
+              in
+              op ^ " " ^ operands
+          | _ -> s
+        in
+        let compact_instr = compact instr |> remove_comment |> fix_coproc in
         let pre = prefix_identify compact_instr in
         let compact_instr' = prefix_sub compact_instr in
         let is_special_stackop (i : string) =

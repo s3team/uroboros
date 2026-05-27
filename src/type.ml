@@ -968,6 +968,24 @@ and arm_systemop =
   | MCRR2
   | MRC
   | MRC2
+  | CDP
+  | CDP2
+  | LDC
+  | LDCL
+  | LDC2
+  | LDC2L
+  | STC
+  | STCL
+  | STC2
+  | STC2L
+  | MRRC
+  | MRRC2
+  | STFP
+  | LDFP
+  | STFE
+  | LDFE
+  | BFL
+  | BFCSEL
   | SETPAN
   (* AArch64 *)
   | BRK
@@ -1125,6 +1143,11 @@ and arm_arithmop =
   | VADDL
   | VRADDHN
   | VMAX
+  | VADDW
+  | VBIC
+  | VBSL
+  | VEOR
+  | VQADD
   (* AArch64 *)
   | ABS
   | ADDG
@@ -1277,6 +1300,17 @@ and arm_assignop =
   | VREV32
   | VREV64
   | VSWP
+  | VLD1
+  | VLD2
+  | VST1
+  | VMOVL
+  | VMOVN
+  | VMVN
+  | VTBL
+  | VTRN
+  | VUZP
+  | CFSTR32
+  | SRSDB
   | FLDMIAX
   | FSTMIAX
   (* AArch64 *)
@@ -1348,6 +1382,8 @@ and arm_compareop =
   | CMHS
   | FCMP
   | CMGE
+  | VCGE
+  | VCGT
 
 and arm_conditionop =
   | IT
@@ -1368,7 +1404,7 @@ and arm_conditionop =
   (* AArch64 *)
   | TBZ
 
-and arm_otherop = NOP | HLT | NOPW | NOPL | UD2 | SETEND | VSLI | CNTB
+and arm_otherop = NOP | HLT | NOPW | NOPL | UD2 | SETEND | VSLI | CNTB | WLSTP
 
 and arm_condsuff =
   | EQ
@@ -1393,6 +1429,7 @@ and arm_condsuff =
 and arm_opqualifier =
   | W
   | N
+  | F16
   | F32
   | F64
   | U8
@@ -1402,7 +1439,9 @@ and arm_opqualifier =
   | S16
   | S32
   | I16
-  | I8 (* not sure if I8 or 8 *)
+  | I8
+  | I32
+  | I64
   | S64
   | U64
   | SIZE of int (* 8, 16, 32, 64 *)
@@ -2510,6 +2549,11 @@ let show_arm_op = function
           | VADDL -> "vaddl"
           | VRADDHN -> "vraddhn"
           | VMAX -> "vmax"
+          | VADDW -> "vaddw"
+          | VBIC -> "vbic"
+          | VBSL -> "vbsl"
+          | VEOR -> "veor"
+          | VQADD -> "vqadd"
           | ABS -> "abs"
           | ADDG -> "addg"
           | ADDPT -> "addpt"
@@ -2663,6 +2707,17 @@ let show_arm_op = function
           | VREV32 -> "vrev32"
           | VREV64 -> "vrev64"
           | VSWP -> "vswp"
+          | VLD1 -> "vld1"
+          | VLD2 -> "vld2"
+          | VST1 -> "vst1"
+          | VMOVL -> "vmovl"
+          | VMOVN -> "vmovn"
+          | VMVN -> "vmvn"
+          | VTBL -> "vtbl"
+          | VTRN -> "vtrn"
+          | VUZP -> "vuzp"
+          | CFSTR32 -> "cfstr32"
+          | SRSDB -> "srsdb"
           | FLDMIAX -> "fldmiax"
           | FSTMIAX -> "fstmiax"
           | STP -> "stp"
@@ -2733,6 +2788,8 @@ let show_arm_op = function
           | CMHS -> "cmhs"
           | FCMP -> "fcmp"
           | CMGE -> "cmge"
+          | VCGE -> "vcge"
+          | VCGT -> "vcgt"
           end
       | Arm_Other acommon_other ->
           begin match acommon_other with
@@ -2744,6 +2801,7 @@ let show_arm_op = function
           | SETEND -> "setend"
           | VSLI -> "vsli"
           | CNTB -> "cntb"
+          | WLSTP -> "wlstp"
           end
       end
   | Arm_StackOP astack ->
@@ -2819,6 +2877,24 @@ let show_arm_op = function
       | MCRR2 -> "mcrr2"
       | MRC -> "mrc"
       | MRC2 -> "mrc2"
+      | CDP -> "cdp"
+      | CDP2 -> "cdp2"
+      | LDC -> "ldc"
+      | LDCL -> "ldcl"
+      | LDC2 -> "ldc2"
+      | LDC2L -> "ldc2l"
+      | STC -> "stc"
+      | STCL -> "stcl"
+      | STC2 -> "stc2"
+      | STC2L -> "stc2l"
+      | MRRC -> "mrrc"
+      | MRRC2 -> "mrrc2"
+      | STFP -> "stfp"
+      | LDFP -> "ldfp"
+      | STFE -> "stfe"
+      | LDFE -> "ldfe"
+      | BFL -> "bfl"
+      | BFCSEL -> "bfcsel"
       | SETPAN -> "setpan"
       | BRK -> "brk"
       | PRFM -> "prfm"
@@ -2834,6 +2910,7 @@ let show_arm_op = function
 let show_arm_opqualifier = function
   | W -> "w"
   | N -> "n"
+  | F16 -> "f16"
   | F32 -> "f32"
   | F64 -> "f64"
   | U8 -> "u8"
@@ -2844,6 +2921,8 @@ let show_arm_opqualifier = function
   | S32 -> "s32"
   | I16 -> "i16"
   | I8 -> "i8"
+  | I32 -> "i32"
+  | I64 -> "i64"
   | S64 -> "s64"
   | U64 -> "u64"
   | SIZE s -> string_of_int s

@@ -130,20 +130,17 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       in
       fl_sort <- Array.of_list fl1;
       let module EU = Elf_utils in
-      let addr_len =
-        if EU.elf_32 () && EU.elf_arm () then 5
-        else
-          match (EU.elf_32 (), EU.elf_exe ()) with
-          | true, true -> 7
-          | false, true -> 6
-          | _, false -> 4
-      in
-
       text_mem_addrs <-
         List.map
           (fun a ->
+            (* Parse each line without relying on [addr_len], since it may vary.
+            cf. reassemble_symbol_get.ml *)
             let a1 = String.trim a in
-            int_of_string ("0x" ^ String.sub a1 0 addr_len))
+            let n = String.length a1 in
+            let hex =
+              if n > 0 && a1.[n - 1] = ':' then String.sub a1 0 (n - 1) else a1
+            in
+            int_of_string ("0x" ^ hex))
           (read_file "text_mem.info");
       text_mem_arr <- Array.of_list text_mem_addrs;
       label_mem_arr <- Array.of_list (List.sort compare label_mem_addrs);
@@ -1763,12 +1760,36 @@ class arm_reassemble =
         end
 
     method build_plt_symbol c =
-      let c' = match c with Point s -> s | Normal s -> s in
+      let c' = match c with Point s | Normal s | Immediate s -> s in
       try
         let n = Hashtbl.find plt_hash c' in
-        match c with Point _ -> n (* is it possible ?*) | Normal _ -> "=" ^ n
+        match c with
+        | Point _ -> n (* is it possible ?*)
+        | Normal _ -> "=" ^ n
+        | Immediate _ -> n
+        (* branch target: bare name (no '=') *)
       with _ ->
-        failwith (Printf.sprintf "exception in build plt symbol: %d\n" c')
+        failwith (Printf.sprintf "exception in build plt symbol: %x\n" c')
+
+    (* Look up a PLT entry by an address that may point mid-entry.
+    Returns the symbol name when [addr] equals a PLT entry start or 
+    falls just past one (e.g. `<name>@plt+4` for a Thumb -> ARM trampoline). 
+    The search bound (16 bytes) covers all PLT layouts this pass has observed. *)
+    method lookup_plt_containing (addr : int) : string option =
+      match Hashtbl.find_opt plt_hash addr with
+      | Some n -> Some n
+      | None ->
+          let plt_max_entry_size = 16 in
+          Hashtbl.fold
+            (fun start name acc ->
+              if start < addr && addr - start <= plt_max_entry_size then
+                match acc with
+                | None -> Some (start, name)
+                | Some (s', _) when start > s' -> Some (start, name)
+                | _ -> acc
+              else acc)
+            plt_hash None
+          |> Option.map snd
 
     method has_data l = Hashtbl.mem data_set l = true
     method has_text l = Hashtbl.mem text_set l = true
@@ -1795,6 +1816,148 @@ class arm_reassemble =
     (** Preprocessing step should be done. See
         [ail_parser.ml#remove_literal_pools]. *)
 
+    method pair_movw_movt_for_symbolization (il : instr list) : instr list =
+      (* Normalize `movw rX,#lo / movt rX,#hi` pairs so that the absolute
+      address materialised by the pair survives reassembly.
+
+      For each adjacent pair with a matching dest reg, compute
+        addr = (hi lsl 16) lor lo
+      and rewrite the pair through one of two paths depending on whether
+      the target is a weak function (W/w entry in nm.info).
+
+      (1) Weak-fn-by-name path: emit the operand directly as a `Label`
+      with the mangled function name, bypassing v_exp2.
+
+          movw r3, #:lower16:pthread_create
+          movt r3, #:upper16:pthread_create
+
+      If the target address is odd (Thumb bit set), the bit is folded
+      into a `+ 1` offset inside the label:
+
+          movw r3, #:lower16:(pthread_create + 1)
+          movt r3, #:upper16:(pthread_create + 1)
+
+      (2) Other symbolizable target path: leave the operand as
+      `Const (Immediate addr')` with addr' = addr stripped of the Thumb
+      bit, and attach tags :lower16: / :upper16: (plus :thumb_bit: when
+      the bit was stripped). v_exp2's Const arm then calls
+      `build_symbol` to obtain `S_0x<addr>` and `wrap_with_tags` adds
+      the half prefix (and the `+ 1` offset when :thumb_bit: is set).
+      The :thumb_bit: tag itself is hashtable metadata and is never
+      emitted as text.
+
+          movw r3, #:lower16:S_0x12344
+          movt r3, #:upper16:S_0x12344
+
+      or, for a Thumb target:
+
+          movw r3, #:lower16:(S_0x12344 + 1)
+          movt r3, #:upper16:(S_0x12344 + 1) *)
+      let module TU = Tags_utils in
+      let weak_fn_by_addr = Hashtbl.create 256 in
+      begin if Sys.file_exists "nm.info" then
+        List.iter
+          (fun line ->
+            match Str.split (Str.regexp " +") (String.trim line) with
+            | addr :: ty :: name :: _
+              when String.length ty = 1
+                   && (ty.[0] = 'w' || ty.[0] = 'W')
+                   && String.length name > 0
+                   && name.[0] <> '$' ->
+                begin match int_of_string_opt ("0x" ^ addr) with
+                | Some a -> Hashtbl.replace weak_fn_by_addr a name
+                | None -> ()
+                end
+            | _ -> ())
+          (read_file "nm.info")
+      end;
+      let is_movw = function
+        | Arm_OP (Arm_CommonOP (Arm_Assign MOVW), None, None) -> true
+        | _ -> false
+      in
+      let is_movt = function
+        | Arm_OP (Arm_CommonOP (Arm_Assign MOVT), None, None) -> true
+        | _ -> false
+      in
+      (* Combine into a 32-bit address only when v_exp2 can actually
+      symbolize it. Otherwise the combined value is a literal offset
+      (e.g. a PC-relative offset produced by the LDR -> movw_movt fold in
+      [vinst2] function). Leave the pair as it it.
+
+      Static binaries are restricted to weak-fn and PLT targets. Their
+      .text contains libc, so some addresses could happen to match with code or
+      data address, which is a likely false positive.
+      Therefore, skip statically-linked binaries for now and leave it as TODO. *)
+      let module EU = Elf_utils in
+      let is_static = EU.elf_static () in
+      let target_is_symbolizable addr =
+        if Hashtbl.mem weak_fn_by_addr addr then true
+        else if self#check_plt addr then true
+        else if is_static then false
+        else
+          let even = addr - (addr land 1) in
+          (match self#check_sec addr with Some _ -> true | None -> false)
+          || self#check_text addr
+          || (addr land 1 = 1 && self#check_text even)
+      in
+      (* Pairs carrying [from_pc_literal] come from the LDR -> movw/movt
+      fold (see [vinst2] LDR-fold + [tags_utils.handle_deref]) and encode
+      opaque pool data — typically a PC-relative GOT offset later
+      consumed by `add Rd, pc`, not an absolute address. Skip them so
+      their literal halves stay intact. *)
+      let is_from_pc_literal t = Hashtbl.mem t "from_pc_literal" in
+      let rec aux acc = function
+        | (TripleInstr (op1, Const (Immediate lo), (Reg r1 as dest), l1, p1, t1)
+           as movw)
+          :: (TripleInstr (op2, Const (Immediate hi), Reg r2, l2, p2, t2) as
+              movt)
+          :: rest
+          when is_movw op1 && is_movt op2 && r1 = r2
+               && (not (is_from_pc_literal t1))
+               && not (is_from_pc_literal t2) ->
+            let addr = (hi lsl 16) lor lo in
+            if not (target_is_symbolizable addr) then
+              aux (movt :: movw :: acc) rest
+            else
+              begin match Hashtbl.find_opt weak_fn_by_addr addr with
+              | Some name ->
+                  let mk_label half =
+                    if addr land 1 = 1 then
+                      Label (Printf.sprintf "#:%s16:(%s + 1)" half name)
+                    else Label (Printf.sprintf "#:%s16:%s" half name)
+                  in
+                  let movw' =
+                    TripleInstr (op1, mk_label "lower", dest, l1, p1, t1)
+                  in
+                  let movt' =
+                    TripleInstr (op2, mk_label "upper", Reg r2, l2, p2, t2)
+                  in
+                  aux (movt' :: movw' :: acc) rest
+              | None ->
+                  let thumb_bit = addr land 1 in
+                  let addr' = addr - thumb_bit in
+                  let stamp half base =
+                    let t = TU.set_tag_by_kv half (Str "") base in
+                    if thumb_bit = 1 then
+                      TU.set_tag_by_kv ":thumb_bit:" (Str "") t
+                    else t
+                  in
+                  let t1' = stamp ":lower16:" t1 in
+                  let t2' = stamp ":upper16:" t2 in
+                  let movw' =
+                    TripleInstr (op1, Const (Immediate addr'), dest, l1, p1, t1')
+                  in
+                  let movt' =
+                    TripleInstr
+                      (op2, Const (Immediate addr'), Reg r2, l2, p2, t2')
+                  in
+                  aux (movt' :: movw' :: acc) rest
+              end
+        | i :: rest -> aux (i :: acc) rest
+        | [] -> List.rev acc
+      in
+      aux [] il
+
     method v_exp2 (e : exp) (i : instr) (f : instr -> bool) (chk : bool) : exp =
       let module IU = Instr_utils in
       let check_test_condition l chk =
@@ -1807,6 +1970,21 @@ class arm_reassemble =
         let i_op = IU.get_op i in
         match i_op with Arm_OP (Arm_ControlOP _, _, _) -> true | _ -> false
       in
+      (* Tag-aware label wrapping.
+      - :lower16:/:upper16: come from the movw/movt pre-pairing pass.
+      - :thumb_bit: marks a function pointer whose Thumb bit was stripped to
+      expose the even instruction address. *)
+      let wrap_with_tags (tags : (string, tags_val) Hashtbl.t)
+          (s_label : string) : string =
+        let with_thumb s =
+          if Hashtbl.mem tags ":thumb_bit:" then "(" ^ s ^ " + 1)" else s
+        in
+        if Hashtbl.mem tags ":lower16:" then "#:lower16:" ^ with_thumb s_label
+        else if Hashtbl.mem tags ":upper16:" then
+          "#:upper16:" ^ with_thumb s_label
+        else if Hashtbl.mem tags ":lo12:" then ":lo12:" ^ s_label
+        else s_label
+      in
       match e with
       | Const l -> begin
           let l' = self#parse_const l in
@@ -1817,10 +1995,7 @@ class arm_reassemble =
                 let s_label = self#build_symbol l in
                 let loc' = IU.get_loc i in
                 c2d_addr <- loc'.loc_addr :: c2d_addr;
-                let tags = get_tags i in
-                match Hashtbl.find_opt tags ":lo12:" with
-                | Some _ -> Label (":lo12:" ^ s_label)
-                | None -> Label s_label
+                Label (wrap_with_tags (get_tags i) s_label)
               end
               else begin
                 Hashtbl.replace data_set l' "";
@@ -1828,7 +2003,7 @@ class arm_reassemble =
                 label <- (s.sec_name, l') :: label;
                 let loc' = IU.get_loc i in
                 c2d_addr <- loc'.loc_addr :: c2d_addr;
-                Label s_label
+                Label (wrap_with_tags (get_tags i) s_label)
               end
           | None ->
               if check_test_condition l chk = false then e
@@ -1840,10 +2015,7 @@ class arm_reassemble =
                   let s_label = self#build_symbol l in
                   let loc' = IU.get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
-                  let tags = get_tags i in
-                  match Hashtbl.find_opt tags ":lo12:" with
-                  | Some _ -> Label (":lo12:" ^ s_label)
-                  | None -> Label s_label
+                  Label (wrap_with_tags (get_tags i) s_label)
                 end
                 else begin
                   (*if is_control_opcode i then begin*)
@@ -1852,7 +2024,7 @@ class arm_reassemble =
                   deslist <- s_label :: deslist;
                   let loc' = IU.get_loc i in
                   deslist_reloc <- loc'.loc_addr :: deslist_reloc;
-                  Label s_label
+                  Label (wrap_with_tags (get_tags i) s_label)
                   (*end
                   else begin
                     e
@@ -1868,7 +2040,10 @@ class arm_reassemble =
                 if EU.elf_static () = false then
                   if self#check_plt l' then
                     let ns = self#build_plt_symbol l in
-                    Label ns
+                    (* Use :lower16:/:upper16: tags so movw/movt that load
+                    the address of a PLT-resolved function emit `#:lower16:foo`
+                    instead of bare `foo`. *)
+                    Label (wrap_with_tags (get_tags i) ns)
                   else e
                 else e
         end
@@ -1884,6 +2059,13 @@ class arm_reassemble =
                   let s_label = "S_" ^ dec_hex l in
                   deslist <- s_label :: deslist;
                   Label s_label
+                end
+              else if self#check_plt l then
+                (* Direct branch (bl/blx/b) to the input binary's .plt.
+                Use function name so the linker rebuilds the PLT entry. *)
+                begin match self#lookup_plt_containing l with
+                | Some n -> Label n
+                | None -> e
                 end
               else e (* is it possible? *)
           | StarDes sd -> Symbol (StarDes (self#v_exp2 sd i f false))
@@ -2182,7 +2364,7 @@ class arm_reassemble =
                 pre,
                 tags )
         | TripleInstr
-            ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
+            ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), cond, widthsuff),
               Ptr (BinOP_PLUS (Arm_Reg (Arm_PCReg _), offset)),
               dst,
               l,
@@ -2197,14 +2379,25 @@ class arm_reassemble =
                 | Some s -> int_of_string ("0x" ^ s)
                 | None -> pc_relative_addr
               in
-              let movwt_tags =
-                let t = Hashtbl.copy tags in
-                Hashtbl.replace t "instr_tag" (Str "movw_movt");
-                t
-              in
-              let ldr_op = Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None) in
-              TripleInstr
-                (ldr_op, Const (Immediate value), dst, l, pre, movwt_tags)
+              match cond with
+              | Some _ ->
+                  (* Conditional LDR instructions in IT blocks cannot be converted
+                  to movw/movt pairs. Use a single conditional literal load instead. *)
+                  let ldr_op =
+                    Arm_OP (Arm_CommonOP (Arm_Assign LDR), cond, widthsuff)
+                  in
+                  TripleInstr (ldr_op, Const (Point value), dst, l, pre, tags)
+              | None ->
+                  let movwt_tags =
+                    let t = Hashtbl.copy tags in
+                    Hashtbl.replace t "instr_tag" (Str "movw_movt");
+                    t
+                  in
+                  let ldr_op =
+                    Arm_OP (Arm_CommonOP (Arm_Assign LDR), None, None)
+                  in
+                  TripleInstr
+                    (ldr_op, Const (Immediate value), dst, l, pre, movwt_tags)
             end
             else i
         | TripleInstr (p, e1, e2, l, pre, tags) when has_sym_instr_tag i ->
@@ -2268,21 +2461,32 @@ class arm_reassemble =
             TripleInstr
               (p, self#v_exp2 e1 i f true, self#v_exp2 e2 i f true, l, pre, tags)
         | TripleInstr (p, e1, e2, l, pre, tags) ->
-            (* e1 is the last assembly operand (stack is stored in reverse order).
-             * For arithmetic/logic/compare/mov opcodes an Immediate constant at
-             * that position is a plain value, not a code address, so skip v_exp2. *)
+            (* For arithmetic/logic/compare/mov opcodes, an Immediate constant at
+            e1 is a plain constant, not a code address, so skip v_exp2.
+
+            Exception: the movw/movt pre-pairing pass rewrites paired MOVW/MOVT
+            operands to a 32-bit address with a :lower16:/:upper16: tag, which
+            v_exp2 then symbolizes. *)
+            let half_tag_set =
+              Hashtbl.mem tags ":lower16:" || Hashtbl.mem tags ":upper16:"
+            in
             let e1' =
               match e1 with
-              | Const (Immediate _) when arch = "thumb" && is_const_opcode p ->
+              | Const (Immediate _)
+                when arch = "thumb" && is_const_opcode p && not half_tag_set ->
                   e1
               | _ -> self#v_exp2 e1 i f false
             in
             TripleInstr (p, e1', self#v_exp2 e2 i f false, l, pre, tags)
         | FourInstr (p, e1, e2, e3, l, pre, tags) ->
             (* Same reversal applies: e1 is the last assembly operand. *)
+            let half_tag_set =
+              Hashtbl.mem tags ":lower16:" || Hashtbl.mem tags ":upper16:"
+            in
             let e1' =
               match e1 with
-              | Const (Immediate _) when arch = "thumb" && is_const_opcode p ->
+              | Const (Immediate _)
+                when arch = "thumb" && is_const_opcode p && not half_tag_set ->
                   e1
               | _ -> self#v_exp2 e1 i f false
             in
@@ -2326,9 +2530,9 @@ class arm_reassemble =
                 ( Arm_OP (Arm_CommonOP (Arm_Assign LDR), _, _),
                   Ptr
                     (ThreeOP_S
-                      ( Arm_Reg (Arm_CommonReg rd_chk),
-                        Arm_Reg (Arm_CommonReg rs),
-                        shift_str )),
+                       ( Arm_Reg (Arm_CommonReg rd_chk),
+                         Arm_Reg (Arm_CommonReg rs),
+                         shift_str )),
                   Reg (Arm_Reg (Arm_CommonReg rs_dst)),
                   _,
                   _,
@@ -2355,7 +2559,7 @@ class arm_reassemble =
           | _ -> None
         in
         let walk_table base : int list =
-          (* Walk the jump table starting at [base] *)  
+          (* Walk the jump table starting at [base] *)
           let max_entries = 256 in
           let rec aux i acc =
             if i >= max_entries then List.rev acc
@@ -2363,8 +2567,8 @@ class arm_reassemble =
               let entry_addr = base + (4 * i) in
               match Hashtbl.find_opt text_as_data_set entry_addr with
               | None -> List.rev acc
-              | Some hex -> begin
-                  match int_of_string_opt ("0x" ^ hex) with
+              | Some hex ->
+                  begin match int_of_string_opt ("0x" ^ hex) with
                   | None -> List.rev acc
                   | Some 0 -> List.rev acc
                   | Some v ->
@@ -2372,7 +2576,7 @@ class arm_reassemble =
                       if v land 1 = 1 && self#check_text target then
                         aux (i + 1) (target :: acc)
                       else List.rev acc
-                end
+                  end
           in
           aux 0 []
         in
@@ -2397,8 +2601,7 @@ class arm_reassemble =
                   (fun target_idx target ->
                     let entry_addr = base + (4 * target_idx) in
                     for off = 0 to 3 do
-                      Hashtbl.replace entry_lookup
-                        (entry_addr + off)
+                      Hashtbl.replace entry_lookup (entry_addr + off)
                         (target, base, off = 0, target_idx = 0)
                     done)
                   targets;
@@ -2490,6 +2693,7 @@ class arm_reassemble =
       let tl = List.map (self#vinst2 arch func) instrs in
       let module EU = Elf_utils in
       let addr_len =
+        (* Warning: [addr_len] may vary when parsing objdump output from Thumb binaries. *)
         match (EU.elf_32 (), EU.elf_exe ()) with
         (* ELF 32-bit LSB executable *)
         | true, true -> 7
@@ -2723,28 +2927,29 @@ class arm_reassemble =
       intersect sl1 sl2
 
     method init_array_dump =
-      if List.length init_array_list <> 0 then begin
-        let module EU = Elf_utils in
-        if EU.elf_32 () then begin
+      (* re-emit the .init_array C++ global-constructor table. entries are
+      read from init_array_emit.info (produced by parse_init_array.py), with
+      the leading frame_dummy slot already dropped and the Thumb bit kept. *)
+      if Sys.file_exists "init_array_emit.info" then begin
+        let entries = read_file "init_array_emit.info" in
+        if List.length entries <> 0 then begin
+          let module EU = Elf_utils in
           let oc =
             open_out_gen [ Open_append; Open_creat ] 0o666 "final_data.s"
           in
-          Printf.fprintf oc
-            "\n.section        .ctors,\"aw\",%%progbits\n.align 4\n";
-          List.iter (fun l -> Printf.fprintf oc ".long %s\n" l) init_array_list;
-          close_out oc
-        end
-        else begin
-          let oc =
-            open_out_gen [ Open_append; Open_creat ] 0o666 "final_data.s"
-          in
-          Printf.fprintf oc
-            "\n.section        .ctors,\"aw\",%%progbits\n.align 8\n";
-          List.iter (fun l -> Printf.fprintf oc ".quad %s\n" l) init_array_list;
+          if EU.elf_32 () then begin
+            Printf.fprintf oc
+              "\n.section .init_array,\"aw\",%%init_array\n.align 2\n";
+            List.iter (fun l -> Printf.fprintf oc ".long %s\n" l) entries
+          end
+          else begin
+            Printf.fprintf oc
+              "\n.section .init_array,\"aw\",%%init_array\n.align 3\n";
+            List.iter (fun l -> Printf.fprintf oc ".quad %s\n" l) entries
+          end;
           close_out oc
         end
       end
-      else ()
 
     method export_data_dump =
       Export_data.export ();
@@ -2761,7 +2966,10 @@ class arm_reassemble =
     method excpt_tbl_dump =
       Sys.command "cat gcc_exception_table.data >> final.s"
 
-    method reassemble_dump u_funcs = self#data_dump u_funcs
+    method reassemble_dump u_funcs =
+      let r = self#data_dump u_funcs in
+      self#init_array_dump;
+      r
 
     method add_func_label ufuncs instrs =
       let module EU = Elf_utils in

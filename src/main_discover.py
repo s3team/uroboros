@@ -175,26 +175,8 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
         # 10354:	f7ff efd4 	blx	10300 <__libc_start_main@plt>
         # 10358:	f7ff efe4 	blx	10324 <abort@plt>
 
-        objdump_lines = []
-        start_collect = False
-        for i, line in enumerate(start_section):
-            if "sl" in line:
-                start_collect = True
-
-            if start_collect:
-                objdump_lines.append(start_section[i])
-
-            if (
-                "ldr" in start_section[i]
-                and "blx" in start_section[i + 1]
-                and "blx" in start_section[i + 2]
-            ):
-                break
-
-        # angr gives thumb mode address, while objdump result does not.
-        # So, we need to subtract 1 from the symbolic execution result.
         instrs = []
-        for line in objdump_lines:
+        for line in start_section:
             if "..." in line:
                 continue
             inst = Inst()
@@ -203,9 +185,13 @@ def get_arm_main_symbol(start_section, is_32bit_binary):
 
         arch_mode = "thumb" if is_thumb else "arm"
         eval = ArmConcreteEval(arch=arch_mode)
-        # if thumb mode, we need to set the arch to thumb
         eval.run(instrs)
-        main_symbol = hex(eval.reg_value_dict["r0"])
+        r0 = eval.reg_value_dict["r0"]
+        if arch_mode == "thumb":
+            # Thumb function pointers carry an LSB tag; consumers of main.info
+            # match against instruction addresses with LSB cleared.
+            r0 &= ~1
+        main_symbol = hex(r0)
 
     else:
         # The "b" instruction has the address of main function:
