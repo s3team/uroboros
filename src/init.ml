@@ -104,7 +104,12 @@ class ailInit =
             (objdump_command ^ " -s -j __libc_freeres_ptrs " ^ f
            ^ " 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 > \
               __libc_freeres_ptrs.info");
-        self#checkret ret "__libc_freeres_ptrs.info"
+        self#checkret ret "__libc_freeres_ptrs.info";
+        ret :=
+          Sys.command
+            (objdump_command ^ " -s -j .tdata " ^ f
+           ^ " 2>/dev/null | grep \"^ \" | cut -d \" \" -f3,4,5,6 > tdata.info");
+        self#checkret ret "tdata.info"
       end
 
     method intel_disassemble (f : string) : unit =
@@ -355,12 +360,120 @@ class ailInit =
            ("readelf -r " ^ f
           ^ " | awk \'/GLOB_DAT/ {print $5} \' > externdatas.info"))
 
+    method etrel_dump (f : string) : unit =
+      (* symtab.info : value size type bind ndx name *)
+      ignore
+        (Sys.command
+           ("readelf -sW " ^ f
+          ^ " | awk \'NF>=8 && $1 ~ /^[0-9]+:$/ {print \
+             $2,$3,$4,$5,$7,$8}\' > symtab.info"));
+      (* etrel_sec.info : idx name type off size flags *)
+      ignore
+        (Sys.command
+           ("readelf -SW " ^ f
+          ^ " | sed -E \'s/^ *\\[ *([0-9]+)\\] /\\1 /\' | awk \'$1 ~ \
+             /^[0-9]+$/ {print $1,$2,$3,$5,$6,$8}\' > etrel_sec.info"));
+      (* reloc.info : applied-section offset type symbol sign addend(hex) *)
+      ignore
+        (Sys.command
+           ("readelf -rW " ^ f
+          ^ " | awk \'/^Relocation section/ {split($0,p,\"\\047\"); rs=p[2]; \
+             sub(/^\\.rela/,\"\",rs); sub(/^\\.rel/,\"\",rs); sec=rs; next} $1 \
+             ~ /^[0-9a-f]+$/ && $3 ~ /^R_/ {print sec,$1,$3,$5,$6,$7}\' > \
+             reloc.info"))
+
+    method etrel_disassemble (f : string) : unit =
+      let split l = Str.split (Str.regexp " +") l in
+      let hex s = int_of_string ("0x" ^ s) in
+      (* .text section index (relocs/symbols reference sections by index) *)
+      let text_idx =
+        let rec find = function
+          | l :: t -> (
+              match split l with
+              | idx :: name :: _ when name = ".text" -> idx
+              | _ -> find t)
+          | [] -> failwith "etrel: no .text section"
+        in
+        find (read_file "etrel_sec.info")
+      in
+      (* merged [start,end) of FUNC symbols in .text *)
+      let franges =
+        List.filter_map
+          (fun l ->
+            match split l with
+            | off :: size :: typ :: _bind :: ndx :: _
+              when typ = "FUNC" && ndx = text_idx && int_of_string size > 0 ->
+                let b = hex off in
+                Some (b, b + int_of_string size)
+            | _ -> None)
+          (read_file "symtab.info")
+      in
+      let merged =
+        List.sort compare franges
+        |> List.fold_left
+             (fun acc (a, b) ->
+               match acc with
+               | (a0, b0) :: t when a <= b0 -> (a0, max b0 b) :: t
+               | _ -> (a, b) :: acc)
+             []
+        |> List.rev
+      in
+      (* carve out 8-byte R_X86_64_64 slots (jump tables inside FUNC ranges) *)
+      let holes =
+        List.filter_map
+          (fun l ->
+            match split l with
+            | sec :: off :: typ :: _
+              when sec = ".text" && typ = "R_X86_64_64" ->
+                let o = hex off in
+                Some (o, o + 8)
+            | _ -> None)
+          (read_file "reloc.info")
+        |> List.sort compare
+      in
+      let subtract (a, b) =
+        let cur = ref a and out = ref [] in
+        List.iter
+          (fun (hs, he) ->
+            if he <= !cur || hs >= b then ()
+            else begin
+              if hs > !cur then out := (!cur, min hs b) :: !out;
+              cur := max !cur he
+            end)
+          holes;
+        if !cur < b then out := (!cur, b) :: !out;
+        List.rev !out
+      in
+      let code_ranges = List.concat_map subtract merged in
+      ignore (Sys.command ("rm -f " ^ f ^ ".disassemble code_ranges.info"));
+      List.iter
+        (fun (s, e) ->
+          ignore
+            (Sys.command (Printf.sprintf "echo \'%x %x\' >> code_ranges.info" s e));
+          ignore
+            (Sys.command
+               (Printf.sprintf
+                  "objdump -d --start-address=%d --stop-address=%d -j .text %s \
+                   | grep \'^ \' >> %s.disassemble"
+                  s e f f)))
+        code_ranges;
+      (* strip objdump's trailing "# <resolved target>" comment, else it leaks
+         into the operand during parse *)
+      ignore
+        (Sys.command
+           ("cat " ^ f
+          ^ ".disassemble | cut -f1,3 | sed \'s/[ \\t]*#.*$//\' > instrs.info"));
+      ignore (Sys.command "cut -f 1 instrs.info > text_mem.info")
+
     method ail_process (f : string) init_begin_time : unit =
       let module TR = Time_Record in
+      let module EU = Elf_utils in
       let processor = new ail in
-      processor#sections;
-      processor#userfuncs;
-      ignore (Sys.command "python3 spliter.py");
+      if not (EU.elf_reloc ()) then begin
+        processor#sections;
+        processor#userfuncs;
+        ignore (Sys.command "python3 spliter.py")
+      end;
       TR.elapsed' ~l:"init" init_begin_time;
       processor#instr_process f arch
   end
@@ -418,12 +531,19 @@ let main () =
       let init_begin_time = TR.get_utime () in
       let _ = Random.self_init () in
       let init = new ailInit in
+      let module EU = Elf_utils in
       init#init arch bit_mode;
-      init#section_process elf;
-      init#intel_disassemble elf;
-      init#disassemble_metadata elf arch;
-      init#arm_disassemble elf arch;
-      init#process elf arch bit_mode;
+      if EU.elf_reloc () then begin
+        init#etrel_dump elf;
+        init#etrel_disassemble elf
+      end
+      else begin
+        init#section_process elf;
+        init#intel_disassemble elf;
+        init#disassemble_metadata elf arch;
+        init#arm_disassemble elf arch;
+        init#process elf arch bit_mode
+      end;
       init#ail_process elf init_begin_time;
       TR.elapsed' ~l:"total" total_begin_time)
     else print_string ("binary file " ^ elf ^ " doesn't exist\n")

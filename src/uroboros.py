@@ -11,6 +11,10 @@ k = False
 f_dic = ""
 iter_num = 0
 
+SDK_CLANG = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "tool/vxworks/x86/clang",
+)
 
 def is_exe():
     lines = []
@@ -52,6 +56,12 @@ def is_static():
         return True
     else:
         return False
+
+
+def is_reloc():
+    with open("elf.info") as f:
+        lines = f.readlines()
+    return "relocatable" in lines[0]
 
 
 def is_cpp(binary):
@@ -131,6 +141,11 @@ def get_custom_objects(cleanup):
 
 
 def reassemble(assembly_file, arch, binary):
+    if is_reloc():
+        print(f"reassemble: {SDK_CLANG} -c {assembly_file} -o a.ko")
+        os.system(f"{SDK_CLANG} -c {assembly_file} -o a.ko 2> final.error")
+        return
+
     compiler = ""
     compile_option = "-no-pie -lm -lrt -lpthread "
     is_32bit_binary = is_32()
@@ -198,6 +213,7 @@ def modify_error(errors):
 
 def process(f, i, arch):
     is_32bit_binary = is_32()
+    reloc = is_reloc()
     strip_command = ""
     objdump_commamnd = ""
     if arch == "intel":
@@ -217,29 +233,32 @@ def process(f, i, arch):
     try:
         os.system("rm final_*.txt")
 
-        # suppose we use this method to obtain function information
-        os.system("cp " + f + " func_discover/")
-        os.system(
-            f"python3 func_discover/func_addr.py func_discover/{f} {str(i)} {arch}"
-        )
-        if os.path.exists("final_data.s"):
-            os.system("rm final_data.s")
-        if os.path.exists("useless_func.info"):
-            os.system("rm useless_func.info")
-        os.system(f"rm func_discover/{f}")
-        if i > 0:
-            os.system(f"python3 useless_func_discover.py {f} {arch}")
+        # ET_REL symbolization is relocation-driven and reads the symbol table
+        if not reloc:
+            # suppose we use this method to obtain function information
+            os.system("cp " + f + " func_discover/")
+            os.system(
+                f"python3 func_discover/func_addr.py func_discover/{f} {str(i)} {arch}"
+            )
+            if os.path.exists("final_data.s"):
+                os.system("rm final_data.s")
+            if os.path.exists("useless_func.info"):
+                os.system("rm useless_func.info")
+            os.system(f"rm func_discover/{f}")
+            if i > 0:
+                os.system(f"python3 useless_func_discover.py {f} {arch}")
 
         os.system(f'echo "{str(i)}" > count.txt')
-        os.system(f"cp {f} {f}.sym")
-        os.system(f"nm {f}.sym > nm.info 2> /dev/null")
-        if is_static():
-            os.system(
-                f"{objdump_commamnd} -d --section=.plt {f} > plt_whole.info 2> /dev/null"
-            )
-            os.system(f"readelf -r {f} > rela_plt.info")
-            os.system(f"readelf -l {f} > headers.info")
-        os.system(f"{strip_command} {f}")
+        if not reloc:
+            os.system(f"cp {f} {f}.sym")
+            os.system(f"nm {f}.sym > nm.info 2> /dev/null")
+            if is_static():
+                os.system(
+                    f"{objdump_commamnd} -d --section=.plt {f} > plt_whole.info 2> /dev/null"
+                )
+                os.system(f"readelf -r {f} > rela_plt.info")
+                os.system(f"readelf -l {f} > headers.info")
+            os.system(f"{strip_command} {f}")
 
         bit_mode = "32" if is_32bit_binary else "64"
         cmd = f"opam exec -- dune exec init {f} {arch} {bit_mode}"
@@ -251,14 +270,15 @@ def process(f, i, arch):
         if not os.path.isfile("final.s"):
             return False
 
-        os.system("python3 post_process_data.py")
+        if not reloc:
+            os.system("python3 post_process_data.py")
 
-        os.system('echo ".section .eh_frame" >> final_data.s')
-        os.system("cat eh_frame_split.info >> final_data.s")
-        os.system('echo ".section .eh_frame_hdr" >> final_data.s')
-        os.system("cat eh_frame_hdr_split.info >> final_data.s")
+            os.system('echo ".section .eh_frame" >> final_data.s')
+            os.system("cat eh_frame_split.info >> final_data.s")
+            os.system('echo ".section .eh_frame_hdr" >> final_data.s')
+            os.system("cat eh_frame_hdr_split.info >> final_data.s")
 
-        os.system("cat final_data.s >> final.s")
+            os.system("cat final_data.s >> final.s")
 
         if k:
             os.system("cp final.s final.s." + str(i))
@@ -267,7 +287,7 @@ def process(f, i, arch):
             # FIXME!
             os.system("python3 gobmk_sub.py")
 
-        if arch == "thumb" or arch == "arm":
+        if (arch == "thumb" or arch == "arm") and not reloc:
             start_time = time.time()
             os.system(f"python3 arm_postprocess.py final.s {arch}")
             end_time = time.time()
@@ -276,8 +296,9 @@ def process(f, i, arch):
             print(f"elapsed time (arm_postprocess): {minutes}m {seconds:.2f}s")
 
         reassemble("final.s", arch, f)
-        modify_error(parse_errors())
-        reassemble("final.s", arch, f)
+        if not reloc:
+            modify_error(parse_errors())
+            reassemble("final.s", arch, f)
 
         custom_objects = get_custom_objects(cleanup=True)
         for obj in custom_objects:
@@ -329,7 +350,7 @@ def check(b, f, al):
         os.system("cp " + b + " .")
 
     os.system("file " + f + " > elf.info")
-    if is_exe() == False:
+    if is_exe() == False and is_reloc() == False:
         print("Uroboros doesn't support shared library")
         return False
 

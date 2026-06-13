@@ -236,6 +236,7 @@ and intel_systemop =
   | PREFETCHT1
   | SFENCE
   | LFENCE
+  | MFENCE
   | FWAIT
 
 and intel_arithmop =
@@ -538,6 +539,8 @@ and intel_assignop =
   | FSUB
   | FDIVS
   | FISTPLL
+  | FISTTPLL
+  | FSTENV
   | FDIVRP
   | CMOVGE
   | FCMOVBE
@@ -1954,6 +1957,8 @@ let show_intel_op = function
           | FSUB -> "fsub"
           | FDIVS -> "fdivs"
           | FISTPLL -> "fistpll"
+          | FISTTPLL -> "fisttpll"
+          | FSTENV -> "fstenv"
           | FDIVRP -> "fdivrp"
           | CMOVGE -> "cmovge"
           | FCMOVBE -> "fcmovbe"
@@ -2272,6 +2277,7 @@ let show_intel_op = function
       | PREFETCHT1 -> "prefetcht1"
       | SFENCE -> "sfence"
       | LFENCE -> "lfence"
+      | MFENCE -> "mfence"
       | FWAIT -> "fwait"
       end
   | Intel_ErrorOP ierror ->

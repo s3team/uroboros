@@ -47,6 +47,10 @@ let elf_lib () =
   (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
   contains ~str:l ~sub:"LSB shared object"
 
+let elf_reloc () =
+  (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
+  contains ~str:l ~sub:"relocatable"
+
 let elf_arm () =
   (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
   contains ~str:l ~sub:"ARM"

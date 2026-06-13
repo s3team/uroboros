@@ -83,6 +83,25 @@ def split_data_info():
         f.write(s + "\n")
 
 
+def split_tdata_info():
+    # .tdata TLS template section
+    lines = []
+    with open("tdata.info") as f:
+        lines = f.readlines()
+
+    s = []
+    for l in lines:
+        items = l.split()
+        for item in items:
+            l = len(item)
+            for i in range(0, l, 2):
+                s.append(".byte 0x" + item[i : i + 2])
+    s = "\n".join(reversed(s))
+
+    with open("tdata_split.info", "w") as f:
+        f.write(s + "\n")
+
+
 def split_data_rel_ro_info():
     # data.rel.ro sections
     lines = []
@@ -209,6 +228,8 @@ if __name__ == "__main__":
 
     if check_static():
         split_got_plt_info()
+        if Path("tdata.info").exists():
+            split_tdata_info()
 
     split_eh_frame_info()
     split_eh_frame_hdr_info()

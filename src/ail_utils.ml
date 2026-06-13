@@ -384,6 +384,34 @@ module Instr_utils = struct
     | SixInstr (_, _, e, _, _, _, _, _, _) -> e
     | SevenInstr (_, _, e, _, _, _, _, _, _, _) -> e
 
+  (** All operand exps of an instr, in encoding order (e1 first). *)
+  let exps_of (i : instr) : exp list =
+    match i with
+    | SingleInstr _ -> []
+    | DoubleInstr (_, e1, _, _, _) -> [ e1 ]
+    | TripleInstr (_, e1, e2, _, _, _) -> [ e1; e2 ]
+    | FourInstr (_, e1, e2, e3, _, _, _) -> [ e1; e2; e3 ]
+    | FifInstr (_, e1, e2, e3, e4, _, _, _) -> [ e1; e2; e3; e4 ]
+    | SixInstr (_, e1, e2, e3, e4, e5, _, _, _) -> [ e1; e2; e3; e4; e5 ]
+    | SevenInstr (_, e1, e2, e3, e4, e5, e6, _, _, _) ->
+        [ e1; e2; e3; e4; e5; e6 ]
+
+  (** Rewrite every operand exp of an instr with [g], leaving op, loc, and tags. *)
+  let map_exps (g : exp -> exp) (i : instr) : instr =
+    match i with
+    | SingleInstr _ -> i
+    | DoubleInstr (p, e1, l, pre, t) -> DoubleInstr (p, g e1, l, pre, t)
+    | TripleInstr (p, e1, e2, l, pre, t) ->
+        TripleInstr (p, g e1, g e2, l, pre, t)
+    | FourInstr (p, e1, e2, e3, l, pre, t) ->
+        FourInstr (p, g e1, g e2, g e3, l, pre, t)
+    | FifInstr (p, e1, e2, e3, e4, l, pre, t) ->
+        FifInstr (p, g e1, g e2, g e3, g e4, l, pre, t)
+    | SixInstr (p, e1, e2, e3, e4, e5, l, pre, t) ->
+        SixInstr (p, g e1, g e2, g e3, g e4, g e5, l, pre, t)
+    | SevenInstr (p, e1, e2, e3, e4, e5, e6, l, pre, t) ->
+        SevenInstr (p, g e1, g e2, g e3, g e4, g e5, g e6, l, pre, t)
+
   (** Check whether if an instr has a NEON register above d31.*)
   let has_high_d_reg_instr (i : instr) : bool =
     let high_d_regs = List.init 32 (fun i -> "d" ^ string_of_int (i + 32)) in

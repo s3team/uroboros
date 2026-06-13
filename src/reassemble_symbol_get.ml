@@ -23,6 +23,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
     val mutable got_plt : string list = []
     val mutable bss : string list = []
     val mutable tbss : string list = []
+    val mutable tdata : string list = []
 
     (* .data.rel.ro section*)
     val mutable data_rel_ro : string list = []
@@ -45,6 +46,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
     val mutable got_plt_list : (string * string) list = []
     val mutable bss_list : (string * string) list = []
     val mutable tbss_list : (string * string) list = []
+    val mutable tdata_list : (string * string) list = []
 
     (* .data.rel.ro section*)
     val mutable data_rel_ro_list : (string * string) list = []
@@ -57,6 +59,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
     val mutable got_plt_array : (string * string) array = [||]
     val mutable bss_array : (string * string) array = [||]
     val mutable tbss_array : (string * string) array = [||]
+    val mutable tdata_array : (string * string) array = [||]
 
     (* .data.rel.ro section*)
     val mutable data_rel_ro_array : (string * string) array = [||]
@@ -96,6 +99,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       if EU.elf_static () then (
         got_plt_list <- self#data_trans got_plt;
         tbss_list <- self#data_trans tbss;
+        tdata_list <- self#data_trans tdata;
         __libc_IO_vtables_list <- self#data_trans __libc_IO_vtables;
         __libc_freeres_ptrs_list <- self#data_trans __libc_freeres_ptrs);
 
@@ -422,6 +426,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         __libc_freeres_ptrs_list <-
           List.rev
             (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs");
+        tdata_list <- List.rev (traverse [] tdata_list 0x0 ".tdata");
         got_plt_list <- List.rev (traverse [] got_plt_list 0x0 ".got.plt"))
 
     (* this method solve all the references in the .data .rodata sections *)
@@ -582,7 +587,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
           List.rev (traverse [] __libc_IO_vtables_list 0x0 "__libc_IO_vtables");
         __libc_freeres_ptrs_list <-
           List.rev
-            (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs")
+            (traverse [] __libc_freeres_ptrs_list 0x0 "__libc_freeres_ptrs");
+        tdata_list <- List.rev (traverse [] tdata_list 0x0 ".tdata")
       end
       else ()
 
@@ -705,6 +711,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       bss <- collect "bss.info";
       if EU.elf_static () then begin
         got_plt <- collect "got_plt_split.info";
+        tdata <- collect "tdata_split.info";
         __libc_IO_vtables <- collect "__libc_IO_vtables_split.info";
         __libc_freeres_ptrs <- collect "__libc_freeres_ptrs.info"
       end
@@ -720,6 +727,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
           if EU.elf_static () then
             begin match s with
             | ".got.plt" -> ".got.plt"
+            | ".tdata" -> ".tdata"
             | "__libc_IO_vtables" -> "__libc_IO_vtables"
             | "__libc_freeres_ptrs" -> "__libc_freeres_ptrs"
             | _ -> ".rodata"
@@ -884,6 +892,11 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                             and s, d = __libc_freeres_ptrs_array.(off) in
                             __libc_freeres_ptrs_array.(off) <- (s', d);
                             help t
+                        | ".tdata" ->
+                            let off = l - self#section_addr ".tdata" in
+                            let s' = dec_hex l and s, d = tdata_array.(off) in
+                            tdata_array.(off) <- (s', d);
+                            help t
                         | _ -> help t
                         end
                       else help t
@@ -899,6 +912,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       if EU.elf_static () then begin
         __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
         __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
+        tdata_array <- Array.of_list tdata_list;
         got_plt_array <- Array.of_list got_plt_list
       end
       else ();
@@ -908,6 +922,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
       if EU.elf_static () then begin
         __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
         __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
+        tdata_list <- Array.to_list tdata_array;
         got_plt_list <- Array.to_list got_plt_array
       end
       else ()
@@ -1081,6 +1096,22 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
                                 __libc_freeres_ptrs_array.(off) <-
                                   (alignment ^ s', d));
                             help t
+                        | ".tdata" ->
+                            let off = l - self#section_addr ".tdata" in
+                            let s' = dec_hex_col_sym l
+                            and s, d = tdata_array.(off) in
+                            let alignment =
+                              match Hashtbl.find_opt align_locations (n, l) with
+                              | Some _ -> ".p2align 4\n"
+                              | None -> ""
+                            in
+                            (match Hashtbl.find_opt sym_addr2label l with
+                            | Some (sym_label, _) ->
+                                tdata_array.(off) <-
+                                  (alignment ^ sym_label ^ ":\n" ^ s', d)
+                            | None ->
+                                tdata_array.(off) <- (alignment ^ s', d));
+                            help t
                         | ".tbss" -> help t
                         | _ -> raise (Reassemble_Error n)
                         end
@@ -1131,7 +1162,11 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
               __libc_freeres_ptrs_list <-
                 (".section __libc_freeres_ptrs, \"wa\"\n", "")
                 :: __libc_freeres_ptrs_list;
-              tbss_list <- (".section .tbss\n", "") :: tbss_list
+              tdata_list <-
+                (".section .tdata,\"awT\",@progbits\n.align 8\n", "")
+                :: tdata_list;
+              tbss_list <-
+                (".section .tbss,\"awT\",@nobits\n", "") :: tbss_list
             end
             else ()
 
@@ -1156,6 +1191,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
               write_file_opt got_plt_list;
               write_file_opt __libc_IO_vtables_list;
               write_file_opt __libc_freeres_ptrs_list;
+              write_file_opt tdata_list;
               write_file_opt tbss_list
             end
             else ();
@@ -1195,7 +1231,8 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         got_plt_array <- Array.of_list got_plt_list;
         __libc_IO_vtables_array <- Array.of_list __libc_IO_vtables_list;
         __libc_freeres_ptrs_array <- Array.of_list __libc_freeres_ptrs_list;
-        tbss_array <- Array.of_list tbss_list);
+        tbss_array <- Array.of_list tbss_list;
+        tdata_array <- Array.of_list tdata_list);
       (* data_labels <- p#de_redunt data_labels; *)
       (*
       self#dump_d2d_labels data_labels_reloc;
@@ -1214,6 +1251,7 @@ class datahandler (label' : (string * int) list) (align' : (string * int) list)
         __libc_IO_vtables_list <- Array.to_list __libc_IO_vtables_array;
         __libc_freeres_ptrs_list <- Array.to_list __libc_freeres_ptrs_array;
         tbss_list <- Array.to_list tbss_array;
+        tdata_list <- Array.to_list tdata_array;
         self#static_plt_handler);
       p#insert_dummy;
       p#insert_head;
@@ -2557,3 +2595,392 @@ class reassemble =
       self#rodata_collect;
       self#text_sec_collect
   end
+
+
+module Etrel = struct
+  open Instr_utils
+
+  type esym = {
+    sval : int;
+    ssize : int;
+    styp : string;
+    sbind : string;
+    sndx : string;
+    sname : string;
+  }
+
+  (* a relocation: (offset, type, symbol, addend) applied within some section *)
+  type ereloc = { roff : int; rtyp : string; rsym : string; radd : int }
+
+  let split (l : string) : string list = Str.split (Str.regexp " +") l
+  let hexx (s : string) : int = int_of_string ("0x" ^ s)
+
+  (* "L_" ^ section name with leading '.' dropped and non-alnum -> '_' *)
+  let prefix (secname : string) : string =
+    let s =
+      if String.length secname > 0 && secname.[0] = '.' then
+        String.sub secname 1 (String.length secname - 1)
+      else secname
+    in
+    "L_"
+    ^ String.map
+        (fun c ->
+          if
+            (c >= 'A' && c <= 'Z')
+            || (c >= 'a' && c <= 'z')
+            || (c >= '0' && c <= '9')
+          then c
+          else '_')
+        s
+
+  let add_target (targets : (string, (int, unit) Hashtbl.t) Hashtbl.t)
+      (sec : string) (off : int) : unit =
+    let s =
+      match Hashtbl.find_opt targets sec with
+      | Some h -> h
+      | None ->
+          let h = Hashtbl.create 16 in
+          Hashtbl.replace targets sec h;
+          h
+    in
+    Hashtbl.replace s off ()
+
+  let targets_of targets sec : int list =
+    match Hashtbl.find_opt targets sec with
+    | None -> []
+    | Some h -> Hashtbl.fold (fun k () acc -> k :: acc) h [] |> List.sort compare
+
+  (* resolve a relocation's symbol+effective-offset to an asm token, registering
+     any in-section synthetic label that must be emitted *)
+  let tgt section_names targets (name : string) (add : int) : string =
+    if List.mem name section_names then begin
+      add_target targets name add;
+      prefix name ^ Printf.sprintf "%x" add
+    end
+    else if add = 0 then name
+    else if add > 0 then Printf.sprintf "%s+0x%x" name add
+    else Printf.sprintf "%s-0x%x" name (-add)
+
+  let rip = Intel_Reg (Intel_PCReg RIP)
+
+  (* rewrite the operand a single relocation targets. PC-relative relocations
+     encode the displacement from the instruction end, so the effective target
+     offset is addend + (next_ip - reloc_offset). Absolute relocs use the
+     addend. *)
+  let apply_reloc section_names targets (off : int) (len : int) (i : instr)
+      (r : ereloc) : instr =
+    let pcrel =
+      r.rtyp = "R_X86_64_PLT32" || r.rtyp = "R_X86_64_PC32"
+    in
+    let eff = if pcrel then r.radd + (off + len) - r.roff else r.radd in
+    let token = tgt section_names targets r.rsym eff in
+    match r.rtyp with
+    | "R_X86_64_PLT32" ->
+        map_exps
+          (fun e ->
+            match e with
+            | Symbol (CallDes _ | JumpDes _) | Const (Point _) -> Label token
+            | _ -> e)
+          i
+    | "R_X86_64_PC32" ->
+        map_exps
+          (fun e ->
+            match e with
+            | Ptr (BinOP_PLUS (Intel_Reg (Intel_PCReg RIP), _))
+            | Ptr (BinOP_MINUS (Intel_Reg (Intel_PCReg RIP), _))
+            | Ptr (UnOP (Intel_Reg (Intel_PCReg RIP))) ->
+                Ptr (BinOP_PLUS_S (rip, token))
+            | _ -> e)
+          i
+    | "R_X86_64_32S" | "R_X86_64_32" ->
+        (* An instruction may carry both a displacement and an immediate. The
+           reloc sits on the immediate only when it occupies the last 4 bytes
+           AND an immediate is actually present (a lea's last 4 bytes are a
+           displacement, not an immediate); otherwise it's the displacement. *)
+        let imm_field = r.roff = off + len - 4 in
+        let is_imm = function Const (Normal _) -> true | _ -> false in
+        let is_disp = function
+          | Ptr
+              ( BinOP_PLUS _ | BinOP_MINUS _ | UnOP _ | FourOP_PLUS _
+              | FourOP_MINUS _ | JmpTable_PLUS _ | JmpTable_MINUS _ ) ->
+              true
+          | _ -> false
+        in
+        let exps = exps_of i in
+        let has_imm = List.exists is_imm exps in
+        let has_disp = List.exists is_disp exps in
+        let do_imm () =
+          map_exps (fun e -> if is_imm e then Label ("$" ^ token) else e) i
+        in
+        let do_disp () =
+          map_exps
+            (fun e ->
+              match e with
+              | Ptr (BinOP_PLUS (rg, _))
+              | Ptr (BinOP_MINUS (rg, _))
+              | Ptr (UnOP rg) ->
+                  Ptr (BinOP_PLUS_S (rg, token))
+              | Ptr (FourOP_PLUS (r1, r2, sc, _))
+              | Ptr (FourOP_MINUS (r1, r2, sc, _)) ->
+                  Ptr (FourOP_PLUS_S (r1, r2, sc, token))
+              | Ptr (JmpTable_PLUS (_, rg, sc))
+              | Ptr (JmpTable_MINUS (_, rg, sc)) ->
+                  Ptr (JmpTable_PLUS_S (token, rg, sc))
+              | _ -> e)
+            i
+        in
+        if imm_field && has_imm then do_imm ()
+        else if has_disp then do_disp ()
+        else if has_imm then do_imm ()
+        else i
+    | _ -> i
+
+  (* a self-relative branch/call with NO relocation: its destination is a raw
+     in-.text offset -> L_text<off> *)
+  let branch_fix targets (i : instr) : instr =
+    map_exps
+      (fun e ->
+        match e with
+        | Symbol (JumpDes d) ->
+            add_target targets ".text" d;
+            Label (Printf.sprintf "L_text%x" d)
+        | Symbol (CallDes f) ->
+            let d = f.func_begin_addr in
+            add_target targets ".text" d;
+            Label (Printf.sprintf "L_text%x" d)
+        | _ -> e)
+      i
+
+  let secbytes (f : string) (sec : string) : string =
+    ignore
+      (Sys.command
+         (Printf.sprintf
+            "objcopy -O binary --only-section=%s %s .etrel_sec.bin 2>/dev/null" sec
+            f));
+    try Bytes.to_string (Symbol_table_get.read_file_bytes ".etrel_sec.bin")
+    with _ -> ""
+
+  let special = [ ".eh_frame"; ".eh_frame_hdr"; ".init_array"; ".fini_array" ]
+
+  let emit (il : instr list) (f : string) : unit =
+    let syms =
+      List.filter_map
+        (fun l ->
+          match split l with
+          | v :: sz :: ty :: bd :: nd :: nm :: _ ->
+              Some
+                {
+                  sval = hexx v;
+                  ssize = int_of_string sz;
+                  styp = ty;
+                  sbind = bd;
+                  sndx = nd;
+                  sname = nm;
+                }
+          | _ -> None)
+        (read_file "symtab.info")
+    in
+    (* section name -> index, index -> name, ordered (idx,name,type,size,flags) *)
+    let secs =
+      List.filter_map
+        (fun l ->
+          match split l with
+          | idx :: nm :: ty :: _off :: sz :: fl :: _ ->
+              Some (idx, nm, ty, hexx sz, fl)
+          | idx :: nm :: ty :: _off :: sz :: [] ->
+              Some (idx, nm, ty, hexx sz, "")
+          | _ -> None)
+        (read_file "etrel_sec.info")
+    in
+    let section_names = List.map (fun (_, n, _, _, _) -> n) secs in
+    let idx_of_name n =
+      List.find_map (fun (i, nm, _, _, _) -> if nm = n then Some i else None) secs
+    in
+    let relocs : (string, ereloc list) Hashtbl.t = Hashtbl.create 16 in
+    List.iter
+      (fun l ->
+        match split l with
+        | sec :: off :: ty :: sym :: sign :: add :: _ ->
+            let a = hexx add * if sign = "-" then -1 else 1 in
+            let r = { roff = hexx off; rtyp = ty; rsym = sym; radd = a } in
+            let prev =
+              match Hashtbl.find_opt relocs sec with Some x -> x | None -> []
+            in
+            Hashtbl.replace relocs sec (r :: prev)
+        | _ -> ())
+      (read_file "reloc.info");
+    let relocs_of sec =
+      match Hashtbl.find_opt relocs sec with Some x -> x | None -> []
+    in
+    let code_ranges =
+      List.filter_map
+        (fun l ->
+          match split l with s :: e :: _ -> Some (hexx s, hexx e) | _ -> None)
+        (read_file "code_ranges.info")
+    in
+    let lengths : (int, int) Hashtbl.t = Hashtbl.create 256 in
+    List.iter
+      (fun (s, e) ->
+        let offs =
+          List.map get_addr il
+          |> List.filter (fun o -> s <= o && o < e)
+          |> List.sort compare
+        in
+        let rec go = function
+          | a :: (b :: _ as t) ->
+              Hashtbl.replace lengths a (b - a);
+              go t
+          | [ a ] -> Hashtbl.replace lengths a (e - a)
+          | [] -> ()
+        in
+        go offs)
+      code_ranges;
+    let len_of off = match Hashtbl.find_opt lengths off with Some n -> n | None -> 1 in
+    let targets : (string, (int, unit) Hashtbl.t) Hashtbl.t = Hashtbl.create 16 in
+    let text_relocs = relocs_of ".text" in
+    let reloc_at off =
+      List.filter (fun r -> off <= r.roff && r.roff < off + len_of off) text_relocs
+    in
+    let off2instr : (int, instr) Hashtbl.t = Hashtbl.create 512 in
+    List.iter
+      (fun i ->
+        let off = get_addr i in
+        let len = len_of off in
+        let rs = reloc_at off in
+        let i' = List.fold_left (apply_reloc section_names targets off len) i rs in
+        let i' = branch_fix targets i' in
+        Hashtbl.replace off2instr off i')
+      il;
+    (* register data-slot and data-section targets (absolute addends) *)
+    List.iter
+      (fun (_, secname, _, _, _) ->
+        List.iter
+          (fun r -> ignore (tgt section_names targets r.rsym r.radd))
+          (relocs_of secname))
+      secs;
+    (* per-offset labels for a section *)
+    let labels_at secname : (int, string list) Hashtbl.t =
+      let h : (int, string list) Hashtbl.t = Hashtbl.create 64 in
+      let push off line =
+        let prev = match Hashtbl.find_opt h off with Some x -> x | None -> [] in
+        Hashtbl.replace h off (prev @ [ line ])
+      in
+      let sidx = idx_of_name secname in
+      List.iter
+        (fun s ->
+          if
+            Some s.sndx = sidx
+            && (s.styp = "FUNC" || s.styp = "OBJECT" || s.styp = "NOTYPE")
+          then begin
+            if s.styp = "FUNC" then push s.sval (Printf.sprintf "\t.type %s,@function" s.sname);
+            if s.sbind = "GLOBAL" then push s.sval (Printf.sprintf "\t.globl %s" s.sname)
+            else if s.sbind = "WEAK" then push s.sval (Printf.sprintf "\t.weak %s" s.sname);
+            push s.sval (Printf.sprintf "%s:" s.sname);
+            if s.styp = "FUNC" && s.ssize > 0 then
+              push s.sval (Printf.sprintf "\t.size %s, %d" s.sname s.ssize)
+          end)
+        syms;
+      List.iter
+        (fun off -> push off (Printf.sprintf "%s%x:" (prefix secname) off))
+        (targets_of targets secname);
+      h
+    in
+    let buf = Buffer.create 65536 in
+    let out s = Buffer.add_string buf s; Buffer.add_char buf '\n' in
+    let emit_labels h i = match Hashtbl.find_opt h i with Some ls -> List.iter out ls | None -> () in
+    (* .text *)
+    let text_size =
+      List.find_map (fun (_, n, _, sz, _) -> if n = ".text" then Some sz else None) secs
+      |> function Some s -> s | None -> 0
+    in
+    let text_bytes = secbytes f ".text" in
+    let text_lbl = labels_at ".text" in
+    let text_slot off =
+      List.find_opt
+        (fun r ->
+          r.roff = off
+          && (r.rtyp = "R_X86_64_64" || r.rtyp = "R_X86_64_32"
+            || r.rtyp = "R_X86_64_32S"))
+        text_relocs
+    in
+    out "\t.section .text,\"ax\",@progbits";
+    let i = ref 0 in
+    while !i < text_size do
+      emit_labels text_lbl !i;
+      (match Hashtbl.find_opt off2instr !i with
+      | Some instr ->
+          out ("\t" ^ pp_print_instr (set_loc instr { (get_loc instr) with loc_label = ""; loc_visible = true }));
+          i := !i + len_of !i
+      | None -> (
+          match text_slot !i with
+          | Some r ->
+              let t = tgt section_names targets r.rsym r.radd in
+              if r.rtyp = "R_X86_64_64" then (out ("\t.quad " ^ t); i := !i + 8)
+              else (out ("\t.long " ^ t); i := !i + 4)
+          | None ->
+              out (Printf.sprintf "\t.byte 0x%02x" (Char.code text_bytes.[!i]));
+              incr i))
+    done;
+    emit_labels text_lbl text_size;
+    (* data and bss sections (ALLOC, excluding .text) *)
+    List.iter
+      (fun (_, secname, sectyp, secsize, secflags) ->
+        if
+          secname <> ".text"
+          && (String.contains secflags 'A' || List.mem secname special)
+        then
+          if sectyp = "NOBITS" then begin
+            out (Printf.sprintf "\t.section %s,\"aw\",@nobits" secname);
+            let h = labels_at secname in
+            let offs =
+              targets_of targets secname
+              @ Hashtbl.fold (fun k _ acc -> k :: acc) h []
+              |> List.sort_uniq compare
+            in
+            let prev = ref 0 in
+            List.iter
+              (fun off ->
+                if off > !prev then out (Printf.sprintf "\t.skip %d" (off - !prev));
+                emit_labels h off;
+                prev := off)
+              offs;
+            if secsize > !prev then out (Printf.sprintf "\t.skip %d" (secsize - !prev))
+          end
+          else if secsize > 0 then begin
+            (if List.mem secname special then out (Printf.sprintf "\t.section %s" secname)
+             else
+               let fl = if String.contains secflags 'W' then "aw" else "a" in
+               out (Printf.sprintf "\t.section %s,\"%s\",@progbits" secname fl));
+            let bytes = secbytes f secname in
+            let h = labels_at secname in
+            let rs = relocs_of secname in
+            let slot off =
+              List.find_opt
+                (fun r ->
+                  r.roff = off
+                  && (r.rtyp = "R_X86_64_64" || r.rtyp = "R_X86_64_32"
+                    || r.rtyp = "R_X86_64_32S"))
+                rs
+            in
+            let j = ref 0 in
+            let n = String.length bytes in
+            while !j < n do
+              emit_labels h !j;
+              (match slot !j with
+              | Some r ->
+                  let t = tgt section_names targets r.rsym r.radd in
+                  if r.rtyp = "R_X86_64_64" then (out ("\t.quad " ^ t); j := !j + 8)
+                  else (out ("\t.long " ^ t); j := !j + 4)
+              | None ->
+                  out (Printf.sprintf "\t.byte 0x%02x" (Char.code bytes.[!j]));
+                  incr j)
+            done;
+            emit_labels h n
+          end)
+      secs;
+    let oc = open_out "final.s" in
+    Buffer.output_buffer oc buf;
+    close_out oc
+end
+
+let etrel_emit (il : instr list) (f : string) : unit = Etrel.emit il f

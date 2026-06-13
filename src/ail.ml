@@ -91,6 +91,36 @@ class ail =
       ignore (Sys.command ("python3 main_discover.py " ^ " " ^ f ^ " " ^ arch))
 
     method instr_process (f : string) (arch : string) : unit =
+      if Elf_utils.elf_reloc () then self#etrel_process f arch
+      else self#normal_instr_process f arch
+
+    (* reuse the parser to build the typed instr list, then symbolize+emit
+       from the relocation tables. No DFA, jump-table, validator passes. *)
+    method etrel_process (f : string) (arch : string) : unit =
+      let funcs =
+        List.filter_map
+          (fun l ->
+            match Str.split (Str.regexp " +") l with
+            | v :: _sz :: "FUNC" :: _bind :: _ndx :: nm :: _ ->
+                let a = int_of_string ("0x" ^ v) in
+                Some
+                  {
+                    func_name = nm;
+                    func_begin_addr = a;
+                    func_end_addr = a;
+                    is_lib = false;
+                  }
+            | _ -> None)
+          (read_file "symtab.info")
+      in
+      let ail_parser = new ailParser in
+      ail_parser#set_funcs funcs;
+      ail_parser#set_secs secs;
+      ail_parser#set_arch arch;
+      ail_parser#process_instrs (read_file "instrs.info") arch;
+      Reassemble_symbol_get.etrel_emit ail_parser#get_instrs f
+
+    method normal_instr_process (f : string) (arch : string) : unit =
       let open Disassemble_process in
       let open Analysis_process in
       let module D = Disam in

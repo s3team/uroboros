@@ -589,6 +589,7 @@ and remove_parenthesis s' =
     | "fsub" -> FSUB
     | "fdivs" -> FDIVS
     | "fistpll" -> FISTPLL
+    | "fisttpll" -> FISTTPLL
     | "fdivrp" -> FDIVRP
     | "cmovge" -> CMOVGE
     | "fcmovbe" -> FCMOVBE
@@ -712,6 +713,7 @@ and remove_parenthesis s' =
     | "btr" -> BTR
     | "fldenv" -> FLDENV
     | "fnstenv" -> FNSTENV
+    | "fstenv" -> FSTENV
     | "stmxcsr" -> STMXCSR
     | "incsspd" -> INCSSPD
     | "ldmxcsr" -> LDMXCSR
@@ -897,6 +899,7 @@ and remove_parenthesis s' =
     | "prefetcht1" -> PREFETCHT1
     | "sfence" -> SFENCE
     | "lfence" -> LFENCE
+    | "mfence" -> MFENCE
     | "fwait" -> FWAIT
     | "out" -> OUT
     | _ -> raise ParseError
