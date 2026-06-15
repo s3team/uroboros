@@ -185,6 +185,16 @@ class ailInit =
           (Sys.command
              "cat plt_whole.info | grep \"^ \" | cut -f1,3- > plt_whole2.info");
         ignore (Sys.command "cat plt_whole2.info >> instrs.info");
+        if EU.elf_arm () || EU.is_vxworks_rtp () then begin
+          ignore
+            (Sys.command
+               "cat init_whole.info 2>/dev/null | grep \"^ \" | cut -f1,3- >> \
+                instrs.info");
+          ignore
+            (Sys.command
+               "cat fini_whole.info 2>/dev/null | grep \"^ \" | cut -f1,3- >> \
+                instrs.info")
+        end;
         if EU.elf_arm () && EU.elf_64 () then
           ignore
             (Sys.command
@@ -222,7 +232,12 @@ class ailInit =
             ^ " | awk \'FNR>14\' | awk \
                \'/data|bss|got|__libc_IO_vtables|__libc_freeres_ptrs/ {print \
                $2,$4,$5,$6} \' | awk \' {print $1,$2,$3,$4}\' >> sections.info"
-             )))
+             ));
+        ignore
+          (Sys.command
+             ("readelf -SW " ^ f
+            ^ " | awk \'/PROGBITS|NOBITS/ { for(i=1;i<=NF;i++) if($i ~ /^[.]/) \
+               {print $i, $NF; break} }\' > sec_align.info")))
       else (
         ignore
           (Sys.command
@@ -256,11 +271,25 @@ class ailInit =
            ("readelf -S " ^ f
           ^ " | awk \'FNR>14\' | awk \'/init/ {print $2,$4,$5,$6} \' | awk \
              \'$1 != \".init_array\" {print $1,$2,$3,$4}\' >> init_sec.info"));
+      ignore
+        (Sys.command
+           ("readelf -SW " ^ f
+          ^ " | awk \'FNR<15\' | awk \'/fini/ {print $3,$5,$6,$7} \' | awk \
+             \'$1 != \".fini_array\" {print $1,$2,$3,$4}\' > fini_sec.info"));
+      ignore
+        (Sys.command
+           ("readelf -SW " ^ f
+          ^ " | awk \'FNR>14\' | awk \'/fini/ {print $2,$4,$5,$6} \' | awk \
+             \'$1 != \".fini_array\" {print $1,$2,$3,$4}\' >> fini_sec.info"));
       ignore (Sys.command "rm init_array.info");
       ignore
         (Sys.command
            (objdump_command ^ " -s -j .init_array " ^ f
           ^ " >>init_array.info 2>&1"));
+      ignore
+        (Sys.command
+           (objdump_command ^ " -s -j .fini_array " ^ f
+          ^ " > fini_array.info 2>&1"));
       ignore
         (Sys.command
            ("readelf -S " ^ f
@@ -286,7 +315,12 @@ class ailInit =
              ("readelf -SW " ^ f
             ^ " | awk \'FNR>14\' | awk \
                \'/data|bss|got|__libc_IO_vtables|__libc_freeres_ptrs/ {print \
-               $2,$4,$5,$6} \'  >> sections.info")))
+               $2,$4,$5,$6} \'  >> sections.info"));
+        ignore
+          (Sys.command
+             ("readelf -SW " ^ f
+            ^ " | awk \'/PROGBITS|NOBITS/ { for(i=1;i<=NF;i++) if($i ~ /^[.]/) \
+               {print $i, $NF; break} }\' > sec_align.info")))
       else (
         ignore
           (Sys.command
@@ -318,11 +352,32 @@ class ailInit =
            ("readelf -SW " ^ f
           ^ " | awk \'FNR>14\' | awk \'/init/ {print $2,$4,$5,$6} \' | awk \
              \'$1 != \".init_array\" {print $1,$2,$3,$4}\' >> init_sec.info"));
+      ignore
+        (Sys.command
+           ("readelf -SW " ^ f
+          ^ " | awk \'FNR<15\' | awk \'/fini/ {print $3,$5,$6,$7} \' | awk \
+             \'$1 != \".fini_array\" {print $1,$2,$3,$4}\' > fini_sec.info"));
+      ignore
+        (Sys.command
+           ("readelf -SW " ^ f
+          ^ " | awk \'FNR>14\' | awk \'/fini/ {print $2,$4,$5,$6} \' | awk \
+             \'$1 != \".fini_array\" {print $1,$2,$3,$4}\' >> fini_sec.info"));
       ignore (Sys.command "rm init_array.info");
       ignore
         (Sys.command
            (objdump_command ^ " -s -j .init_array " ^ f
           ^ " >> init_array.info 2>&1"));
+      ignore
+        (Sys.command
+           (objdump_command ^ " -s -j .fini_array " ^ f
+          ^ " > fini_array.info 2>&1"));
+      if EU.is_vxworks_rtp () then
+        ignore
+          (Sys.command
+             (objdump_command ^ " -h " ^ f
+            ^ " | awk '$2==\".init_array\"||$2==\".fini_array\"||$2==\".eh_frame\"\
+               ||$2==\".rodata\" {print $2, $4, $3}' > \
+               initfini_array_bounds.info"));
       ignore
         (Sys.command
            ("readelf -SW " ^ f

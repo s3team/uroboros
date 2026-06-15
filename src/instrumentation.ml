@@ -1220,7 +1220,11 @@ let parse_instrument_file ~(funcs : func list)
 let parse_instrument ~(funcs : func list)
     ~(fname_callsites : (string, int list) Hashtbl.t) ~(instrs : instr list)
     ~(fbl : (string, bblock list) Hashtbl.t) ~(bbl : bblock list) : unit =
-  let main_symbol = List.hd (read_file "main.info") in
+  let main_symbol =
+    if Sys.file_exists "main.info" then
+      match read_file "main.info" with x :: _ -> x | [] -> ""
+    else ""
+  in
   (* points folder contains the instrumentation files *)
   let files =
     Sys.readdir "points" |> Array.to_list

@@ -21,7 +21,11 @@ let pp_print l =
 
 let check_assist exp =
   let assist_list =
-    [ "cmpsb"; "scas"; "stos"; "movsl"; "movsb"; "cmpsw"; "movsq"; "pop" ]
+    [
+      "cmpsb"; "cmpsw"; "cmpsl"; "cmpsq";
+      "movsb"; "movsw"; "movsl"; "movsq";
+      "scas"; "stos"; "lods"; "pop";
+    ]
   in
   List.mem exp assist_list
 

@@ -298,7 +298,12 @@ def main(fn: str, arch: str) -> int:
                 lines, entry_point_str, is_32bit_binary, is_thumb, arch
             )
             if start_section is None:
-                raise Exception("Cannot identify main function using entry point")
+                print(
+                    "main_discover: entry pattern not found so skipping main detection"
+                )
+                if os.path.exists("main.info"):
+                    os.remove("main.info")
+                return None
             main_symbol = get_main_symbol(start_section, is_32bit_binary, arch)
             i = len(start_section) - 1
 

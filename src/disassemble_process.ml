@@ -39,8 +39,13 @@ module Disam = struct
   let get_userfuncs fl = List.filter (fun f -> f.is_lib = false) fl
 
   let create_re (arch : string) : common_reassemble =
+    let module EU = Elf_utils in
     match arch with
     | "intel" -> (new reassemble :> common_reassemble)
+    | "arm" when EU.elf_64 () ->
+        let arm64_re = new Arm64_reassemble_symbol_get.arm64_reassemble in
+        let _ = arm64_re#set_arch arch in
+        (arm64_re :> common_reassemble)
     | "thumb" | "arm" ->
         let arm_re = new arm_reassemble in
         let _ = arm_re#set_arch arch in

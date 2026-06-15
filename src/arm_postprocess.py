@@ -1,4 +1,5 @@
 import time
+import os
 from functools import wraps
 import re as _re
 
@@ -356,6 +357,94 @@ def remove_unused_literal_pools_in_data(filename):
         f.writelines(new_content)
 
 
+def remove_second_text_section(filename):
+    """Drop the redundant second `.section .text` block (arm64)"""
+    new_content = []
+    text_count = 0
+    in_second = False
+    with open(filename, "r") as f:
+        for line in f:
+            is_text_section = ".section" in line and ".text" in line
+            if is_text_section:
+                text_count += 1
+                if text_count == 2:
+                    in_second = True
+                    continue  # drop the second `.section .text` header
+            if in_second:
+                if ".section" in line and ".text" not in line:
+                    in_second = False
+                    new_content.append(line)
+                # else: drop the line (it belongs to the second text block)
+                continue
+            new_content.append(line)
+
+    with open(filename, "w") as f:
+        f.writelines(new_content)
+
+
+def separate_init_fini_sections(filename):
+    with open(filename, "r") as f:
+        lines = f.readlines()
+
+    idx = {}
+    for k, l in enumerate(lines):
+        s = l.rstrip("\n")
+        if s in ("_init:", "_start:", "_fini:"):
+            idx[s] = k
+    if not all(x in idx for x in ("_init:", "_start:", "_fini:")):
+        return
+
+    def anchor(fn):
+        # the `S_0x...:` label line immediately above the function label
+        j = idx[fn] - 1
+        while j >= 0 and lines[j].strip() == "":
+            j -= 1
+        if (
+            j >= 0
+            and lines[j].lstrip().startswith("S_0x")
+            and lines[j].rstrip().endswith(":")
+        ):
+            return j
+        return idx[fn]
+
+    a_start = anchor("_start:")
+    a_fini = anchor("_fini:")
+    start_label = lines[a_start].rstrip("\n")
+
+    out = []
+    retitled = False
+    for k, l in enumerate(lines):
+        if k == a_start:
+            out.append(".section .text\n")
+            out.append(".align 4\n")
+        if k == a_fini:
+            out.append(".section .fini\n")
+            out.append(".align 2\n")
+        if k != a_start and l.rstrip("\n") == start_label:
+            continue  # stranded duplicate of the .text-start label
+        if not retitled and l.rstrip("\n") == ".section .text":
+            out.append(".section .init\n")
+            out.append(".align 2\n")
+            retitled = True
+            continue
+        out.append(l)
+
+    with open(filename, "w") as f:
+        f.writelines(out)
+
+
+def globalize_start(filename):
+    new_content = []
+    with open(filename, "r") as f:
+        for line in f:
+            if line.rstrip("\n") == "_start:":
+                new_content.append(".globl _start\n")
+            new_content.append(line)
+
+    with open(filename, "w") as f:
+        f.writelines(new_content)
+
+
 def remove_width_specifiers(filename):
     new_content = []
     with open(filename, "r") as f:
@@ -638,6 +727,10 @@ def main(argv):
         convert_symbol_to_use_movw_movt(assembly_path)
         remove_caret(assembly_path)
     elif arch == "arm" and not is_32():
+        remove_second_text_section(assembly_path)
+        separate_init_fini_sections(assembly_path)
+        if os.path.exists("vxworks_rtp.info"):
+            globalize_start(assembly_path)
         remove_caret(assembly_path)
     else:
         print("Unsupported architecture. Supported architectures are: thumb, arm.")

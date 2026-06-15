@@ -1,43 +1,16 @@
+import os
+
+
 def check_32():
-    lines = []
     with open("elf.info") as f:
-        lines = f.readlines()
-    if "32-bit" in lines[0]:
-        return True
-    else:
-        return False
-
-
-lines = []
-
-with open("init_array.info") as f:
-    lines = f.readlines()
-
-
-start_index = 0
-
-for i in range(len(lines)):
-    l = lines[i]
-    if "not found" in l:
-        start_index = -1
-    elif "Contents of section" in l:
-        start_index = i + 1
-    else:
-        continue
-
-lines = lines[start_index:]
-
-ctors = []  # C++ global ctors
-ctors_emit = (
-    []
-)  # same entries with the Thumb bit preserved, for .init_array re-emission
+        return "32-bit" in f.readlines()[0]
 
 
 def not_hex(d):
     try:
         int(d, 16)
         return False
-    except:
+    except Exception:
         return True
 
 
@@ -48,7 +21,7 @@ def parse(item):
     h4 = item[0:2].upper()
     addr = h1 + h2 + h3 + h4
 
-    # bit 0 of an .init_array entry marks a Thumb function pointer
+    # bit 0 of an array entry marks a Thumb function pointer
     addr_int = int(addr, 16)
     thumb_bit = addr_int % 2
     if thumb_bit == 1:
@@ -58,29 +31,51 @@ def parse(item):
     return "S_0x" + addr.lstrip("0"), thumb_bit
 
 
-def help(l):
-    global ctors
-    items = l.strip().split()
-    addr = items[0]
-    for item in items[1:]:
-        if len(item) != 8 or not_hex(item):
-            break
-        else:
+def parse_array(infile):
+    """Parse an `objdump -s` dump of an array section into (labels, emit) lists.
+
+    [labels] are bare `S_0x<addr>` used to create the target symbols; [emit] is
+    the same with the Thumb bit folded back as `+ 1` for re-emission.
+    """
+    try:
+        with open(infile) as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return [], []
+
+    start_index = 0
+    for i, l in enumerate(lines):
+        if "not found" in l:
+            return [], []
+        elif "Contents of section" in l:
+            start_index = i + 1
+
+    labels = []
+    emit = []
+    for l in lines[start_index:]:
+        items = l.strip().split()
+        for item in items[1:]:
+            if len(item) != 8 or not_hex(item):
+                break
             label, thumb_bit = parse(item)
             if len(label) == 4:
                 continue
-            ctors.append(label + "\n")
-            ctors_emit.append(label + (" + 1" if thumb_bit else "") + "\n")
+            labels.append(label + "\n")
+            emit.append(label + (" + 1" if thumb_bit else "") + "\n")
+    return labels, emit
 
 
-for l in lines:
-    help(l)
-# map(help, lines)
+rtp = os.path.exists("vxworks_rtp.info")
 
+labels, emit = parse_array("init_array.info")
 with open("init_array_new.info", "w") as f:
-    f.writelines(ctors)
-
-# .init_array[0] is frame_dummy; gcc's crtbegin re-adds it when final.s is
-# recompiled, so drop it here to avoid running the constructor twice.
+    f.writelines(labels)
 with open("init_array_emit.info", "w") as f:
-    f.writelines(ctors_emit[1:])
+    f.writelines(emit if rtp else emit[1:])
+
+if rtp:
+    flabels, femit = parse_array("fini_array.info")
+    with open("fini_array_new.info", "w") as f:
+        f.writelines(flabels)
+    with open("fini_array_emit.info", "w") as f:
+        f.writelines(femit)

@@ -1599,6 +1599,9 @@ class reassemble =
     val mutable instr_list : instr list = []
     val mutable text_sec : int * int = (0, 0) (* begin addr, size*)
     val mutable plt_sec : int * int = (0, 0) (* begin addr, size*)
+    val mutable init_sec : int * int = (0, 0)
+    val mutable fini_sec : int * int = (0, 0)
+    val mutable initfini_array_bound_map : (int, string) Hashtbl.t = Hashtbl.create 8
     val mutable text_mem_addrs : (string, unit) Hashtbl.t = Hashtbl.create 200
     val mutable rodata_list : string list = []
 
@@ -1660,7 +1663,39 @@ class reassemble =
         and size = int_of_string ("0x" ^ List.nth items 3) in
         text_sec <- (addr, size)
       in
-      List.iter help filelines
+      List.iter help filelines;
+      let module EU = Elf_utils in
+      if EU.is_vxworks_rtp () then begin
+        let collect file set =
+          if Sys.file_exists file then
+            List.iter
+              (fun l ->
+                match Str.split (Str.regexp " +") l with
+                | _ :: a :: _ :: s :: _ ->
+                    set (int_of_string ("0x" ^ a), int_of_string ("0x" ^ s))
+                | _ -> ())
+              (read_file file)
+        in
+        collect "init_sec.info" (fun v -> init_sec <- v);
+        collect "fini_sec.info" (fun v -> fini_sec <- v);
+        if Sys.file_exists "initfini_array_bounds.info" then
+          List.iter
+            (fun l ->
+              match Str.split (Str.regexp " +") (String.trim l) with
+              | [ name; vma; size ] -> (
+                  try
+                    let b = int_of_string ("0x" ^ vma)
+                    and sz = int_of_string ("0x" ^ size) in
+                    if name = ".init_array" then begin
+                      Hashtbl.replace initfini_array_bound_map b "__init_array_start";
+                      Hashtbl.replace initfini_array_bound_map (b + sz) "__init_array_end"
+                    end
+                    else if name = ".fini_array" then
+                      Hashtbl.replace initfini_array_bound_map (b + sz) "__fini_array_end"
+                  with _ -> ())
+              | _ -> ())
+            (read_file "initfini_array_bounds.info")
+      end
 
     method instr_addrs_collect (instrs : instr list) = ()
 
@@ -1690,6 +1725,7 @@ class reassemble =
         let addrs = dec_hex_col addr in
         Hashtbl.mem text_mem_addrs addrs
       in
+      let in_range a (b, sz) = a >= b && a < b + sz in
       let tb, tsize = text_sec in
       let te = tb + tsize in
       let pb, psize = plt_sec in
@@ -1702,6 +1738,10 @@ class reassemble =
         && judge_mem_list addr
       then true
       else if (addr >= tb && addr < te) && judge_mem_list addr then true
+      else if
+        EU.is_vxworks_rtp ()
+        && (in_range addr init_sec || in_range addr fini_sec)
+      then true
       else false
 
     method check_plt addr =
@@ -1714,6 +1754,17 @@ class reassemble =
 
     method build_symbol c =
       match c with Point s -> "S_" ^ dec_hex s | Normal s -> "$S_" ^ dec_hex s
+
+    method private rtp_initfini_array_bound c =
+      let lookup v pfx =
+        match Hashtbl.find_opt initfini_array_bound_map v with
+        | Some name -> Some (pfx ^ name)
+        | None -> None
+      in
+      match c with
+      | Normal v -> lookup v "$"
+      | Point v -> lookup v ""
+      | Immediate v -> lookup v "$"
 
     method build_plt_symbol c =
       let c' = match c with Point s -> s | Normal s -> s in
@@ -1737,6 +1788,11 @@ class reassemble =
       match e with
       | Const l -> begin
           let l' = self#parse_const l in
+          match
+            if Elf_utils.is_vxworks_rtp () then self#rtp_initfini_array_bound l else None
+          with
+          | Some lbl -> Label lbl
+          | None -> (
           match self#check_sec l' with
           | Some s ->
               begin if check_test_condition l chk = false then e
@@ -1790,7 +1846,7 @@ class reassemble =
                     else e
                   else e
                 end
-              end
+              end)
         end
       | Symbol s ->
           begin match s with
@@ -2442,7 +2498,40 @@ class reassemble =
     method excpt_tbl_dump =
       Sys.command "cat gcc_exception_table.data >> final.s"
 
-    method reassemble_dump u_funcs = self#data_dump u_funcs
+    method private vxworks_rtp_dump =
+      let module EU = Elf_utils in
+      if not (EU.is_vxworks_rtp ()) then ()
+      else begin
+        let oc =
+          open_out_gen [ Open_append; Open_creat ] 0o666 "final_data.s"
+        in
+        Printf.fprintf oc "\n.globl _start\n";
+        let ib, _ = init_sec and fb, _ = fini_sec in
+        if ib <> 0 then
+          Printf.fprintf oc ".globl __init\n.set __init, S_%s\n" (dec_hex ib);
+        if fb <> 0 then
+          Printf.fprintf oc ".globl __fini\n.set __fini, S_%s\n" (dec_hex fb);
+        let emit_array sec file =
+          if Sys.file_exists file then
+            let entries =
+              List.filter (fun s -> String.trim s <> "") (read_file file)
+            in
+            if entries <> [] then begin
+              Printf.fprintf oc "\n.section %s,\"aw\",@%s\n.align 8\n" sec
+                (String.sub sec 1 (String.length sec - 1));
+              List.iter
+                (fun l -> Printf.fprintf oc ".quad %s\n" (String.trim l))
+                entries
+            end
+        in
+        emit_array ".init_array" "init_array_emit.info";
+        emit_array ".fini_array" "fini_array_emit.info";
+        close_out oc
+      end
+
+    method reassemble_dump u_funcs =
+      self#data_dump u_funcs;
+      self#vxworks_rtp_dump
 
     method add_func_label ufuncs instrs =
       let module IU = Instr_utils in
@@ -2984,3 +3073,4 @@ module Etrel = struct
 end
 
 let etrel_emit (il : instr list) (f : string) : unit = Etrel.emit il f
+

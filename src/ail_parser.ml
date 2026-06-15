@@ -308,9 +308,13 @@ class ailParser =
       List.iter help funcs
 
     method create_func_slicer instrs funcs arch =
+      let module EU = Elf_utils in
       match arch with
       | "intel" ->
           (new Func_slicer.func_slicer instrs funcs :> common_func_slicer)
+      | "arm" when EU.elf_64 () ->
+          (new Arm64_func_slicer.arm64_func_slicer instrs funcs
+            :> common_func_slicer)
       | "thumb" | "arm" ->
           (new Arm_func_slicer.arm_func_slicer instrs funcs
             :> common_func_slicer)
@@ -326,8 +330,11 @@ class ailParser =
     method set_secs (l : section list) = secs <- l
 
     method create_parser arch =
+      let module EU = Elf_utils in
       match arch with
       | "intel" -> (new Parser.parse :> common_parser)
+      | "arm" when EU.elf_64 () ->
+          (new Arm64_parser.arm64_parse :> common_parser)
       | "thumb" | "arm" -> (new Arm_parser.arm_parse :> common_parser)
       | _ -> failwith "unsupported architecture"
 

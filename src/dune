@@ -107,6 +107,7 @@
   semantic_analysis
   common_reassemble_symbol_get
   arm_reassemble_symbol_get
+  arm64_reassemble_symbol_get
   arm_postprocess
   flow_insensitive_analysis
   reassemble_symbol_get
@@ -258,6 +259,14 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
+ (name arm64_func_slicer)
+ (modules arm64_func_slicer)
+ (libraries batteries type pp_print common_func_slicer ail_utils)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
  (name common_func_slicer)
  (modules common_func_slicer)
  (libraries type pp_print ail_utils init_sec_adjust)
@@ -284,6 +293,14 @@
 (library
  (name arm_parser)
  (modules arm_parser)
+ (libraries batteries ail_utils common_parser lex_new)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
+ (name arm64_parser)
+ (modules arm64_parser)
  (libraries batteries ail_utils common_parser lex_new)
  (wrapped false)
  (flags
@@ -364,6 +381,25 @@
   (:standard -w -7-8-26-27-10-11-32-33-39)))
 
 (library
+ (name arm64_reassemble_symbol_get)
+ (modules arm64_reassemble_symbol_get)
+ (libraries
+  batteries
+  export_data
+  visit
+  common_reassemble_symbol_get
+  symbol_table_get
+  type
+  ail_utils
+  arm_utils
+  tags_utils
+  pp_print
+  share_lib_helper)
+ (wrapped false)
+ (flags
+  (:standard -w -7-8-26-27-10-11-32-33-39)))
+
+(library
  (name ail_parser)
  (modules ail_parser)
  (libraries
@@ -375,7 +411,9 @@
   common_parser
   parser
   arm_parser
+  arm64_parser
   arm_func_slicer
+  arm64_func_slicer
   func_slicer)
  (wrapped false)
  (flags

@@ -31,6 +31,8 @@ let elf_static () =
   (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
   contains ~str:l ~sub:"statically linked"
 
+let is_vxworks_rtp () = Sys.file_exists "vxworks_rtp.info"
+
 let elf_unstrip () =
   (read_file "elf.info" |> fun l -> List.nth l 0) |> fun l ->
   contains ~str:l ~sub:"not stripped"

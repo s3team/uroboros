@@ -146,7 +146,7 @@ let p_ptraddr = function
       s ^ "(," ^ p_reg r ^ "," ^ p_loc offset ^ ")"
   | JmpTable_MINUS_S (s, r, offset) ->
       "-" ^ s ^ "(," ^ p_reg r ^ "," ^ p_loc offset ^ ")"
-  | SegRef (s, r) -> p_seg s ^ ":" ^ p_reg r
+  | SegRef (s, r) -> p_seg s ^ ":(" ^ p_reg r ^ ")"
 
 let p_const l =
   let d2h s = "$0x" ^ Printf.sprintf "%X" s
@@ -239,7 +239,11 @@ and p_triple p e1 e2 =
 
 and p_four p e1 e2 e3 =
   let assist_list =
-    [ "cmpsb"; "scas"; "stos"; "movsl"; "movsb"; "cmpsw"; "movsq" ]
+    [
+      "cmpsb"; "cmpsw"; "cmpsl"; "cmpsq";
+      "movsb"; "movsw"; "movsl"; "movsq";
+      "scas"; "stos"; "lods";
+    ]
   in
   let check_assist exp = List.mem exp assist_list in
   let p_str = p_op p

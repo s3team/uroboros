@@ -16,6 +16,26 @@ SDK_CLANG = os.path.join(
     "tool/vxworks/x86/clang",
 )
 
+SDK_LDARM64 = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "tool/vxworks/arm64/ldarm64",
+)
+
+SDK_RTP_LD = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "tool/vxworks/arm64/rtp.ld",
+)
+
+SDK_LDPENTIUM = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "tool/vxworks/x86/ldpentium",
+)
+
+SDK_RTP_LD_X86 = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "tool/vxworks/x86/rtp.ld",
+)
+
 def is_exe():
     lines = []
     with open("elf.info") as f:
@@ -62,6 +82,39 @@ def is_reloc():
     with open("elf.info") as f:
         lines = f.readlines()
     return "relocatable" in lines[0]
+
+
+def is_vxworks_rtp():
+    return os.path.exists("vxworks_rtp.info")
+
+
+def detect_vxworks_rtp():
+    if os.path.exists("vxworks_rtp.info"):
+        os.remove("vxworks_rtp.info")
+    with open("elf.info") as f:
+        elf = f.readline()
+    is_aarch64 = "aarch64" in elf
+    is_x86_64 = "x86-64" in elf
+    if (not is_aarch64 and not is_x86_64) or not is_static() or not os.path.exists(
+        "headers.info"
+    ):
+        return
+    first_load = None
+    with open("headers.info") as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) >= 3 and parts[0] == "LOAD":
+                try:
+                    first_load = int(parts[2], 16)
+                except ValueError:
+                    pass
+                break
+    if first_load is None:
+        return
+    if (is_aarch64 and first_load >= 0x80000000) or (
+        is_x86_64 and first_load == 0x200000
+    ):
+        open("vxworks_rtp.info", "w").close()
 
 
 def is_cpp(binary):
@@ -144,6 +197,31 @@ def reassemble(assembly_file, arch, binary):
     if is_reloc():
         print(f"reassemble: {SDK_CLANG} -c {assembly_file} -o a.ko")
         os.system(f"{SDK_CLANG} -c {assembly_file} -o a.ko 2> final.error")
+        return
+
+    if is_vxworks_rtp():
+        if arch == "intel":
+            print(f"reassemble: as --64 + {SDK_LDPENTIUM} -> a.vxe")
+            os.system(f"as --64 {assembly_file} -o final.o 2> final.error")
+            # -z noseparate-code collapses to one R E LOAD (like the original)
+            # -z execstack matches the original's RWE stack. Both are required
+            # for VxWorks to instantiate the RTP
+            os.system(
+                f"{SDK_LDPENTIUM} -m elf_x86_64 -static -z noseparate-code "
+                f"-z execstack --defsym __wrs_rtp_base=0x200000 -T {SDK_RTP_LD_X86} "
+                f"-e _start final.o -o a.vxe 2>> final.error"
+            )
+        else:
+            print(f"reassemble: aarch64-linux-gnu-as + {SDK_LDARM64} -> a.vxe")
+            os.system(
+                f"aarch64-linux-gnu-as -march=armv9-a {assembly_file} -o final.o "
+                f"2> final.error"
+            )
+            os.system(
+                f"{SDK_LDARM64} -m aarch64elf -EL -static -z noexecstack "
+                f"--defsym __wrs_rtp_base=0x80000000 -T {SDK_RTP_LD} -e _start "
+                f"final.o -o a.vxe 2>> final.error"
+            )
         return
 
     compiler = ""
@@ -258,6 +336,14 @@ def process(f, i, arch):
                 )
                 os.system(f"readelf -r {f} > rela_plt.info")
                 os.system(f"readelf -l {f} > headers.info")
+            detect_vxworks_rtp()
+            if is_static() and (arch == "arm" or is_vxworks_rtp()):
+                os.system(
+                    f"{objdump_commamnd} -d --section=.init {f} > init_whole.info 2> /dev/null"
+                )
+                os.system(
+                    f"{objdump_commamnd} -d --section=.fini {f} > fini_whole.info 2> /dev/null"
+                )
             os.system(f"{strip_command} {f}")
 
         bit_mode = "32" if is_32bit_binary else "64"

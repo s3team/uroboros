@@ -282,7 +282,16 @@ and remove_parenthesis s' =
       let has_seg = list_has se in
       if List.length items = 2 && has_seg = true then
         let se' = remove_dollar_sign se in
-        (seg_symb se', reg_symb (List.nth items 1))
+        (* string-op operands are seg:(reg), %es:(%rdi), strip the
+           parens to read the base register *)
+        let m = List.nth items 1 in
+        let ml = String.length m in
+        let reg_s =
+          if ml >= 2 && m.[0] = '(' && m.[ml - 1] = ')' then
+            String.sub m 1 (ml - 2)
+          else m
+        in
+        (seg_symb se', reg_symb reg_s)
       else raise ParseError
     else raise ParseError
   and arithm_symb (s : string) : intel_arithmop =
@@ -1184,18 +1193,25 @@ let eiz_symb = function s ->
       else self#jumpdes_symb s'
 
     method exp_symb s =
-      try Ptr (self#ptr_symb s)
+      (* A segment-override memory operand (e.g. %es:(%rdi) in string ops) must
+         be tried before ptr_symb, which would swallow the parens and drop the
+         %seg: prefix, mangling `rep movsw %ds:(%rsi),%es:(%rdi)`. *)
+      try
+        let seg, r = segref_symb s in
+        Ptr (SegRef (seg, Intel_Reg r))
       with _ -> (
-        try Reg (Intel_Reg (reg_symb s))
+        try Ptr (self#ptr_symb s)
         with _ -> (
-          try Assist (assist_symb s)
+          try Reg (Intel_Reg (reg_symb s))
           with _ -> (
-            try Const (const_symb s)
+            try Assist (assist_symb s)
             with _ -> (
-              try Symbol (self#symbol_symb s)
+              try Const (const_symb s)
               with _ -> (
-                try Label s (* we jut consider these as labels *)
-                with _ -> raise ParseError)))))
+                try Symbol (self#symbol_symb s)
+                with _ -> (
+                  try Label s (* we jut consider these as labels *)
+                  with _ -> raise ParseError))))))
 
     method push_stack lex =
       match lex with

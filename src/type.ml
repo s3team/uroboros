@@ -1158,6 +1158,10 @@ and arm_arithmop =
   | ADRP
   | SXTW
   | SCVTF
+  | FCVTZS
+  | FCVTZU
+  | UCVTF
+  | FNEG
   | FDIV
   | FCVT
   | FSUB
@@ -1359,6 +1363,12 @@ and arm_assignop =
   | CNTD
   | LDADD
   | LDSETA
+  | LDSET
+  | LDSETAL
+  | LDCLRAL
+  | LDADDAL
+  | CASAL
+  | SWPAL
   | LDURSH
   | LDURSW
   | RETAA
@@ -2566,6 +2576,10 @@ let show_arm_op = function
           | ADRP -> "adrp"
           | SXTW -> "sxtw"
           | SCVTF -> "scvtf"
+          | FCVTZS -> "fcvtzs"
+          | FCVTZU -> "fcvtzu"
+          | UCVTF -> "ucvtf"
+          | FNEG -> "fneg"
           | FDIV -> "fdiv"
           | FCVT -> "fcvt"
           | FSUB -> "fsub"
@@ -2768,6 +2782,12 @@ let show_arm_op = function
           | CNTD -> "cntd"
           | LDADD -> "ldadd"
           | LDSETA -> "ldseta"
+          | LDSET -> "ldset"
+          | LDSETAL -> "ldsetal"
+          | LDCLRAL -> "ldclral"
+          | LDADDAL -> "ldaddal"
+          | CASAL -> "casal"
+          | SWPAL -> "swpal"
           | LDURSH -> "ldursh"
           | LDURSW -> "ldursw"
           | RETAA -> "retaa"
