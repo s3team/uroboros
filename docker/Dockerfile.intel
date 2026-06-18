@@ -38,12 +38,14 @@ RUN apt-get update && apt-get upgrade -y && \
     libselinux1-dev \
     gcc-multilib \
     g++-multilib \
-    libgmp-dev
+    libgmp-dev \
+    qemu-system-x86
 
 # allow use of git inside the container
 RUN git config --global --add safe.directory /usr/src
 # create virtual env
 RUN python3 -m venv $VIRTUAL_ENV
+RUN pip install pyftpdlib pexpect
 
 RUN opam init -a --disable-sandboxing
 RUN opam switch create 5.3.0

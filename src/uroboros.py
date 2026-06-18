@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import datetime
 import os
+import re
 import subprocess
 import sys
 import time
@@ -10,11 +11,6 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 k = False
 f_dic = ""
 iter_num = 0
-
-SDK_CLANG = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "tool/vxworks/x86/clang",
-)
 
 SDK_LDARM64 = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -193,10 +189,27 @@ def get_custom_objects(cleanup):
     return list(dict.fromkeys(result))
 
 
+def get_custom_asm():
+    result = subprocess.run(
+        "ls *.s 2>/dev/null", shell=True, capture_output=True, text=True
+    )
+    files = result.stdout.split() if result.stdout else []
+    # exclude uroboros's own .s intermediates (final.s/final_data.s)
+    uroboros_asm = ("final.s", "final_data.s", "dump.s")
+    return [f for f in files if f not in uroboros_asm]
+
+
 def reassemble(assembly_file, arch, binary):
     if is_reloc():
-        print(f"reassemble: {SDK_CLANG} -c {assembly_file} -o a.ko")
-        os.system(f"{SDK_CLANG} -c {assembly_file} -o a.ko 2> final.error")
+        custom_objects = get_custom_objects(cleanup=False)
+        if custom_objects:
+            objs = " ".join(custom_objects)
+            print(f"reassemble: as --64 {assembly_file} -o final.o; ld -r final.o {objs} -o a.ko")
+            os.system(f"as --64 {assembly_file} -o final.o 2> final.error")
+            os.system(f"ld -r final.o {objs} -o a.ko 2>> final.error")
+        else:
+            print(f"reassemble: as --64 {assembly_file} -o a.ko")
+            os.system(f"as --64 {assembly_file} -o a.ko 2> final.error")
         return
 
     if is_vxworks_rtp():
@@ -289,6 +302,31 @@ def modify_error(errors):
         f.writelines(lines)
 
 
+def arm64_ldr_fallback():
+    # to handle unresolvable arm64 adrp+add targets
+    if not os.path.isfile("final.s"):
+        return
+    with open("final.s") as f:
+        lines = f.readlines()
+    adrp_re = re.compile(r"^\s*adrp\s+(x\d+)\s*,\s*0x([0-9A-Fa-f]+)\s*$")
+    for i, ln in enumerate(lines):
+        m = adrp_re.match(ln)
+        if not m:
+            continue
+        reg, addr = m.group(1), m.group(2)
+        add_re = re.compile(
+            r"^\s*add\s+%s\s*,\s*%s\s*,\s*:lo12:0x%s\s*$" % (reg, reg, addr),
+            re.IGNORECASE,
+        )
+        for j in range(i + 1, min(i + 20, len(lines))):
+            if add_re.match(lines[j]):
+                lines[i] = "ldr %s,=0x%s\n" % (reg, addr)
+                lines[j] = "nop\n"
+                break
+    with open("final.s", "w") as f:
+        f.writelines(lines)
+
+
 def process(f, i, arch):
     is_32bit_binary = is_32()
     reloc = is_reloc()
@@ -366,6 +404,11 @@ def process(f, i, arch):
 
             os.system("cat final_data.s >> final.s")
 
+            if is_vxworks_rtp():
+                for asm in get_custom_asm():
+                    print(f"custom_asm: cat {asm} >> final.s")
+                    os.system(f"cat {asm} >> final.s")
+
         if k:
             os.system("cp final.s final.s." + str(i))
 
@@ -384,6 +427,8 @@ def process(f, i, arch):
         reassemble("final.s", arch, f)
         if not reloc:
             modify_error(parse_errors())
+            if arch == "arm" and not is_32():
+                arm64_ldr_fallback()
             reassemble("final.s", arch, f)
 
         custom_objects = get_custom_objects(cleanup=True)

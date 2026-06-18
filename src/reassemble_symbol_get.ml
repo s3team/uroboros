@@ -2851,7 +2851,8 @@ module Etrel = struct
 
   let special = [ ".eh_frame"; ".eh_frame_hdr"; ".init_array"; ".fini_array" ]
 
-  let emit (il : instr list) (f : string) : unit =
+  let emit (orig : instr list) (aug : instr list) (f : string) : unit =
+    Pp_print.comment_sym := "#";
     let syms =
       List.filter_map
         (fun l ->
@@ -2911,7 +2912,7 @@ module Etrel = struct
     List.iter
       (fun (s, e) ->
         let offs =
-          List.map get_addr il
+          List.map get_addr orig
           |> List.filter (fun o -> s <= o && o < e)
           |> List.sort compare
         in
@@ -2939,7 +2940,7 @@ module Etrel = struct
         let i' = List.fold_left (apply_reloc section_names targets off len) i rs in
         let i' = branch_fix targets i' in
         Hashtbl.replace off2instr off i')
-      il;
+      orig;
     (* register data-slot and data-section targets (absolute addends) *)
     List.iter
       (fun (_, secname, _, _, _) ->
@@ -2993,24 +2994,44 @@ module Etrel = struct
         text_relocs
     in
     out "\t.section .text,\"ax\",@progbits";
-    let i = ref 0 in
-    while !i < text_size do
-      emit_labels text_lbl !i;
-      (match Hashtbl.find_opt off2instr !i with
-      | Some instr ->
-          out ("\t" ^ pp_print_instr (set_loc instr { (get_loc instr) with loc_label = ""; loc_visible = true }));
-          i := !i + len_of !i
-      | None -> (
-          match text_slot !i with
-          | Some r ->
-              let t = tgt section_names targets r.rsym r.radd in
-              if r.rtyp = "R_X86_64_64" then (out ("\t.quad " ^ t); i := !i + 8)
-              else (out ("\t.long " ^ t); i := !i + 4)
-          | None ->
-              out (Printf.sprintf "\t.byte 0x%02x" (Char.code text_bytes.[!i]));
-              incr i))
-    done;
-    emit_labels text_lbl text_size;
+    out "\t.p2align 2";
+    let emit_instr instr =
+      out ("\t" ^ pp_print_instr (set_loc instr { (get_loc instr) with loc_label = ""; loc_visible = true }))
+    in
+    let emit_data_gap a b =
+      let j = ref a in
+      while !j < b do
+        emit_labels text_lbl !j;
+        (match text_slot !j with
+        | Some r ->
+            let t = tgt section_names targets r.rsym r.radd in
+            if r.rtyp = "R_X86_64_64" then (out ("\t.quad " ^ t); j := !j + 8)
+            else (out ("\t.long " ^ t); j := !j + 4)
+        | None ->
+            out (Printf.sprintf "\t.byte 0x%02x" (Char.code text_bytes.[!j]));
+            incr j)
+      done
+    in
+    let rec walk aug orig cursor =
+      match aug with
+      | [] ->
+          emit_data_gap cursor text_size;
+          emit_labels text_lbl text_size
+      | a :: aug' -> (
+          match orig with
+          | o :: orig' when a == o ->
+              let off = get_addr o in
+              emit_data_gap cursor off;
+              emit_labels text_lbl off;
+              (match Hashtbl.find_opt off2instr off with
+              | Some instr -> emit_instr instr
+              | None -> ());
+              walk aug' orig' (off + len_of off)
+          | _ ->
+              emit_instr a;
+              walk aug' orig cursor)
+    in
+    walk aug orig 0;
     (* data and bss sections (ALLOC, excluding .text) *)
     List.iter
       (fun (_, secname, sectyp, secsize, secflags) ->
@@ -3036,7 +3057,9 @@ module Etrel = struct
             if secsize > !prev then out (Printf.sprintf "\t.skip %d" (secsize - !prev))
           end
           else if secsize > 0 then begin
-            (if List.mem secname special then out (Printf.sprintf "\t.section %s" secname)
+            (if secname = ".eh_frame" then
+               out "\t.section .eh_frame,\"a\",@unwind"
+             else if List.mem secname special then out (Printf.sprintf "\t.section %s" secname)
              else
                let fl = if String.contains secflags 'W' then "aw" else "a" in
                out (Printf.sprintf "\t.section %s,\"%s\",@progbits" secname fl));
@@ -3072,5 +3095,6 @@ module Etrel = struct
     close_out oc
 end
 
-let etrel_emit (il : instr list) (f : string) : unit = Etrel.emit il f
+let etrel_emit (orig : instr list) (aug : instr list) (f : string) : unit =
+  Etrel.emit orig aug f
 

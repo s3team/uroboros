@@ -1043,9 +1043,10 @@ let create_points_f1 (action : act option) (dir : dir option)
     | SYMBOL s -> (
         let s' = if s = "main" then main_symbol else s in
         match locm with
-        | Some FUNENTRY -> begin
-            match List.find_opt (fun f -> f.func_name = s') ufl with
-            | Some s_func ->
+        | Some FUNENTRY ->
+            (* glob: one selector may match many funcs (e.g. `*Start`) *)
+            List.iter
+              (fun s_func ->
                 let p' =
                   ( s_func.func_begin_addr,
                     action,
@@ -1059,12 +1060,11 @@ let create_points_f1 (action : act option) (dir : dir option)
                     pidx + 1,
                     filepath )
                 in
-                points_f1 := p' :: !points_f1
-            | None -> ()
-          end
-        | Some FUNEXIT -> begin
-            match List.find_opt (fun f -> f.func_name = s') ufl with
-            | Some s_func ->
+                points_f1 := p' :: !points_f1)
+              (List.filter (fun f -> glob_match s' f.func_name) ufl)
+        | Some FUNEXIT ->
+            List.iter
+              (fun s_func ->
                 let p' =
                   ( s_func.func_end_addr,
                     action,
@@ -1078,9 +1078,8 @@ let create_points_f1 (action : act option) (dir : dir option)
                     pidx + 1,
                     filepath )
                 in
-                points_f1 := p' :: !points_f1
-            | None -> ()
-          end
+                points_f1 := p' :: !points_f1)
+              (List.filter (fun f -> glob_match s' f.func_name) ufl)
         | Some CALLSITE -> begin
             match Hashtbl.find_opt fname2css s' with
             | Some css ->

@@ -185,7 +185,7 @@ class ailInit =
           (Sys.command
              "cat plt_whole.info | grep \"^ \" | cut -f1,3- > plt_whole2.info");
         ignore (Sys.command "cat plt_whole2.info >> instrs.info");
-        if EU.elf_arm () || EU.is_vxworks_rtp () then begin
+        if EU.is_vxworks_rtp () || (EU.elf_arm () && EU.elf_32 ()) then begin
           ignore
             (Sys.command
                "cat init_whole.info 2>/dev/null | grep \"^ \" | cut -f1,3- >> \
@@ -530,7 +530,8 @@ class ailInit =
         ignore (Sys.command "python3 spliter.py")
       end;
       TR.elapsed' ~l:"init" init_begin_time;
-      processor#instr_process f arch
+      if EU.elf_reloc () then processor#etrel_process f arch
+      else processor#instr_process f arch
   end
 
 let check_strip (f : string) : bool =

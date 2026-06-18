@@ -65,7 +65,7 @@ It is not used for action `delete` or `replace`.
 
 `loc` is a list like `[address, symbol, address1-address2]`.
 * `address`: the specified address for the instrumentation.
-* `symbol`: the specified symbol for the instrumentation. This option is only available for executable binaries that are not stripped.
+* `symbol`: the specified symbol for the instrumentation. This option is only available for executable binaries that are not stripped. A symbol may contain `*` wildcards (for the `funentry` and `funexit` loc-modifiers) to match multiple functions by name; the instrumentation point is then applied to *every* matching function. For example, `[*Start]` matches every function whose name ends in `Start`, and `[*]` matches all functions. A symbol with no `*` matches exactly (unchanged behavior).
 * `address1-address2`: the specified range of addresses.
 
 `loc-modifier` is one of `{self, callsite, funentry, funexit}`.
@@ -116,6 +116,11 @@ The above will insert before any call to function `print_info` with call to `bef
 INSERT AFTER [print_info] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;
 ```
 The above will insert at the start of print_info with call to `log_execution_times` defined in `fun.c`.
+
+```
+INSERT AFTER [*Start] FUNENTRY [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;
+```
+The `*` wildcard makes a single point apply to many functions: the above inserts the call to `log_execution_times` at the entry of *every* function whose name ends in `Start`.
 
 ```
 INSERT BEFORE [print_info] FUNEXIT [] "gcc -no-pie -c ./instr_modules/c/fun.c" C log_execution_times ./instr_modules/c/fun.c;

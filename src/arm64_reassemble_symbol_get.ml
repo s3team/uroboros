@@ -2354,9 +2354,22 @@ class arm64_reassemble =
                   if self#has_data addr then begin
                     let s_label = "S_" ^ dec_hex addr in
                     let i_tags = get_tags i in
+                    (* A 128-bit ldr/str (q register) against this datum emits
+                       R_AARCH64_LDST128_ABS_LO12_NC, which needs the target
+                       16-byte aligned or ld truncates the reloc. Force .align 4. *)
+                    let is_q128 =
+                      Elf_utils.elf_static ()
+                      &&
+                      match i with
+                      | TripleInstr (_, _, Reg dr, _, _, _)
+                      | FourInstr (_, _, _, Reg dr, _, _, _) ->
+                          let s = p_reg dr in
+                          String.length s > 0 && (s.[0] = 'q' || s.[0] = 'Q')
+                      | _ -> false
+                    in
                     (match Hashtbl.find_opt i_tags "align" with
                     | Some _ -> align <- (s.sec_name, addr) :: align
-                    | None -> ());
+                    | None -> if is_q128 then align <- (s.sec_name, addr) :: align);
                     let loc' = IU.get_loc i in
                     c2d_addr <- loc'.loc_addr :: c2d_addr;
                     let tags = get_tags i in

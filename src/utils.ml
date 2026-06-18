@@ -178,3 +178,36 @@ let timed l f =
   let r = f () in
   TR.elapsed' ~l t;
   r
+
+let glob_match (pat : string) (s : string) : bool =
+  if not (String.contains pat '*') then String.equal pat s
+  else begin
+    let n = String.length s in
+    let star_start = pat.[0] = '*' in
+    let star_end = pat.[String.length pat - 1] = '*' in
+    let segs = String.split_on_char '*' pat |> List.filter (fun x -> x <> "") in
+    let find_from sub from =
+      let sl = String.length sub in
+      let rec loop i =
+        if i + sl > n then -1
+        else if String.sub s i sl = sub then i
+        else loop (i + 1)
+      in
+      loop from
+    in
+    let rec go segs pos first =
+      match segs with
+      | [] -> true
+      | seg :: rest ->
+          let idx = find_from seg pos in
+          if idx < 0 then false
+          else if first && (not star_start) && idx <> 0 then false
+          else (
+            match rest with
+            | [] -> if not star_end then idx + String.length seg = n else true
+            | _ -> go rest (idx + String.length seg) false)
+    in
+    if segs = [] then true (* all-'*' pattern matches anything *)
+    else go segs 0 true
+  end
+
