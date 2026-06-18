@@ -2,6 +2,7 @@
 import datetime
 import os
 import subprocess
+import sys
 import time
 from argparse import ArgumentParser, RawTextHelpFormatter
 
@@ -61,6 +62,52 @@ def is_cpp(binary):
         return "libstdc++" in deps
     except Exception:
         return False
+
+
+def warn(msg):
+    print(f"WARNING: {msg}", file=sys.stderr)
+
+
+def is_pie(f):
+    # A PIE executable is ET_DYN with an interpreter.
+    try:
+        header = os.popen(f"readelf -h {f} 2>/dev/null").read()
+    except Exception:
+        return False
+
+    is_dyn = any("Type:" in l and "DYN" in l for l in header.splitlines())
+
+    return is_dyn and is_exe()
+
+
+def warn_arch_and_features(f, arch):
+    # Warn when the input binary contains missing features that the selected
+    # architecture does not support, so a later failure has a clear reason.
+    supported_archs = {
+        "intel",
+        "thumb",
+        "arm",
+    }
+
+    if arch not in supported_archs:
+        warn(
+            f"Unsupported architecture '{arch}'; supported architectures are: {', '.join(supported_archs)}"
+        )
+
+        return
+
+    if arch == "arm" and is_32():
+        warn(f"{arch} does not support ARM32 binaries.")
+
+    # C++ is only supported on ARM Thumb.
+    if arch != "thumb" and is_cpp(f):
+        warn(
+            f"{arch} does not support C++ binaries (only ARM Thumb has demonstrated C++ support)."
+        )
+
+    # PIE/-pie is only supported on x86/intel.
+    if arch != "intel" and is_pie(f):
+        warn(f"{arch} does not support PIE/-pie binaries (only no-pie is supported).")
 
 
 def get_custom_objects(cleanup):
@@ -428,6 +475,8 @@ assumption two and three: -a 2 -a 3""",
     ):
         pass
     else:
+        warn_arch_and_features(f, arch)
+
         if k:
             fold_withtamp(f)
 
